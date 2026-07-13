@@ -13,7 +13,16 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_jwt_audience: str = "authenticated"
+    supabase_jwks_cache_seconds: int = 600
     internal_api_key: str = ""
+
+    @property
+    def supabase_issuer(self) -> str:
+        return f"{self.supabase_url.rstrip('/')}/auth/v1"
+
+    @property
+    def supabase_jwks_url(self) -> str:
+        return f"{self.supabase_issuer}/.well-known/jwks.json"
 
     cors_origins_value: str = Field("http://localhost:3000", alias="CORS_ORIGINS")
 
