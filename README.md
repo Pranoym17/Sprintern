@@ -67,6 +67,8 @@ docker compose up -d
 
 Keep the local `DATABASE_URL` from `.env.example`. Add real Supabase and integration credentials only when those services are enabled. Never commit `.env`.
 
+For Supabase Auth, create a project with asymmetric JWT signing keys, then set `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and the publishable/anon keys. FastAPI downloads the project's JWKS, caches it for at most ten minutes, and validates token signature, issuer, audience, expiry, and subject. Secret and service-role keys must never be exposed to the browser.
+
 ## Run locally
 
 Use two terminals:
@@ -105,6 +107,18 @@ After adding or changing SQLAlchemy models:
 
 SQLAlchemy/Alembic is the only application database layer. Prisma is intentionally not used. Supabase Auth users will later be linked to application profile records by UUID.
 
+## Implemented API foundation
+
+- Supabase bearer-token verification through asymmetric JWKS
+- Idempotent application-profile bootstrap
+- Profile and filter resources with ownership enforcement
+- Active job feed and stable cursor pagination
+- Match status and basic analytics resources
+- Standard validation and application error bodies
+- Service-key-protected source status endpoint
+
+The shared ingestion framework defines typed adapter contracts, normalized job candidates, URL/text canonicalization, cross-source deduplication, 30-day repost handling, retry/backoff behavior, per-source non-overlap locks, durable run counters, and transactional cursor updates. Individual external source adapters are intentionally the next phase.
+
 ## Known limitations
 
 - APScheduler must run as a single scheduler process and does not provide distributed work queues.
@@ -115,4 +129,4 @@ SQLAlchemy/Alembic is the only application database layer. Prisma is intentional
 
 ## Current scope
 
-This repository currently contains foundation only: a default Next.js application, a minimal FastAPI health endpoint, database connectivity configuration, migrations tooling, and automated checks. Product features have not been implemented.
+Phases 0–3 are complete: architecture boundaries, core schema, authenticated REST resources, and the source-neutral ingestion framework. No external source adapter, matching workflow, notification delivery, Supabase frontend, or product dashboard has been implemented yet.
