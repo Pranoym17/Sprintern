@@ -1,0 +1,92 @@
+import uuid
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from api.database import Base
+from api.models.base import TimestampMixin
+from api.models.enums import JobSourceName, JobStatus, WorkMode
+
+
+class Job(TimestampMixin, Base):
+    __tablename__ = "jobs"
+    __table_args__ = (
+        Index("ix_jobs_status_posted", "status", "posted_at"),
+        Index("ix_jobs_fingerprint", "canonical_fingerprint"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company: Mapped[str] = mapped_column(String(200))
+    normalized_company: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(300))
+    normalized_title: Mapped[str] = mapped_column(String(300))
+    location: Mapped[str | None] = mapped_column(String(300))
+    normalized_location: Mapped[str | None] = mapped_column(String(300))
+    term: Mapped[str | None] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    work_mode: Mapped[WorkMode] = mapped_column(
+        Enum(
+            WorkMode,
+            native_enum=False,
+            create_constraint=True,
+            name="job_work_mode",
+            length=16,
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        default=WorkMode.UNKNOWN,
+        server_default=WorkMode.UNKNOWN.value,
+    )
+    canonical_fingerprint: Mapped[str] = mapped_column(String(64))
+    status: Mapped[JobStatus] = mapped_column(
+        Enum(
+            JobStatus,
+            native_enum=False,
+            create_constraint=True,
+            name="job_status",
+            length=16,
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        default=JobStatus.ACTIVE,
+        server_default=JobStatus.ACTIVE.value,
+    )
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    sources = relationship("JobSource", back_populates="job", cascade="all, delete-orphan")
+    matches = relationship("JobMatch", back_populates="job")
+
+
+class JobSource(TimestampMixin, Base):
+    __tablename__ = "job_sources"
+    __table_args__ = (
+        UniqueConstraint("source", "external_id", name="uq_job_sources_identity"),
+        Index("ix_job_sources_job_id", "job_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    source: Mapped[JobSourceName] = mapped_column(
+        Enum(
+            JobSourceName,
+            native_enum=False,
+            create_constraint=True,
+            name="job_source_name",
+            length=32,
+            values_callable=lambda enum: [item.value for item in enum],
+        )
+    )
+    external_id: Mapped[str] = mapped_column(String(500))
+    source_url: Mapped[str | None] = mapped_column(Text)
+    apply_url: Mapped[str] = mapped_column(Text)
+    raw_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    job = relationship("Job", back_populates="sources")
