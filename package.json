@@ -4,12 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:api": ".venv\\Scripts\\python -m uvicorn api.main:app --reload --port 8000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "lint:api": ".venv\\Scripts\\python -m ruff check api tests migrations",
+    "format:api": ".venv\\Scripts\\python -m ruff format api tests migrations",
+    "test:api": ".venv\\Scripts\\python -m pytest",
+    "typecheck:api": ".venv\\Scripts\\python -m mypy api"
   },
   "dependencies": {
-    "@prisma/client": "^7.8.0",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -21,7 +25,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
-    "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

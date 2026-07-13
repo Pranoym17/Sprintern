@@ -145,7 +145,15 @@ vite.config.ts.timestamp-*
 # Next.js generated
 next-env.d.ts
 
-/src/generated/prisma
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Claude Code
 .claude/
