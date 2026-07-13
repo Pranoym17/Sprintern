@@ -141,3 +141,14 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Next.js generated
+next-env.d.ts
+
+/src/generated/prisma
+
+# Claude Code
+.claude/
+.mcp.json
+CLAUDE.md
+AGENTS.md

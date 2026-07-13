@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sprintern
+      POSTGRES_USER: sprintern
+      POSTGRES_PASSWORD: sprintern_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+volumes:
+  postgres_data:
