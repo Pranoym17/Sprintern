@@ -47,3 +47,16 @@ class MatchStatus(StrEnum):
     MATCHED = "matched"
     APPLIED = "applied"
     DISMISSED = "dismissed"
+
+
+class IngestionRunStatus(StrEnum):
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class PollCompleteness(StrEnum):
+    COMPLETE = "complete"
+    INCREMENTAL = "incremental"
+    PARTIAL = "partial"

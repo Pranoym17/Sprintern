@@ -1,17 +1,19 @@
 from api.models.enums import (
     DeliveryStatus,
+    IngestionRunStatus,
     JobSourceName,
     JobStatus,
     MatchStatus,
     NotificationCadence,
     NotificationChannel,
+    PollCompleteness,
     WorkMode,
 )
 from api.models.filter import JobFilter
 from api.models.job import Job, JobSource
 from api.models.match import JobMatch, NotificationDelivery
 from api.models.profile import Profile
-from api.models.source import SourceState
+from api.models.source import IngestionRun, SourceState
 
 __all__ = [
     "DeliveryStatus",
@@ -21,11 +23,14 @@ __all__ = [
     "JobSource",
     "JobSourceName",
     "JobStatus",
+    "IngestionRun",
+    "IngestionRunStatus",
     "MatchStatus",
     "NotificationCadence",
     "NotificationChannel",
     "NotificationDelivery",
     "Profile",
+    "PollCompleteness",
     "SourceState",
     "WorkMode",
 ]
