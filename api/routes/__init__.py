@@ -1,0 +1,12 @@
+from fastapi import APIRouter
+
+from api.routes import analytics, filters, jobs, matches, profiles
+
+api_router = APIRouter()
+api_router.include_router(profiles.router)
+api_router.include_router(filters.router)
+api_router.include_router(jobs.router)
+api_router.include_router(matches.router)
+api_router.include_router(analytics.router)
+
+__all__ = ["api_router"]
