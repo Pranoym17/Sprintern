@@ -155,8 +155,13 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Claude Code
+# Local AI coding assistants (not project documentation)
 .claude/
+.agents/
+.codex/
+.cursor/
+.continue/
+.aider*
 .mcp.json
 CLAUDE.md
 AGENTS.md
