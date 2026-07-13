@@ -1,0 +1,121 @@
+import asyncio
+from collections import defaultdict
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker
+
+from api.ingestion.contracts import SourceAdapter
+from api.ingestion.normalization import normalize_job
+from api.ingestion.persistence import JobPersister, PersistenceOutcome
+from api.models import IngestionRun, IngestionRunStatus, SourceState
+
+
+class IngestionService:
+    def __init__(
+        self,
+        session_factory: sessionmaker[Session],
+        persister: JobPersister | None = None,
+    ) -> None:
+        self.session_factory = session_factory
+        self.persister = persister or JobPersister()
+        self._locks: defaultdict[tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
+
+    async def run(self, adapter: SourceAdapter) -> IngestionRun:
+        lock = self._locks[(adapter.source.value, adapter.source_key)]
+        if lock.locked():
+            return self._record_skipped(adapter)
+        async with lock:
+            state_id, run_id, cursor = self._record_start(adapter)
+            try:
+                batch = await adapter.fetch(cursor)
+                seen_at = datetime.now(UTC)
+                normalized = []
+                rejected = batch.rejected_count
+                errors = list(batch.rejection_errors)
+                for raw in batch.records:
+                    try:
+                        normalized.append(normalize_job(adapter.source, raw))
+                    except (TypeError, ValueError) as exc:
+                        rejected += 1
+                        if len(errors) < 25:
+                            errors.append(str(exc))
+
+                with self.session_factory() as session:
+                    state = session.get_one(SourceState, state_id)
+                    run = session.get_one(IngestionRun, run_id)
+                    outcomes = {outcome: 0 for outcome in PersistenceOutcome}
+                    for candidate in normalized:
+                        outcomes[self.persister.persist(session, candidate, seen_at)] += 1
+                    state.cursor = batch.next_cursor
+                    state.consecutive_failures = 0
+                    state.backoff_until = None
+                    state.last_succeeded_at = seen_at
+                    state.last_error = None
+                    run.status = IngestionRunStatus.SUCCEEDED
+                    run.completeness = batch.completeness
+                    run.finished_at = seen_at
+                    run.fetched_count = len(batch.records) + batch.rejected_count
+                    run.accepted_count = len(normalized)
+                    run.rejected_count = rejected
+                    run.created_count = outcomes[PersistenceOutcome.CREATED]
+                    run.updated_count = outcomes[PersistenceOutcome.UPDATED]
+                    run.duplicate_count = outcomes[PersistenceOutcome.DUPLICATE]
+                    run.error = "; ".join(errors) if errors else None
+                    session.commit()
+                    session.refresh(run)
+                    session.expunge(run)
+                    return run
+            except Exception as exc:
+                self._record_failure(state_id, run_id, exc)
+                raise
+
+    def _record_start(self, adapter: SourceAdapter) -> tuple[Any, Any, dict[str, Any]]:
+        now = datetime.now(UTC)
+        with self.session_factory() as session:
+            state = session.scalar(
+                select(SourceState).where(
+                    SourceState.source == adapter.source,
+                    SourceState.source_key == adapter.source_key,
+                )
+            )
+            if state is None:
+                state = SourceState(source=adapter.source, source_key=adapter.source_key)
+                session.add(state)
+                session.flush()
+            state.last_started_at = now
+            run = IngestionRun(
+                source_state_id=state.id,
+                status=IngestionRunStatus.RUNNING,
+                started_at=now,
+            )
+            session.add(run)
+            session.commit()
+            return state.id, run.id, dict(state.cursor)
+
+    def _record_skipped(self, adapter: SourceAdapter) -> IngestionRun:
+        state_id, run_id, _cursor = self._record_start(adapter)
+        with self.session_factory() as session:
+            run = session.get_one(IngestionRun, run_id)
+            run.status = IngestionRunStatus.SKIPPED
+            run.finished_at = datetime.now(UTC)
+            run.error = "A run for this source is already active"
+            session.commit()
+            session.refresh(run)
+            session.expunge(run)
+            return run
+
+    def _record_failure(self, state_id: Any, run_id: Any, exc: Exception) -> None:
+        now = datetime.now(UTC)
+        message = f"{type(exc).__name__}: {exc}"[:2000]
+        with self.session_factory() as session:
+            state = session.get_one(SourceState, state_id)
+            run = session.get_one(IngestionRun, run_id)
+            state.consecutive_failures += 1
+            state.last_failed_at = now
+            state.last_error = message
+            run.status = IngestionRunStatus.FAILED
+            run.finished_at = now
+            run.error = message
+            session.commit()
