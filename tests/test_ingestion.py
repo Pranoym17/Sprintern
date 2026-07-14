@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -11,11 +12,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from api.ingestion import PollBatch, RawSourceJob
 from api.ingestion.http import RetryingHTTPClient, SourceHTTPError
 from api.ingestion.normalization import canonicalize_url, normalize_job, normalize_text
+from api.ingestion.persistence import JobPersister, PersistenceOutcome
 from api.ingestion.service import IngestionService
 from api.models import (
     IngestionRunStatus,
     Job,
+    JobSource,
     JobSourceName,
+    JobStatus,
     PollCompleteness,
     SourceState,
 )
@@ -61,8 +65,10 @@ def ingestion_factory(db_session: Session) -> sessionmaker[Session]:
 
 
 def test_normalizes_text_url_and_fingerprint() -> None:
-    first = normalize_job(JobSourceName.GREENHOUSE, raw_job())
-    second = normalize_job(JobSourceName.LEVER, raw_job("different-source-id", "example inc"))
+    first = normalize_job(JobSourceName.GREENHOUSE, "example", raw_job())
+    second = normalize_job(
+        JobSourceName.LEVER, "example", raw_job("different-source-id", "example inc")
+    )
 
     assert normalize_text("Montréal, QC") == "montreal qc"
     assert (
@@ -195,3 +201,84 @@ async def test_internal_source_status_requires_service_key(
 
     assert unauthorized.status_code == 401
     assert authorized.status_code == 200
+
+
+async def test_complete_snapshots_drive_stale_and_expired_lifecycle(
+    ingestion_factory: sessionmaker[Session],
+) -> None:
+    service = IngestionService(ingestion_factory)
+    await service.run(
+        FakeAdapter(
+            PollBatch(
+                records=[raw_job("removed"), raw_job("remaining", "Other")],
+                completeness=PollCompleteness.COMPLETE,
+            )
+        )
+    )
+    only_remaining = PollBatch(
+        records=[raw_job("remaining", "Other")],
+        completeness=PollCompleteness.COMPLETE,
+    )
+
+    await service.run(FakeAdapter(only_remaining))
+    with ingestion_factory() as session:
+        job = session.scalar(select(Job).where(Job.normalized_company == "example inc"))
+        assert job is not None and job.status == JobStatus.ACTIVE
+
+    await service.run(FakeAdapter(only_remaining))
+    with ingestion_factory() as session:
+        job = session.scalar(select(Job).where(Job.normalized_company == "example inc"))
+        assert job is not None and job.status == JobStatus.STALE
+
+    await service.run(FakeAdapter(only_remaining))
+    with ingestion_factory() as session:
+        job = session.scalar(select(Job).where(Job.normalized_company == "example inc"))
+        assert job is not None and job.status == JobStatus.EXPIRED
+        assert job.expired_at is not None
+
+
+async def test_partial_and_empty_snapshots_do_not_expire_jobs(
+    ingestion_factory: sessionmaker[Session],
+) -> None:
+    service = IngestionService(ingestion_factory)
+    await service.run(
+        FakeAdapter(PollBatch(records=[raw_job()], completeness=PollCompleteness.COMPLETE))
+    )
+    await service.run(FakeAdapter(PollBatch(records=[], completeness=PollCompleteness.PARTIAL)))
+    empty_run = await service.run(
+        FakeAdapter(PollBatch(records=[], completeness=PollCompleteness.COMPLETE))
+    )
+
+    with ingestion_factory() as session:
+        job = session.scalar(select(Job))
+        source = session.scalar(select(JobSource))
+
+    assert job is not None and job.status == JobStatus.ACTIVE
+    assert source is not None and source.missing_snapshot_count == 0
+    assert empty_run.error == "Empty snapshot ignored for lifecycle safety"
+
+
+def test_expired_external_id_reused_after_threshold_creates_repost(
+    db_session: Session,
+) -> None:
+    persister = JobPersister(repost_threshold_days=30)
+    old_seen_at = datetime.now(UTC) - timedelta(days=31)
+    candidate = normalize_job(JobSourceName.GREENHOUSE, "example", raw_job())
+    assert persister.persist(db_session, candidate, old_seen_at) == PersistenceOutcome.CREATED
+    db_session.commit()
+
+    original_job = db_session.scalar(select(Job))
+    original_source = db_session.scalar(select(JobSource))
+    assert original_job is not None and original_source is not None
+    original_job.status = JobStatus.EXPIRED
+    original_source.active = False
+    original_source.missing_snapshot_count = 3
+    db_session.commit()
+
+    outcome = persister.persist(db_session, candidate, datetime.now(UTC))
+    db_session.commit()
+    sources = list(db_session.scalars(select(JobSource).order_by(JobSource.occurrence)))
+
+    assert outcome == PersistenceOutcome.CREATED
+    assert [source.occurrence for source in sources] == [1, 2]
+    assert len(list(db_session.scalars(select(Job)))) == 2

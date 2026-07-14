@@ -46,6 +46,7 @@ def test_profile_preferences_and_job_source_round_trip(db_session: Session) -> N
     job.sources.append(
         JobSource(
             source=JobSourceName.GREENHOUSE,
+            source_key="example",
             external_id="example-123",
             source_url="https://example.com/jobs/123",
             apply_url="https://example.com/jobs/123/apply",
@@ -70,6 +71,7 @@ def test_source_identity_is_unique(db_session: Session) -> None:
         job.sources.append(
             JobSource(
                 source=JobSourceName.LEVER,
+                source_key="example",
                 external_id="duplicate-id",
                 apply_url="https://example.com/apply",
                 first_seen_at=now,
