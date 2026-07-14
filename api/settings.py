@@ -15,6 +15,15 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
     supabase_jwks_cache_seconds: int = 600
     internal_api_key: str = ""
+    source_user_agent: str = "Sprintern/0.1"
+    github_token: str = ""
+    telegram_bot_token: str = ""
+    telegram_bot_username: str = ""
+    telegram_webhook_secret: str = ""
+    resend_api_key: str = ""
+    resend_from_email: str = ""
+    notification_max_attempts: int = 5
+    notification_lease_seconds: int = 300
 
     @property
     def supabase_issuer(self) -> str:
