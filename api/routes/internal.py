@@ -6,10 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.auth import require_internal_api_key
-from api.database import get_db
+from api.database import SessionLocal, get_db
+from api.ingestion.factory import build_adapter
+from api.ingestion.service import IngestionService
 from api.models import SourceState
 from api.notifications.runtime import build_dispatcher
-from api.schemas import SourceStatusResponse
+from api.schemas import IngestionRunRequest, IngestionRunResponse, SourceStatusResponse
 
 router = APIRouter(
     prefix="/internal",
@@ -24,6 +26,13 @@ def read_source_status(session: Database) -> object:
     return list(
         session.scalars(select(SourceState).order_by(SourceState.source, SourceState.source_key))
     )
+
+
+@router.post("/ingestion-runs", response_model=IngestionRunResponse, status_code=201)
+async def create_ingestion_run(payload: IngestionRunRequest) -> object:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        run = await IngestionService(SessionLocal).run(build_adapter(payload, client))
+    return run
 
 
 @router.post("/notifications/dispatch")

@@ -10,6 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.ingestion import PollBatch, RawSourceJob
+from api.ingestion.adapters import GreenhouseAdapter, LeverAdapter, RemoteOKAdapter
+from api.ingestion.factory import build_adapter
 from api.ingestion.http import RetryingHTTPClient, SourceHTTPError
 from api.ingestion.normalization import canonicalize_url, normalize_job, normalize_text
 from api.ingestion.persistence import JobPersister, PersistenceOutcome
@@ -23,6 +25,7 @@ from api.models import (
     PollCompleteness,
     SourceState,
 )
+from api.schemas.ingestion import IngestionRunRequest
 from api.settings import settings
 
 
@@ -282,3 +285,28 @@ def test_expired_external_id_reused_after_threshold_creates_repost(
     assert outcome == PersistenceOutcome.CREATED
     assert [source.occurrence for source in sources] == [1, 2]
     assert len(list(db_session.scalars(select(Job)))) == 2
+
+
+async def test_manual_ingestion_factory_builds_configured_adapters() -> None:
+    async with httpx.AsyncClient() as client:
+        greenhouse = build_adapter(
+            IngestionRunRequest(
+                source=JobSourceName.GREENHOUSE, company="Example", board_token="example"
+            ),
+            client,
+        )
+        lever = build_adapter(
+            IngestionRunRequest(
+                source=JobSourceName.LEVER,
+                company="Example",
+                site="example",
+                region="eu",
+            ),
+            client,
+        )
+        remoteok = build_adapter(IngestionRunRequest(source=JobSourceName.REMOTEOK), client)
+
+    assert isinstance(greenhouse, GreenhouseAdapter)
+    assert isinstance(lever, LeverAdapter)
+    assert lever.base_url == "https://api.eu.lever.co"
+    assert isinstance(remoteok, RemoteOKAdapter)
