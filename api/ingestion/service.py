@@ -7,9 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.ingestion.contracts import SourceAdapter
+from api.ingestion.lifecycle import JobLifecycleService
 from api.ingestion.normalization import normalize_job
 from api.ingestion.persistence import JobPersister, PersistenceOutcome
-from api.models import IngestionRun, IngestionRunStatus, SourceState
+from api.models import IngestionRun, IngestionRunStatus, PollCompleteness, SourceState
 
 
 class IngestionService:
@@ -17,9 +18,11 @@ class IngestionService:
         self,
         session_factory: sessionmaker[Session],
         persister: JobPersister | None = None,
+        lifecycle: JobLifecycleService | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.persister = persister or JobPersister()
+        self.lifecycle = lifecycle or JobLifecycleService()
         self._locks: defaultdict[tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
 
     async def run(self, adapter: SourceAdapter) -> IngestionRun:
@@ -36,7 +39,7 @@ class IngestionService:
                 errors = list(batch.rejection_errors)
                 for raw in batch.records:
                     try:
-                        normalized.append(normalize_job(adapter.source, raw))
+                        normalized.append(normalize_job(adapter.source, adapter.source_key, raw))
                     except (TypeError, ValueError) as exc:
                         rejected += 1
                         if len(errors) < 25:
@@ -48,6 +51,16 @@ class IngestionService:
                     outcomes = {outcome: 0 for outcome in PersistenceOutcome}
                     for candidate in normalized:
                         outcomes[self.persister.persist(session, candidate, seen_at)] += 1
+                    if batch.completeness == PollCompleteness.COMPLETE:
+                        lifecycle_result = self.lifecycle.apply_complete_snapshot(
+                            session,
+                            adapter.source,
+                            adapter.source_key,
+                            {candidate.external_id for candidate in normalized},
+                            seen_at,
+                        )
+                        if lifecycle_result.suspicious_empty_snapshot:
+                            errors.append("Empty snapshot ignored for lifecycle safety")
                     state.cursor = batch.next_cursor
                     state.consecutive_failures = 0
                     state.backoff_until = None

@@ -28,6 +28,7 @@ class NormalizedJob(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     source: JobSourceName
+    source_key: str
     external_id: str
     company: str
     normalized_company: str
@@ -62,7 +63,7 @@ def canonicalize_url(value: str) -> str:
     return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path, query, ""))
 
 
-def normalize_job(source: JobSourceName, raw: RawSourceJob) -> NormalizedJob:
+def normalize_job(source: JobSourceName, source_key: str, raw: RawSourceJob) -> NormalizedJob:
     normalized_company = normalize_text(raw.company)
     normalized_title = normalize_text(raw.title)
     normalized_location = normalize_text(raw.location) if raw.location else None
@@ -82,6 +83,7 @@ def normalize_job(source: JobSourceName, raw: RawSourceJob) -> NormalizedJob:
         posted_at = posted_at.replace(tzinfo=UTC)
     return NormalizedJob(
         source=source,
+        source_key=source_key,
         external_id=raw.external_id.strip(),
         company=raw.company.strip(),
         normalized_company=normalized_company,

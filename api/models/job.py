@@ -2,7 +2,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -64,7 +74,13 @@ class Job(TimestampMixin, Base):
 class JobSource(TimestampMixin, Base):
     __tablename__ = "job_sources"
     __table_args__ = (
-        UniqueConstraint("source", "external_id", name="uq_job_sources_identity"),
+        UniqueConstraint(
+            "source",
+            "source_key",
+            "external_id",
+            "occurrence",
+            name="uq_job_sources_identity",
+        ),
         Index("ix_job_sources_job_id", "job_id"),
     )
 
@@ -82,11 +98,16 @@ class JobSource(TimestampMixin, Base):
             values_callable=lambda enum: [item.value for item in enum],
         )
     )
+    source_key: Mapped[str] = mapped_column(String(255))
     external_id: Mapped[str] = mapped_column(String(500))
+    occurrence: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     source_url: Mapped[str | None] = mapped_column(Text)
     apply_url: Mapped[str] = mapped_column(Text)
     raw_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    missing_snapshot_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    missing_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     job = relationship("Job", back_populates="sources")
