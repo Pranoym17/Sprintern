@@ -117,7 +117,29 @@ SQLAlchemy/Alembic is the only application database layer. Prisma is intentional
 - Standard validation and application error bodies
 - Service-key-protected source status endpoint
 
-The shared ingestion framework defines typed adapter contracts, normalized job candidates, URL/text canonicalization, cross-source deduplication, 30-day repost handling, retry/backoff behavior, per-source non-overlap locks, durable run counters, and transactional cursor updates. Individual external source adapters are intentionally the next phase.
+The shared ingestion framework defines typed adapter contracts, normalized job candidates, URL/text canonicalization, cross-source deduplication, 30-day repost handling, retry/backoff behavior, per-source non-overlap locks, durable run counters, and transactional cursor updates.
+
+## MVP ingestion, matching, and notifications
+
+Implemented source adapters:
+
+- Greenhouse complete board snapshots with HTML cleanup
+- Lever global and EU tenants with safe pagination
+- RemoteOK with required source attribution metadata
+- GitHub internship repositories with commit-SHA cursors and defensive Markdown-table parsing
+
+Complete snapshots drive job lifecycle conservatively. A source occurrence is stale after two successful snapshots omit it and expired after three. Partial, incremental, failed, and suspiciously empty snapshots never advance absence counters. A canonical job stays active while any attached source remains active. Reuse of an expired external ID after 30 days creates a new occurrence rather than silently reviving an old application cycle.
+
+Keyword matching first classifies whether a listing is clearly an internship. Confirmed jobs use AND semantics across role, location, term, and work mode, with OR semantics inside each keyword list and across a user's filters. Empty dimensions are unrestricted. Ambiguous listings remain in the general feed but do not create matches or notifications. Match reasons include the filter, matched dimensions, and matcher version.
+
+Notifications use a PostgreSQL outbox. Email and Telegram delivery rows are created transactionally with matches, claimed using `FOR UPDATE SKIP LOCKED`, and retried with bounded backoff. Hourly and daily deliveries are grouped into digests. Resend receives a stable idempotency key; Telegram uses plain text plus an apply button. Telegram accounts are linked through short-lived, single-use tokens stored only as hashes.
+
+Notification dispatch can be exercised manually before the scheduler milestone:
+
+```http
+POST /internal/notifications/dispatch
+X-Internal-API-Key: your-internal-key
+```
 
 ## Known limitations
 
@@ -126,7 +148,9 @@ The shared ingestion framework defines typed adapter contracts, normalized job c
 - MVP keyword matching can miss nonstandard titles such as “Early Career Program”; ambiguous records remain visible rather than being silently discarded.
 - LinkedIn and Indeed are excluded because scraping them creates terms-of-service and reliability risk.
 - Source timestamps and completeness vary, so Sprintern records both source time and first-seen time.
+- Notification delivery is at-least-once. A provider may accept a message immediately before a database failure; Resend idempotency reduces this duplicate window, while Telegram offers no equivalent general key.
+- Source adapter and notification workflows are implemented but are not scheduled automatically until Phase 8.
 
 ## Current scope
 
-Phases 0–3 are complete: architecture boundaries, core schema, authenticated REST resources, and the source-neutral ingestion framework. No external source adapter, matching workflow, notification delivery, Supabase frontend, or product dashboard has been implemented yet.
+Phases 0–7 are complete: architecture boundaries, core schema, authenticated REST resources, ingestion framework and MVP adapters, source-aware lifecycle handling, deterministic matching, and Telegram/Resend notification delivery. Automatic scheduling, the Supabase frontend integration, and the product dashboard remain to be implemented.
