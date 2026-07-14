@@ -60,3 +60,10 @@ class PollCompleteness(StrEnum):
     COMPLETE = "complete"
     INCREMENTAL = "incremental"
     PARTIAL = "partial"
+
+
+class InternshipStatus(StrEnum):
+    UNKNOWN = "unknown"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
+    AMBIGUOUS = "ambiguous"

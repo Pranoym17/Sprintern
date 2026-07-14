@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from api.models import Job, JobMatch, MatchStatus
+from api.models import Job, JobMatch, JobStatus, MatchStatus
 
 
 def get_match(session: Session, profile_id: uuid.UUID, match_id: uuid.UUID) -> JobMatch | None:
@@ -25,7 +25,11 @@ def list_matches(
     statement = (
         select(JobMatch)
         .options(selectinload(JobMatch.job).selectinload(Job.sources))
-        .where(JobMatch.profile_id == profile_id)
+        .join(Job, Job.id == JobMatch.job_id)
+        .where(
+            JobMatch.profile_id == profile_id,
+            or_(Job.status == JobStatus.ACTIVE, JobMatch.status == MatchStatus.APPLIED),
+        )
         .order_by(JobMatch.created_at.desc(), JobMatch.id.desc())
         .limit(limit + 1)
     )

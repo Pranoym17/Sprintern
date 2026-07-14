@@ -1,6 +1,7 @@
 from api.models.enums import (
     DeliveryStatus,
     IngestionRunStatus,
+    InternshipStatus,
     JobSourceName,
     JobStatus,
     MatchStatus,
@@ -25,6 +26,7 @@ __all__ = [
     "JobStatus",
     "IngestionRun",
     "IngestionRunStatus",
+    "InternshipStatus",
     "MatchStatus",
     "NotificationCadence",
     "NotificationChannel",

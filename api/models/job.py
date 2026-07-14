@@ -18,7 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.database import Base
 from api.models.base import TimestampMixin
-from api.models.enums import JobSourceName, JobStatus, WorkMode
+from api.models.enums import InternshipStatus, JobSourceName, JobStatus, WorkMode
 
 
 class Job(TimestampMixin, Base):
@@ -37,6 +37,19 @@ class Job(TimestampMixin, Base):
     normalized_location: Mapped[str | None] = mapped_column(String(300))
     term: Mapped[str | None] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(Text)
+    internship_status: Mapped[InternshipStatus] = mapped_column(
+        Enum(
+            InternshipStatus,
+            native_enum=False,
+            create_constraint=True,
+            name="internship_status",
+            length=16,
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        default=InternshipStatus.UNKNOWN,
+        server_default=InternshipStatus.UNKNOWN.value,
+    )
+    matcher_version: Mapped[str | None] = mapped_column(String(32))
     work_mode: Mapped[WorkMode] = mapped_column(
         Enum(
             WorkMode,

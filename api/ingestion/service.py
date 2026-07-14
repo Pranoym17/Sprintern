@@ -10,6 +10,7 @@ from api.ingestion.contracts import SourceAdapter
 from api.ingestion.lifecycle import JobLifecycleService
 from api.ingestion.normalization import normalize_job
 from api.ingestion.persistence import JobPersister, PersistenceOutcome
+from api.matching import matching_service
 from api.models import IngestionRun, IngestionRunStatus, PollCompleteness, SourceState
 
 
@@ -61,6 +62,7 @@ class IngestionService:
                         )
                         if lifecycle_result.suspicious_empty_snapshot:
                             errors.append("Empty snapshot ignored for lifecycle safety")
+                    matching_service.match_all(session)
                     state.cursor = batch.next_cursor
                     state.consecutive_failures = 0
                     state.backoff_until = None

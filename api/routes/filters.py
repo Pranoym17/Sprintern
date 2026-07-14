@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from api.auth import CurrentUser
 from api.database import get_db
 from api.errors import AppError
+from api.matching import matching_service
 from api.models import JobFilter
 from api.repositories.filters import get_filter, list_filters
 from api.repositories.profiles import get_or_create_profile
@@ -28,6 +29,8 @@ def create_filter(
     get_or_create_profile(session, user.id, user.email)
     job_filter = JobFilter(profile_id=user.id, **payload.model_dump())
     session.add(job_filter)
+    session.flush()
+    matching_service.match_profile(session, user.id)
     session.commit()
     session.refresh(job_filter)
     response.headers["Location"] = f"/filters/{job_filter.id}"
@@ -54,6 +57,8 @@ def update_filter(
         raise AppError(422, "validation_error", "Filter fields cannot be null")
     for field, value in updates.items():
         setattr(job_filter, field, value)
+    session.flush()
+    matching_service.match_profile(session, user.id)
     session.commit()
     session.refresh(job_filter)
     return job_filter
@@ -65,5 +70,7 @@ def delete_filter(filter_id: uuid.UUID, user: CurrentUser, session: Database) ->
     if job_filter is None:
         raise AppError(404, "not_found", "Filter not found")
     session.delete(job_filter)
+    session.flush()
+    matching_service.match_profile(session, user.id)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
