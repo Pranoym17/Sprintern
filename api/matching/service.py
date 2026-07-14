@@ -6,7 +6,16 @@ from sqlalchemy.orm import Session
 
 from api.matching.classifier import classify_internship
 from api.matching.matcher import MATCHER_VERSION, match_filter
-from api.models import InternshipStatus, Job, JobFilter, JobMatch, JobStatus, MatchStatus
+from api.models import (
+    InternshipStatus,
+    Job,
+    JobFilter,
+    JobMatch,
+    JobStatus,
+    MatchStatus,
+    Profile,
+)
+from api.notifications.planning import notification_planner
 
 
 class MatchingService:
@@ -52,8 +61,12 @@ class MatchingService:
             if match:
                 match.reasons = reasons
             else:
-                session.add(JobMatch(profile_id=profile_id, job_id=job.id, reasons=reasons))
+                match = JobMatch(profile_id=profile_id, job_id=job.id, reasons=reasons)
+                session.add(match)
                 created += 1
+            profile = session.get(Profile, profile_id)
+            if profile:
+                notification_planner.plan_match(session, match, profile)
         for unmatched in existing.values():
             if unmatched.status == MatchStatus.MATCHED:
                 session.delete(unmatched)
