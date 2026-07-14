@@ -11,6 +11,7 @@ from api.models import (
     JobMatch,
     JobSource,
     JobSourceName,
+    NotificationCadence,
     NotificationChannel,
     NotificationDelivery,
     Profile,
@@ -89,8 +90,22 @@ def test_match_and_delivery_are_idempotent(db_session: Session) -> None:
     profile = Profile(id=uuid.uuid4(), email="student@example.com")
     job = make_job(now)
     match = JobMatch(profile=profile, job=job, reasons=[{"kind": "role", "value": "software"}])
-    match.deliveries.append(NotificationDelivery(channel=NotificationChannel.EMAIL))
-    match.deliveries.append(NotificationDelivery(channel=NotificationChannel.EMAIL))
+    match.deliveries.append(
+        NotificationDelivery(
+            channel=NotificationChannel.EMAIL,
+            cadence=NotificationCadence.INSTANT,
+            recipient="student@example.com",
+            idempotency_key="first",
+        )
+    )
+    match.deliveries.append(
+        NotificationDelivery(
+            channel=NotificationChannel.EMAIL,
+            cadence=NotificationCadence.INSTANT,
+            recipient="student@example.com",
+            idempotency_key="second",
+        )
+    )
     db_session.add(match)
 
     with pytest.raises(IntegrityError):

@@ -12,7 +12,7 @@ from api.models.enums import (
 )
 from api.models.filter import JobFilter
 from api.models.job import Job, JobSource
-from api.models.match import JobMatch, NotificationDelivery
+from api.models.match import JobMatch, NotificationDelivery, TelegramLinkToken
 from api.models.profile import Profile
 from api.models.source import IngestionRun, SourceState
 
@@ -34,5 +34,6 @@ __all__ = [
     "Profile",
     "PollCompleteness",
     "SourceState",
+    "TelegramLinkToken",
     "WorkMode",
 ]

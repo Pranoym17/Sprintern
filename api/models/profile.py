@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Enum, String
+from sqlalchemy import Boolean, Enum, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,6 +28,15 @@ class Profile(TimestampMixin, Base):
         server_default=NotificationCadence.INSTANT.value,
     )
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    email_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true")
+    )
+    telegram_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
 
     filters = relationship("JobFilter", back_populates="profile", cascade="all, delete-orphan")
     matches = relationship("JobMatch", back_populates="profile", cascade="all, delete-orphan")
+    telegram_link_tokens = relationship(
+        "TelegramLinkToken", back_populates="profile", cascade="all, delete-orphan"
+    )

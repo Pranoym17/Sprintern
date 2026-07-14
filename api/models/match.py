@@ -2,13 +2,28 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.database import Base
 from api.models.base import TimestampMixin
-from api.models.enums import DeliveryStatus, MatchStatus, NotificationChannel
+from api.models.enums import (
+    DeliveryStatus,
+    MatchStatus,
+    NotificationCadence,
+    NotificationChannel,
+)
 
 
 class JobMatch(TimestampMixin, Base):
@@ -51,6 +66,7 @@ class NotificationDelivery(TimestampMixin, Base):
     __tablename__ = "notification_deliveries"
     __table_args__ = (
         UniqueConstraint("match_id", "channel", name="uq_deliveries_match_channel"),
+        UniqueConstraint("idempotency_key", name="uq_delivery_idempotency_key"),
         Index("ix_deliveries_pending", "status", "next_attempt_at"),
     )
 
@@ -68,6 +84,18 @@ class NotificationDelivery(TimestampMixin, Base):
             values_callable=lambda enum: [item.value for item in enum],
         )
     )
+    cadence: Mapped[NotificationCadence] = mapped_column(
+        Enum(
+            NotificationCadence,
+            native_enum=False,
+            create_constraint=True,
+            name="delivery_cadence",
+            length=16,
+            values_callable=lambda enum: [item.value for item in enum],
+        )
+    )
+    recipient: Mapped[str] = mapped_column(String(320))
+    idempotency_key: Mapped[str] = mapped_column(String(255))
     status: Mapped[DeliveryStatus] = mapped_column(
         Enum(
             DeliveryStatus,
@@ -82,8 +110,26 @@ class NotificationDelivery(TimestampMixin, Base):
     )
     attempt_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     provider_message_id: Mapped[str | None] = mapped_column(String(255))
     last_error: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     match = relationship("JobMatch", back_populates="deliveries")
+
+
+class TelegramLinkToken(Base):
+    __tablename__ = "telegram_link_tokens"
+    __table_args__ = (Index("ix_telegram_link_tokens_hash", "token_hash", unique=True),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    profile = relationship("Profile", back_populates="telegram_link_tokens")
