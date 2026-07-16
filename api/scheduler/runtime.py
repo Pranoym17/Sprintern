@@ -5,6 +5,7 @@ import signal
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -37,6 +38,7 @@ def build_scheduler(
     app_settings: Settings = settings,
 ) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=app_settings.scheduler_timezone)
+    startup_time = datetime.now(UTC)
     for source in source_config.enabled_github:
         scheduler.add_job(
             workflows.ingest_github,
@@ -49,6 +51,7 @@ def build_scheduler(
             max_instances=1,
             coalesce=True,
             misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+            next_run_time=startup_time,
         )
     scheduler.add_job(
         workflows.dispatch_notifications,
@@ -59,6 +62,7 @@ def build_scheduler(
         max_instances=1,
         coalesce=True,
         misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+        next_run_time=startup_time,
     )
     return scheduler
 
