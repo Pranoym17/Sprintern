@@ -20,6 +20,10 @@ APScheduler ── workflows ───────└── notifications ──
 
 Backend responsibilities are intentionally separated:
 
+FastAPI and APScheduler run as separate processes. FastAPI serves HTTP and Telegram webhooks;
+the scheduler owns polling and due-delivery dispatch. Both reuse the same application services
+and PostgreSQL state.
+
 - `routes` translates HTTP requests and responses; it does not contain business logic.
 - `schemas` validates API and ingestion boundaries with Pydantic.
 - `repositories` owns database queries and user-ownership filtering.
@@ -41,6 +45,8 @@ The ingestion path is `fetch → validate → normalize → deduplicate → pers
 - PostgreSQL arrays and JSONB keep MVP preference and source metadata modeling compact. More normalized child tables may be justified if analytics become complex.
 - Notification deliveries are durable database records rather than a Boolean flag, enabling idempotency, retries, and provider diagnostics.
 - APScheduler is sufficient for one small worker. It is not a distributed queue and would be replaced by Celery/Redis if horizontal worker scaling becomes necessary.
+- PostgreSQL advisory locks permit exactly one scheduler process and prevent manual ingestion from
+  overlapping scheduled ingestion for the same source.
 - Keyword matching ships before AI so the end-to-end system is measurable before adding cost and nondeterminism.
 - pgvector will live in PostgreSQL rather than a separate vector database because expected data volume does not justify another service.
 
@@ -71,7 +77,7 @@ For Supabase Auth, create a project with asymmetric JWT signing keys, then set `
 
 ## Run locally
 
-Use two terminals:
+Use three terminals for the full application:
 
 ```powershell
 npm.cmd run dev
@@ -79,6 +85,10 @@ npm.cmd run dev
 
 ```powershell
 npm.cmd run dev:api
+```
+
+```powershell
+& .\.venv\Scripts\python.exe -m api.scheduler
 ```
 
 - Web: http://localhost:3000
@@ -134,23 +144,98 @@ Keyword matching first classifies whether a listing is clearly an internship. Co
 
 Notifications use a PostgreSQL outbox. Email and Telegram delivery rows are created transactionally with matches, claimed using `FOR UPDATE SKIP LOCKED`, and retried with bounded backoff. Hourly and daily deliveries are grouped into digests. Resend receives a stable idempotency key; Telegram uses plain text plus an apply button. Telegram accounts are linked through short-lived, single-use tokens stored only as hashes.
 
-Notification dispatch can be exercised manually before the scheduler milestone:
+Notification dispatch can also be exercised manually for operations and troubleshooting:
 
 ```http
 POST /internal/notifications/dispatch
 X-Internal-API-Key: your-internal-key
 ```
 
+## Automatic scheduling
+
+Scheduled sources are declared in `config/sources.toml`. This file contains only non-secret
+operational data and is safe to commit. Provider tokens remain in `.env`.
+
+```toml
+[[github]]
+enabled = true
+owner = "vanshb03"
+repository = "Summer2027-Internships"
+path = "README.md"
+branch = "dev"
+term = "Summer 2027"
+poll_minutes = 15
+jitter_seconds = 30
+```
+
+Configuration is strict: unknown fields, duplicate source identities, missing required values,
+invalid intervals, and a configuration with no enabled sources stop startup. Source identity is
+owner, repository, and path; two branches for that same identity are rejected because their
+cursors would collide.
+
+Scheduler environment settings have conservative defaults:
+
+```dotenv
+SCHEDULER_SOURCE_CONFIG=config/sources.toml
+SCHEDULER_NOTIFICATION_INTERVAL_SECONDS=30
+SCHEDULER_HEARTBEAT_INTERVAL_SECONDS=30
+SCHEDULER_TIMEZONE=UTC
+SCHEDULER_MISFIRE_GRACE_SECONDS=60
+SCHEDULER_SHUTDOWN_TIMEOUT_SECONDS=30
+```
+
+Run the scheduler from the repository root so the relative configuration path resolves:
+
+```powershell
+& .\.venv\Scripts\python.exe -m api.scheduler
+```
+
+Each GitHub source receives one interval job with a stable ID, jitter, coalescing, and
+`max_instances=1`. Unchanged commit SHAs are no-ops. Failed sources receive persisted exponential
+backoff capped at one hour. Notification dispatch runs independently every 30 seconds, so a source
+failure does not prevent already-due alerts from being delivered.
+
+The process handles Ctrl+C and termination signals, pauses new jobs, gives active workflows a
+bounded time to finish, records a clean stop, and closes its HTTP client. Starting FastAPI never
+starts APScheduler as an import side effect.
+
+Scheduler health is protected by the internal service key:
+
+```http
+GET /internal/scheduler/status
+X-Internal-API-Key: your-internal-key
+```
+
+The response is `unknown` before the first run, `healthy` while heartbeats are recent, `stale`
+after heartbeats stop unexpectedly, and `stopped` after clean shutdown. It exposes only non-secret
+job IDs and next-run timestamps. Source results remain at `GET /internal/sources/status`.
+
+### Scheduler troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Scheduler exits immediately | Validate `config/sources.toml`, database connectivity, and migrations. |
+| Another scheduler is running | Stop it; exactly one scheduler process is supported. |
+| Source is skipped | Inspect `backoff_until` and `last_error` in `/internal/sources/status`. |
+| Poll succeeds with zero jobs | An unchanged GitHub commit is an expected no-op. |
+| No Telegram alert | Confirm a match and pending delivery exist, the profile is linked/enabled, and the token is current. |
+| Status is stale | Restart the scheduler and inspect its logs; FastAPI remains independent. |
+
 ## Known limitations
 
 - APScheduler must run as a single scheduler process and does not provide distributed work queues.
+- Scheduler jobs are rebuilt from committed configuration at startup; changes require a restart.
+- Synchronous SQLAlchemy work is acceptable at current polling volume but would move behind a
+  queue or async worker boundary at substantially higher concurrency.
 - GitHub ingestion depends on community-maintained Markdown table formats and must fail visibly when schemas change.
 - MVP keyword matching can miss nonstandard titles such as “Early Career Program”; ambiguous records remain visible rather than being silently discarded.
 - LinkedIn and Indeed are excluded because scraping them creates terms-of-service and reliability risk.
 - Source timestamps and completeness vary, so Sprintern records both source time and first-seen time.
 - Notification delivery is at-least-once. A provider may accept a message immediately before a database failure; Resend idempotency reduces this duplicate window, while Telegram offers no equivalent general key.
-- Source adapter and notification workflows are implemented but are not scheduled automatically until Phase 8.
 
 ## Current scope
 
-Phases 0–7 are complete: architecture boundaries, core schema, authenticated REST resources, ingestion framework and MVP adapters, source-aware lifecycle handling, deterministic matching, and Telegram/Resend notification delivery. Automatic scheduling, the Supabase frontend integration, and the product dashboard remain to be implemented.
+Phases 0-8 are complete: architecture boundaries, core schema, authenticated REST resources,
+ingestion framework and MVP adapters, source-aware lifecycle handling, deterministic matching,
+Telegram/Resend notification delivery, and automatic GitHub polling and delivery dispatch. The
+Supabase frontend integration and product dashboard remain to be implemented.
