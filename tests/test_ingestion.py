@@ -164,6 +164,7 @@ async def test_failed_run_preserves_cursor_and_records_failure(
     assert state is not None
     assert state.cursor == {"sha": "good"}
     assert state.consecutive_failures == 1
+    assert state.backoff_until is not None and state.backoff_until > datetime.now(UTC)
     assert state.last_error == "RuntimeError: source unavailable"
 
 

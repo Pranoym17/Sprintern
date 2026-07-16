@@ -1,9 +1,12 @@
 import asyncio
+import hashlib
 from collections import defaultdict
-from datetime import UTC, datetime
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.ingestion.contracts import SourceAdapter
@@ -31,60 +34,88 @@ class IngestionService:
         if lock.locked():
             return self._record_skipped(adapter)
         async with lock:
-            state_id, run_id, cursor = self._record_start(adapter)
-            try:
-                batch = await adapter.fetch(cursor)
-                seen_at = datetime.now(UTC)
-                normalized = []
-                rejected = batch.rejected_count
-                errors = list(batch.rejection_errors)
-                for raw in batch.records:
-                    try:
-                        normalized.append(normalize_job(adapter.source, adapter.source_key, raw))
-                    except (TypeError, ValueError) as exc:
-                        rejected += 1
-                        if len(errors) < 25:
-                            errors.append(str(exc))
+            with self._distributed_lock(adapter) as acquired:
+                if not acquired:
+                    return self._record_skipped(adapter)
+                return await self._run_locked(adapter)
 
-                with self.session_factory() as session:
-                    state = session.get_one(SourceState, state_id)
-                    run = session.get_one(IngestionRun, run_id)
-                    outcomes = {outcome: 0 for outcome in PersistenceOutcome}
-                    for candidate in normalized:
-                        outcomes[self.persister.persist(session, candidate, seen_at)] += 1
-                    if batch.completeness == PollCompleteness.COMPLETE:
-                        lifecycle_result = self.lifecycle.apply_complete_snapshot(
-                            session,
-                            adapter.source,
-                            adapter.source_key,
-                            {candidate.external_id for candidate in normalized},
-                            seen_at,
-                        )
-                        if lifecycle_result.suspicious_empty_snapshot:
-                            errors.append("Empty snapshot ignored for lifecycle safety")
-                    matching_service.match_all(session)
-                    state.cursor = batch.next_cursor
-                    state.consecutive_failures = 0
-                    state.backoff_until = None
-                    state.last_succeeded_at = seen_at
-                    state.last_error = None
-                    run.status = IngestionRunStatus.SUCCEEDED
-                    run.completeness = batch.completeness
-                    run.finished_at = seen_at
-                    run.fetched_count = len(batch.records) + batch.rejected_count
-                    run.accepted_count = len(normalized)
-                    run.rejected_count = rejected
-                    run.created_count = outcomes[PersistenceOutcome.CREATED]
-                    run.updated_count = outcomes[PersistenceOutcome.UPDATED]
-                    run.duplicate_count = outcomes[PersistenceOutcome.DUPLICATE]
-                    run.error = "; ".join(errors) if errors else None
-                    session.commit()
-                    session.refresh(run)
-                    session.expunge(run)
-                    return run
-            except Exception as exc:
-                self._record_failure(state_id, run_id, exc)
-                raise
+    async def _run_locked(self, adapter: SourceAdapter) -> IngestionRun:
+        state_id, run_id, cursor = self._record_start(adapter)
+        try:
+            batch = await adapter.fetch(cursor)
+            seen_at = datetime.now(UTC)
+            normalized = []
+            rejected = batch.rejected_count
+            errors = list(batch.rejection_errors)
+            for raw in batch.records:
+                try:
+                    normalized.append(normalize_job(adapter.source, adapter.source_key, raw))
+                except (TypeError, ValueError) as exc:
+                    rejected += 1
+                    if len(errors) < 25:
+                        errors.append(str(exc))
+
+            with self.session_factory() as session:
+                state = session.get_one(SourceState, state_id)
+                run = session.get_one(IngestionRun, run_id)
+                outcomes = {outcome: 0 for outcome in PersistenceOutcome}
+                for candidate in normalized:
+                    outcomes[self.persister.persist(session, candidate, seen_at)] += 1
+                if batch.completeness == PollCompleteness.COMPLETE:
+                    lifecycle_result = self.lifecycle.apply_complete_snapshot(
+                        session,
+                        adapter.source,
+                        adapter.source_key,
+                        {candidate.external_id for candidate in normalized},
+                        seen_at,
+                    )
+                    if lifecycle_result.suspicious_empty_snapshot:
+                        errors.append("Empty snapshot ignored for lifecycle safety")
+                matching_service.match_all(session)
+                state.cursor = batch.next_cursor
+                state.consecutive_failures = 0
+                state.backoff_until = None
+                state.last_succeeded_at = seen_at
+                state.last_error = None
+                run.status = IngestionRunStatus.SUCCEEDED
+                run.completeness = batch.completeness
+                run.finished_at = seen_at
+                run.fetched_count = len(batch.records) + batch.rejected_count
+                run.accepted_count = len(normalized)
+                run.rejected_count = rejected
+                run.created_count = outcomes[PersistenceOutcome.CREATED]
+                run.updated_count = outcomes[PersistenceOutcome.UPDATED]
+                run.duplicate_count = outcomes[PersistenceOutcome.DUPLICATE]
+                run.error = "; ".join(errors) if errors else None
+                session.commit()
+                session.refresh(run)
+                session.expunge(run)
+                return run
+        except Exception as exc:
+            self._record_failure(state_id, run_id, exc)
+            raise
+
+    @contextmanager
+    def _distributed_lock(self, adapter: SourceAdapter) -> Iterator[bool]:
+        lock_name = f"{adapter.source.value}:{adapter.source_key}"
+        lock_key = int.from_bytes(
+            hashlib.blake2b(lock_name.encode(), digest_size=8).digest(),
+            byteorder="big",
+            signed=True,
+        )
+        with self.session_factory() as session:
+            bind = session.get_bind()
+            if bind.dialect.name != "postgresql":
+                yield True
+                return
+            acquired = bool(
+                session.scalar(text("SELECT pg_try_advisory_lock(:key)"), {"key": lock_key})
+            )
+            try:
+                yield acquired
+            finally:
+                if acquired:
+                    session.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": lock_key})
 
     def _record_start(self, adapter: SourceAdapter) -> tuple[Any, Any, dict[str, Any]]:
         now = datetime.now(UTC)
@@ -128,6 +159,8 @@ class IngestionService:
             state = session.get_one(SourceState, state_id)
             run = session.get_one(IngestionRun, run_id)
             state.consecutive_failures += 1
+            delay_seconds = min(60 * (2 ** (state.consecutive_failures - 1)), 3600)
+            state.backoff_until = now + timedelta(seconds=delay_seconds)
             state.last_failed_at = now
             state.last_error = message
             run.status = IngestionRunStatus.FAILED
