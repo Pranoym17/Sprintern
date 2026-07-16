@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from api.models import JobSourceName, SourceState
 from api.scheduler.config import GitHubSourceConfig, SchedulerSourceConfig
 from api.scheduler.runtime import build_scheduler
+from api.scheduler.status import SchedulerRuntimeStore, scheduler_status
 from api.scheduler.workflows import SchedulerWorkflows
 from api.settings import settings
 
@@ -105,3 +107,51 @@ async def test_notification_workflow_treats_zero_due_as_success(
         await SchedulerWorkflows(client).dispatch_notifications()
 
     assert calls == 1
+
+
+def test_runtime_heartbeat_reports_health_and_protects_new_owner(
+    db_session: Session,
+) -> None:
+    factory = sessionmaker(
+        bind=db_session.get_bind(),
+        class_=Session,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    store = SchedulerRuntimeStore(factory)
+    first_instance = uuid.uuid4()
+    second_instance = uuid.uuid4()
+    started = datetime.now(UTC)
+    jobs = [{"id": "notifications:dispatch", "next_run_at": started.isoformat()}]
+
+    store.start(first_instance, jobs, started)
+    healthy = scheduler_status(db_session, 30, started + timedelta(seconds=10))
+    assert healthy.state == "healthy"
+    assert healthy.instance_id == first_instance
+    assert healthy.configured_jobs[0].id == "notifications:dispatch"
+
+    stale = scheduler_status(db_session, 30, started + timedelta(seconds=91))
+    assert stale.state == "stale"
+
+    store.start(second_instance, jobs, started + timedelta(seconds=100))
+    assert store.heartbeat(first_instance, jobs, started + timedelta(seconds=101)) is False
+    assert store.stop(first_instance, started + timedelta(seconds=102)) is False
+    assert store.stop(second_instance, started + timedelta(seconds=103)) is True
+    stopped = scheduler_status(db_session, 30, started + timedelta(seconds=104))
+    assert stopped.state == "stopped"
+
+
+async def test_scheduler_status_endpoint_is_protected(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "internal_api_key", "scheduler-test-key")
+
+    unauthorized = await api_client.get("/internal/scheduler/status")
+    authorized = await api_client.get(
+        "/internal/scheduler/status",
+        headers={"X-Internal-API-Key": "scheduler-test-key"},
+    )
+
+    assert unauthorized.status_code == 401
+    assert authorized.status_code == 200
+    assert authorized.json()["state"] in {"healthy", "stale", "stopped", "unknown"}

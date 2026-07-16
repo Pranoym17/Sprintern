@@ -14,6 +14,7 @@ from api.models.filter import JobFilter
 from api.models.job import Job, JobSource
 from api.models.match import JobMatch, NotificationDelivery, TelegramLinkToken
 from api.models.profile import Profile
+from api.models.scheduler import SchedulerRuntime
 from api.models.source import IngestionRun, SourceState
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "NotificationDelivery",
     "Profile",
     "PollCompleteness",
+    "SchedulerRuntime",
     "SourceState",
     "TelegramLinkToken",
     "WorkMode",

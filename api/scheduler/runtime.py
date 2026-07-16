@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import signal
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -8,10 +9,21 @@ import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
 
 from api.scheduler.config import SchedulerSourceConfig, load_source_config
+from api.scheduler.status import SchedulerRuntimeStore
 from api.scheduler.workflows import SchedulerWorkflows
 from api.settings import Settings, settings
 
 logger = logging.getLogger(__name__)
+
+
+def job_snapshot(scheduler: AsyncIOScheduler) -> list[dict[str, str | None]]:
+    return [
+        {
+            "id": job.id,
+            "next_run_at": job.next_run_time.isoformat() if job.next_run_time else None,
+        }
+        for job in scheduler.get_jobs()
+    ]
 
 
 def build_scheduler(
@@ -57,7 +69,25 @@ async def run_scheduler(app_settings: Settings = settings) -> None:
     restore_signals = _install_signal_handlers(request_stop)
     async with httpx.AsyncClient(timeout=15.0) as client:
         scheduler = build_scheduler(SchedulerWorkflows(client), source_config, app_settings)
-        scheduler.start()
+        runtime_store = SchedulerRuntimeStore()
+        instance_id = uuid.uuid4()
+
+        def heartbeat() -> None:
+            runtime_store.heartbeat(instance_id, job_snapshot(scheduler))
+
+        scheduler.add_job(
+            heartbeat,
+            "interval",
+            seconds=app_settings.scheduler_heartbeat_interval_seconds,
+            id="scheduler:heartbeat",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+        )
+        scheduler.start(paused=True)
+        runtime_store.start(instance_id, job_snapshot(scheduler))
+        scheduler.resume()
         logger.info(
             "scheduler started github_sources=%d jobs=%d timezone=%s",
             len(source_config.enabled_github),
@@ -68,6 +98,7 @@ async def run_scheduler(app_settings: Settings = settings) -> None:
             await stop_event.wait()
         finally:
             scheduler.shutdown(wait=True)
+            runtime_store.stop(instance_id)
             restore_signals()
             logger.info("scheduler stopped")
 

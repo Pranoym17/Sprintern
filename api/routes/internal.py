@@ -13,7 +13,14 @@ from api.ingestion.http import SourceHTTPError
 from api.ingestion.service import IngestionService
 from api.models import SourceState
 from api.notifications.runtime import build_dispatcher
-from api.schemas import IngestionRunRequest, IngestionRunResponse, SourceStatusResponse
+from api.scheduler.status import scheduler_status
+from api.schemas import (
+    IngestionRunRequest,
+    IngestionRunResponse,
+    SchedulerStatusResponse,
+    SourceStatusResponse,
+)
+from api.settings import settings
 
 router = APIRouter(
     prefix="/internal",
@@ -28,6 +35,11 @@ def read_source_status(session: Database) -> object:
     return list(
         session.scalars(select(SourceState).order_by(SourceState.source, SourceState.source_key))
     )
+
+
+@router.get("/scheduler/status", response_model=SchedulerStatusResponse)
+def read_scheduler_status(session: Database) -> SchedulerStatusResponse:
+    return scheduler_status(session, settings.scheduler_heartbeat_interval_seconds)
 
 
 @router.post("/ingestion-runs", response_model=IngestionRunResponse, status_code=201)

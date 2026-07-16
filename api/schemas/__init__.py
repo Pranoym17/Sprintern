@@ -3,6 +3,7 @@ from api.schemas.ingestion import IngestionRunRequest, IngestionRunResponse, Sou
 from api.schemas.job import JobPage, JobResponse
 from api.schemas.match import AnalyticsSummary, MatchPage, MatchResponse, MatchUpdate
 from api.schemas.profile import ProfileResponse, ProfileUpdate
+from api.schemas.scheduler import SchedulerJobStatus, SchedulerStatusResponse
 
 __all__ = [
     "AnalyticsSummary",
@@ -18,5 +19,7 @@ __all__ = [
     "MatchUpdate",
     "ProfileResponse",
     "ProfileUpdate",
+    "SchedulerJobStatus",
+    "SchedulerStatusResponse",
     "SourceStatusResponse",
 ]
