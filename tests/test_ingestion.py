@@ -194,6 +194,7 @@ async def test_same_source_runs_do_not_overlap(
 async def test_internal_source_status_requires_service_key(
     api_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(settings, "internal_api_key", "")
     unconfigured = await api_client.get("/internal/sources/status")
     assert unconfigured.status_code == 503
 

@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select, text
+from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.ingestion.contracts import SourceAdapter
@@ -105,7 +106,7 @@ class IngestionService:
         )
         with self.session_factory() as session:
             bind = session.get_bind()
-            if bind.dialect.name != "postgresql":
+            if bind.dialect.name != "postgresql" or isinstance(bind, Connection):
                 yield True
                 return
             acquired = bool(
