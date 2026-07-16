@@ -20,7 +20,7 @@ HEADER_ALIASES = {
     "company": {"company", "employer"},
     "title": {"role", "title", "position"},
     "location": {"location", "locations"},
-    "url": {"application", "apply", "link", "application link"},
+    "url": {"application", "apply", "link", "application link", "application/link"},
     "date": {"date", "date posted", "posted", "posting date"},
 }
 

@@ -20,6 +20,20 @@ README = "\n".join(
     ]
 )
 
+CURRENT_REPOSITORY_STYLE_README = "\n".join(
+    [
+        "# Summer 2027 Internships",
+        "",
+        "| Company | Role | Location | Application/Link | Date Posted |",
+        "| ------- | ---- | -------- | ---------------- | ----------- |",
+        "| Example | Software Engineer Intern | Toronto, ON</br>Remote | "
+        '<a href="https://example.com/apply"><img alt="Apply"></a> | Jul 09 |',
+        "| ↳ | Data Engineer Intern | New York, NY | "
+        '<a href="https://example.com/data"><img alt="Apply"></a> | Jul 08 |',
+        "| Closed Co | Backend Intern | Chicago, IL | 🔒 | Jul 07 |",
+    ]
+)
+
 
 async def test_github_skips_unchanged_commit() -> None:
     calls = 0
@@ -70,6 +84,35 @@ async def test_github_parses_supported_table_and_inherited_company() -> None:
     assert batch.records[0].term == "Summer 2027"
     assert batch.records[0].posted_at is not None
     assert batch.next_cursor == {"sha": "new-sha"}
+
+
+async def test_github_parses_current_repository_table_style() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/commits"):
+            return httpx.Response(200, json=[{"sha": "new-sha"}])
+        return httpx.Response(
+            200,
+            json={
+                "encoding": "base64",
+                "content": base64.b64encode(CURRENT_REPOSITORY_STYLE_README.encode()).decode(),
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = GitHubRepositoryAdapter(
+            "vanshb03",
+            "Summer2027-Internships",
+            RetryingHTTPClient(client),
+            branch="dev",
+            term="Summer 2027",
+        )
+        batch = await adapter.fetch({})
+
+    assert len(batch.records) == 2
+    assert str(batch.records[0].apply_url) == "https://example.com/apply"
+    assert batch.records[0].location == "Toronto, ON Remote"
+    assert batch.records[1].company == "Example"
+    assert batch.rejected_count == 0
 
 
 async def test_github_fails_visibly_when_table_schema_changes() -> None:

@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 
 from api.auth import require_internal_api_key
 from api.database import SessionLocal, get_db
+from api.errors import AppError
 from api.ingestion.factory import build_adapter
+from api.ingestion.http import SourceHTTPError
 from api.ingestion.service import IngestionService
 from api.models import SourceState
 from api.notifications.runtime import build_dispatcher
@@ -30,8 +32,13 @@ def read_source_status(session: Database) -> object:
 
 @router.post("/ingestion-runs", response_model=IngestionRunResponse, status_code=201)
 async def create_ingestion_run(payload: IngestionRunRequest) -> object:
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        run = await IngestionService(SessionLocal).run(build_adapter(payload, client))
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            run = await IngestionService(SessionLocal).run(build_adapter(payload, client))
+    except SourceHTTPError as exc:
+        # The service has already persisted the failed run; operators need a stable
+        # integration error, not an internal traceback.
+        raise AppError(502, "source_error", str(exc)) from exc
     return run
 
 
