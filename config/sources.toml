@@ -1,0 +1,9 @@
+[[github]]
+enabled = true
+owner = "vanshb03"
+repository = "Summer2027-Internships"
+path = "README.md"
+branch = "dev"
+term = "Summer 2027"
+poll_minutes = 15
+jitter_seconds = 30

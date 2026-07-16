@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,12 @@ class Settings(BaseSettings):
     resend_from_email: str = ""
     notification_max_attempts: int = 5
     notification_lease_seconds: int = 300
+    scheduler_source_config: Path = Path("config/sources.toml")
+    scheduler_notification_interval_seconds: int = Field(30, ge=5)
+    scheduler_heartbeat_interval_seconds: int = Field(30, ge=5)
+    scheduler_timezone: str = "UTC"
+    scheduler_misfire_grace_seconds: int = Field(60, ge=1)
+    scheduler_shutdown_timeout_seconds: int = Field(30, ge=1)
 
     @property
     def supabase_issuer(self) -> str:
