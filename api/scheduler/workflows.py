@@ -1,5 +1,8 @@
+import asyncio
 import logging
+from collections.abc import Awaitable
 from datetime import UTC, datetime
+from typing import TypeVar
 
 import httpx
 from sqlalchemy import select
@@ -14,6 +17,7 @@ from api.scheduler.config import GitHubSourceConfig
 from api.schemas import IngestionRunRequest
 
 logger = logging.getLogger(__name__)
+Result = TypeVar("Result")
 
 
 class SchedulerWorkflows:
@@ -24,8 +28,14 @@ class SchedulerWorkflows:
     ) -> None:
         self.client = client
         self.session_factory = session_factory
+        self._active_tasks = 0
+        self._idle = asyncio.Event()
+        self._idle.set()
 
     async def ingest_github(self, source: GitHubSourceConfig) -> None:
+        await self._tracked(self._ingest_github(source))
+
+    async def _ingest_github(self, source: GitHubSourceConfig) -> None:
         now = datetime.now(UTC)
         with self.session_factory() as session:
             state = session.scalar(
@@ -77,6 +87,9 @@ class SchedulerWorkflows:
             )
 
     async def dispatch_notifications(self) -> None:
+        await self._tracked(self._dispatch_notifications())
+
+    async def _dispatch_notifications(self) -> None:
         started = datetime.now(UTC)
         try:
             sent = await build_dispatcher(self.client, self.session_factory).dispatch_due(limit=100)
@@ -90,3 +103,20 @@ class SchedulerWorkflows:
             logger.error(
                 "scheduler notification dispatch failed error_type=%s", type(exc).__name__
             )
+
+    async def wait_until_idle(self, timeout_seconds: int) -> bool:
+        try:
+            await asyncio.wait_for(self._idle.wait(), timeout=timeout_seconds)
+            return True
+        except TimeoutError:
+            return False
+
+    async def _tracked(self, operation: Awaitable[Result]) -> Result:
+        self._active_tasks += 1
+        self._idle.clear()
+        try:
+            return await operation
+        finally:
+            self._active_tasks -= 1
+            if self._active_tasks == 0:
+                self._idle.set()

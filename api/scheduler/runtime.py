@@ -1,13 +1,18 @@
 import asyncio
+import hashlib
 import logging
 import signal
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
+from sqlalchemy import text
+from sqlalchemy.orm import Session, sessionmaker
 
+from api.database import SessionLocal
 from api.scheduler.config import SchedulerSourceConfig, load_source_config
 from api.scheduler.status import SchedulerRuntimeStore
 from api.scheduler.workflows import SchedulerWorkflows
@@ -67,40 +72,78 @@ async def run_scheduler(app_settings: Settings = settings) -> None:
         loop.call_soon_threadsafe(stop_event.set)
 
     restore_signals = _install_signal_handlers(request_stop)
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        scheduler = build_scheduler(SchedulerWorkflows(client), source_config, app_settings)
-        runtime_store = SchedulerRuntimeStore()
-        instance_id = uuid.uuid4()
+    try:
+        with scheduler_process_lock():
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                workflows = SchedulerWorkflows(client)
+                scheduler = build_scheduler(workflows, source_config, app_settings)
+                runtime_store = SchedulerRuntimeStore()
+                instance_id = uuid.uuid4()
 
-        def heartbeat() -> None:
-            runtime_store.heartbeat(instance_id, job_snapshot(scheduler))
+                def heartbeat() -> None:
+                    runtime_store.heartbeat(instance_id, job_snapshot(scheduler))
 
-        scheduler.add_job(
-            heartbeat,
-            "interval",
-            seconds=app_settings.scheduler_heartbeat_interval_seconds,
-            id="scheduler:heartbeat",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-            misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+                scheduler.add_job(
+                    heartbeat,
+                    "interval",
+                    seconds=app_settings.scheduler_heartbeat_interval_seconds,
+                    id="scheduler:heartbeat",
+                    replace_existing=True,
+                    max_instances=1,
+                    coalesce=True,
+                    misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+                )
+                scheduler.start(paused=True)
+                runtime_started = False
+                try:
+                    runtime_store.start(instance_id, job_snapshot(scheduler))
+                    runtime_started = True
+                    scheduler.resume()
+                    logger.info(
+                        "scheduler started github_sources=%d jobs=%d timezone=%s",
+                        len(source_config.enabled_github),
+                        len(scheduler.get_jobs()),
+                        app_settings.scheduler_timezone,
+                    )
+                    await stop_event.wait()
+                finally:
+                    scheduler.pause()
+                    idle = await workflows.wait_until_idle(
+                        app_settings.scheduler_shutdown_timeout_seconds
+                    )
+                    if not idle:
+                        logger.warning("scheduler shutdown timed out; cancelling active jobs")
+                    scheduler.shutdown(wait=False)
+                    await asyncio.sleep(0)
+                    if runtime_started:
+                        runtime_store.stop(instance_id)
+                    logger.info("scheduler stopped")
+    finally:
+        restore_signals()
+
+
+@contextmanager
+def scheduler_process_lock(
+    session_factory: sessionmaker[Session] = SessionLocal,
+) -> Iterator[None]:
+    lock_key = int.from_bytes(
+        hashlib.blake2b(b"sprintern:scheduler", digest_size=8).digest(),
+        byteorder="big",
+        signed=True,
+    )
+    with session_factory() as session:
+        if session.get_bind().dialect.name != "postgresql":
+            yield
+            return
+        acquired = bool(
+            session.scalar(text("SELECT pg_try_advisory_lock(:key)"), {"key": lock_key})
         )
-        scheduler.start(paused=True)
-        runtime_store.start(instance_id, job_snapshot(scheduler))
-        scheduler.resume()
-        logger.info(
-            "scheduler started github_sources=%d jobs=%d timezone=%s",
-            len(source_config.enabled_github),
-            len(scheduler.get_jobs()),
-            app_settings.scheduler_timezone,
-        )
+        if not acquired:
+            raise RuntimeError("another scheduler process is already running")
         try:
-            await stop_event.wait()
+            yield
         finally:
-            scheduler.shutdown(wait=True)
-            runtime_store.stop(instance_id)
-            restore_signals()
-            logger.info("scheduler stopped")
+            session.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": lock_key})
 
 
 def _install_signal_handlers(callback: Callable[[], None]) -> Callable[[], None]:

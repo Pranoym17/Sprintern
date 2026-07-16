@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -6,9 +7,10 @@ import httpx
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
 
+from api.database import SessionLocal
 from api.models import JobSourceName, SourceState
 from api.scheduler.config import GitHubSourceConfig, SchedulerSourceConfig
-from api.scheduler.runtime import build_scheduler
+from api.scheduler.runtime import build_scheduler, scheduler_process_lock
 from api.scheduler.status import SchedulerRuntimeStore, scheduler_status
 from api.scheduler.workflows import SchedulerWorkflows
 from api.settings import settings
@@ -155,3 +157,23 @@ async def test_scheduler_status_endpoint_is_protected(
     assert unauthorized.status_code == 401
     assert authorized.status_code == 200
     assert authorized.json()["state"] in {"healthy", "stale", "stopped", "unknown"}
+
+
+def test_process_lock_rejects_second_scheduler() -> None:
+    with scheduler_process_lock(SessionLocal):
+        with pytest.raises(RuntimeError, match="already running"):
+            with scheduler_process_lock(SessionLocal):
+                raise AssertionError("a second scheduler must not acquire the lock")
+
+
+async def test_workflow_waits_for_active_work() -> None:
+    release = asyncio.Event()
+    async with httpx.AsyncClient() as client:
+        workflows = SchedulerWorkflows(client)
+        active = asyncio.create_task(workflows._tracked(release.wait()))
+        await asyncio.sleep(0)
+
+        assert await workflows.wait_until_idle(0) is False
+        release.set()
+        await active
+        assert await workflows.wait_until_idle(1) is True
