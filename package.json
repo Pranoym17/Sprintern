@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:api": ".venv\\Scripts\\python -m uvicorn api.main:app --reload --port 8000",
+    "dev:api": ".venv\\Scripts\\python -m uvicorn api.main:app --reload --port 8010",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "set PLAYWRIGHT_BROWSERS_PATH=0&& playwright test",
     "lint:api": ".venv\\Scripts\\python -m ruff check api tests migrations",
     "format:api": ".venv\\Scripts\\python -m ruff format api tests migrations",
     "test:api": ".venv\\Scripts\\python -m pytest",
@@ -25,6 +26,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
