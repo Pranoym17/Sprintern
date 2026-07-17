@@ -42,7 +42,9 @@ SEASON_ALIASES = {
     "fall": "Fall",
     "autumn": "Fall",
 }
-SEASON_PATTERN = re.compile(r"\b(winter|spring|summer|fall|autumn)\b", re.IGNORECASE)
+SEASON_PATTERN = re.compile(
+    r"\b(winter|spring|summer|fall|autumn)(?=\b|20\d{2})", re.IGNORECASE
+)
 OFF_CYCLE_PATTERN = re.compile(r"\boff[- ]cycle\b", re.IGNORECASE)
 MONTH_RANGE_PATTERNS = {
     "Winter": re.compile(r"\bjan(?:uary)?\b.{0,12}\b(?:apr(?:il)?|may)\b", re.IGNORECASE),
@@ -267,6 +269,7 @@ class GitHubRepositoryAdapter:
             ("column", raw_term),
             ("title", title),
             ("heading", heading),
+            ("repository", self.repository),
             ("fallback", self.term),
         )
         year_context = next(

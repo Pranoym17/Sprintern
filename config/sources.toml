@@ -4,8 +4,6 @@ owner = "vanshb03"
 repository = "Summer2027-Internships"
 path = "README.md"
 branch = "dev"
-# Fallback only; row, title, and Markdown section terms take precedence.
-term = "Summer 2027"
 poll_minutes = 15
 jitter_seconds = 30
 
@@ -34,7 +32,6 @@ owner = "SimplifyJobs"
 repository = "Summer2026-Internships"
 path = "README.md"
 branch = "dev"
-term = "Summer 2026"
 poll_minutes = 120
 jitter_seconds = 180
 
@@ -44,7 +41,6 @@ owner = "sndsh404"
 repository = "summer-2027-internships"
 path = "README.md"
 branch = "main"
-term = "Summer 2027"
 poll_minutes = 360
 jitter_seconds = 240
 

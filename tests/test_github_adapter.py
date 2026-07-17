@@ -213,3 +213,26 @@ def test_github_extracts_outer_apply_link_and_cleans_linked_company() -> None:
         "title": 1,
         "url": 2,
     }
+
+
+async def test_github_uses_repository_term_only_after_posting_evidence() -> None:
+    async with httpx.AsyncClient() as client:
+        adapter = GitHubRepositoryAdapter(
+            "owner",
+            "Fall2027-Internships",
+            RetryingHTTPClient(client),
+            term="Winter 2027",
+        )
+
+        assert adapter._infer_term(None, "Software Intern", None) == (
+            "Fall 2027",
+            "repository",
+        )
+        assert adapter._infer_term(None, "Summer 2027 Software Intern", None) == (
+            "Summer 2027",
+            "title",
+        )
+        invalid = GitHubRepositoryAdapter(
+            "owner", "Mixed-Internships-2026", RetryingHTTPClient(client), term="mixed"
+        )
+        assert invalid._infer_term(None, "Software Intern", None) == (None, None)
