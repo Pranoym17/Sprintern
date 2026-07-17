@@ -50,6 +50,20 @@ The ingestion path is `fetch → validate → normalize → deduplicate → pers
 - Keyword matching ships before AI so the end-to-end system is measurable before adding cost and nondeterminism.
 - pgvector will live in PostgreSQL rather than a separate vector database because expected data volume does not justify another service.
 
+### Frontend decisions
+
+- Marketing content stays server-rendered while authentication and mutations use narrow client
+  component boundaries. This keeps the landing page fast without making the interactive workspace
+  harder to follow.
+- Supabase manages browser sessions and refresh cookies. Next.js performs optimistic route gating,
+  but FastAPI still validates every bearer token and remains the authorization boundary.
+- One typed API client owns bearer headers, cursor encoding, empty responses, and error
+  normalization. Pages do not duplicate raw fetch behavior.
+- The UI exposes only backend-supported match states: matched, applied, and dismissed. Saved and
+  unread states are intentionally not implied before their data model exists.
+- The interface uses a small custom component system instead of a large UI library. At this MVP
+  size, accessible native controls and shared CSS tokens are easier to audit and explain.
+
 ## Development workflow
 
 Each major component starts with a short design explanation and tradeoff review, followed by implementation, edge-case tests, and a README update. MVP milestones are completed and reviewed before post-MVP AI work begins.
@@ -75,6 +89,16 @@ Keep the local `DATABASE_URL` from `.env.example`. Add real Supabase and integra
 
 For Supabase Auth, create a project with asymmetric JWT signing keys, then set `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and the publishable/anon keys. FastAPI downloads the project's JWKS, caches it for at most ten minutes, and validates token signature, issuer, audience, expiry, and subject. Secret and service-role keys must never be exposed to the browser.
 
+The browser also needs the public API address:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8010
+```
+
+In Supabase Authentication URL Configuration, use `http://localhost:3000` as the local site URL
+and allow `http://localhost:3000/auth/callback` as a redirect URL. Only the anon/publishable key is
+safe in a `NEXT_PUBLIC_` variable; never use a service-role key in the frontend.
+
 ## Run locally
 
 Use three terminals for the full application:
@@ -92,14 +116,27 @@ npm.cmd run dev:api
 ```
 
 - Web: http://localhost:3000
-- API: http://localhost:8000
-- API docs: http://localhost:8000/docs
-- Health: http://localhost:8000/health
+- API: http://localhost:8010
+- API docs: http://localhost:8010/docs
+- Health: http://localhost:8010/health
+
+The frontend includes:
+
+- An accessible, responsive product landing page
+- Supabase sign-up, sign-in, confirmation callback, session refresh, and protected routes
+- Overview analytics and recent matches
+- Cursor-paginated match review with applied, dismissed, and restore actions
+- Filter creation, editing, activation, pausing, and deletion
+- Profile cadence, timezone, email preference, and Telegram link management
+- Desktop sidebar and mobile bottom navigation with reduced-motion support
 
 ## Quality checks
 
 ```powershell
 npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run test:e2e
 npm.cmd run build
 npm.cmd run lint:api
 npm.cmd run typecheck:api
@@ -235,7 +272,8 @@ job IDs and next-run timestamps. Source results remain at `GET /internal/sources
 
 ## Current scope
 
-Phases 0-8 are complete: architecture boundaries, core schema, authenticated REST resources,
+Phases 0-9 are complete: architecture boundaries, core schema, authenticated REST resources,
 ingestion framework and MVP adapters, source-aware lifecycle handling, deterministic matching,
-Telegram/Resend notification delivery, and automatic GitHub polling and delivery dispatch. The
-Supabase frontend integration and product dashboard remain to be implemented.
+Telegram/Resend notification delivery, automatic GitHub polling and delivery dispatch, Supabase
+frontend authentication, and the responsive product dashboard. Production deployment and the
+deferred Resend account/domain configuration remain operational follow-up work.
