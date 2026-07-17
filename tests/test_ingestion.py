@@ -223,6 +223,31 @@ async def test_ingestion_is_idempotent_and_advances_cursor(
     assert second_adapter.received_cursor == {"page": 2}
 
 
+async def test_ingestion_collapses_duplicate_source_rows_in_one_snapshot(
+    ingestion_factory: sessionmaker[Session],
+) -> None:
+    duplicate = raw_job("same-application")
+    batch = PollBatch(
+        records=[duplicate, duplicate.model_copy(update={"title": "Duplicate table row"})],
+        completeness=PollCompleteness.COMPLETE,
+        next_cursor={"sha": "duplicate-snapshot"},
+    )
+
+    run = await IngestionService(ingestion_factory).run(FakeAdapter(batch))
+
+    with ingestion_factory() as session:
+        jobs = list(
+            session.scalars(select(JobSource).where(JobSource.external_id == "same-application"))
+        )
+
+    assert run.status == IngestionRunStatus.SUCCEEDED
+    assert run.fetched_count == 2
+    assert run.accepted_count == 1
+    assert run.created_count == 1
+    assert run.duplicate_count == 1
+    assert len(jobs) == 1
+
+
 async def test_failed_run_preserves_cursor_and_records_failure(
     ingestion_factory: sessionmaker[Session],
 ) -> None:

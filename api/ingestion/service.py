@@ -47,11 +47,18 @@ class IngestionService:
             batch = await adapter.fetch(cursor)
             seen_at = datetime.now(UTC)
             normalized = []
+            seen_source_ids: set[str] = set()
+            source_duplicates = 0
             rejected = batch.rejected_count
             errors = list(batch.rejection_errors)
             for raw in batch.records:
                 try:
-                    normalized.append(normalize_job(adapter.source, adapter.source_key, raw))
+                    candidate = normalize_job(adapter.source, adapter.source_key, raw)
+                    if candidate.external_id in seen_source_ids:
+                        source_duplicates += 1
+                        continue
+                    seen_source_ids.add(candidate.external_id)
+                    normalized.append(candidate)
                 except (TypeError, ValueError) as exc:
                     rejected += 1
                     if len(errors) < 25:
@@ -61,6 +68,7 @@ class IngestionService:
                 state = session.get_one(SourceState, state_id)
                 run = session.get_one(IngestionRun, run_id)
                 outcomes = {outcome: 0 for outcome in PersistenceOutcome}
+                outcomes[PersistenceOutcome.DUPLICATE] = source_duplicates
                 for candidate in normalized:
                     outcomes[self.persister.persist(session, candidate, seen_at)] += 1
                 if batch.completeness == PollCompleteness.COMPLETE:
