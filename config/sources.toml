@@ -4,6 +4,7 @@ owner = "vanshb03"
 repository = "Summer2027-Internships"
 path = "README.md"
 branch = "dev"
+# Fallback only; row, title, and Markdown section terms take precedence.
 term = "Summer 2027"
 poll_minutes = 15
 jitter_seconds = 30

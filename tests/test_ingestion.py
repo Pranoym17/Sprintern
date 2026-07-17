@@ -82,6 +82,30 @@ def test_normalizes_text_url_and_fingerprint() -> None:
     assert first.apply_url == "https://jobs.example.com/apply?id=1"
 
 
+def test_overlapping_repositories_share_one_canonical_job(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    first = normalize_job(JobSourceName.GITHUB_REPO, "owner/first:README.md", raw_job("first-row"))
+    second = normalize_job(
+        JobSourceName.GITHUB_REPO, "owner/second:README.md", raw_job("second-row")
+    )
+    persister = JobPersister()
+
+    assert persister.persist(db_session, first, now) == PersistenceOutcome.CREATED
+    assert persister.persist(db_session, second, now) == PersistenceOutcome.DUPLICATE
+    db_session.flush()
+
+    jobs = list(
+        db_session.scalars(
+            select(Job).where(Job.canonical_fingerprint == first.canonical_fingerprint)
+        )
+    )
+    assert len(jobs) == 1
+    assert {source.source_key for source in jobs[0].sources} == {
+        "owner/first:README.md",
+        "owner/second:README.md",
+    }
+
+
 async def test_http_client_honors_retry_after() -> None:
     calls = 0
     delays: list[float] = []
