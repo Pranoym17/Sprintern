@@ -120,3 +120,33 @@ async def test_invalid_cursor_uses_standard_error(api_client: AsyncClient) -> No
     assert response.json() == {
         "error": {"code": "invalid_cursor", "message": "Pagination cursor is invalid"}
     }
+
+
+async def test_pagination_rejects_out_of_bounds_limits(api_client: AsyncClient) -> None:
+    for path in ("/jobs", "/matches"):
+        assert (await api_client.get(path, params={"limit": 0})).status_code == 422
+        assert (await api_client.get(path, params={"limit": 101})).status_code == 422
+
+
+async def test_match_ownership_hides_other_users_records(
+    api_client: AsyncClient, db_session: Session
+) -> None:
+    now = datetime.now(UTC)
+    other = Profile(id=uuid.uuid4(), email="other@example.com")
+    job = Job(
+        company="Private",
+        normalized_company="private",
+        title="Software Intern",
+        normalized_title="software intern",
+        canonical_fingerprint="e" * 64,
+        first_seen_at=now,
+        last_seen_at=now,
+    )
+    match = JobMatch(profile=other, job=job, reasons=[])
+    db_session.add(match)
+    db_session.commit()
+
+    assert (await api_client.get(f"/matches/{match.id}")).status_code == 404
+    assert (
+        await api_client.patch(f"/matches/{match.id}", json={"status": "applied"})
+    ).status_code == 404

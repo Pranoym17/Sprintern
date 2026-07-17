@@ -120,6 +120,27 @@ async def test_http_client_does_not_retry_permanent_errors() -> None:
     assert calls == 1
 
 
+async def test_http_client_retries_timeouts_to_the_configured_limit() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        raise httpx.ReadTimeout("provider timed out", request=request)
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        retrying = RetryingHTTPClient(client, max_attempts=3, sleep=record_sleep, jitter=lambda: 0)
+        with pytest.raises(SourceHTTPError, match="failed after 3 attempts"):
+            await retrying.get_json("https://example.com/jobs")
+
+    assert calls == 3
+    assert delays == [0.5, 1.0]
+
+
 async def test_ingestion_is_idempotent_and_advances_cursor(
     ingestion_factory: sessionmaker[Session],
 ) -> None:

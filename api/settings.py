@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,6 +45,29 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins_value.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.app_env.lower() != "production":
+            return self
+        errors: list[str] = []
+        if len(self.internal_api_key) < 32:
+            errors.append("INTERNAL_API_KEY must contain at least 32 characters")
+        if not self.frontend_url.startswith("https://"):
+            errors.append("FRONTEND_URL must use HTTPS")
+        if not self.supabase_url.startswith("https://"):
+            errors.append("SUPABASE_URL must use HTTPS")
+        if not self.supabase_anon_key:
+            errors.append("SUPABASE_ANON_KEY is required")
+        if not self.database_url.startswith(("postgresql://", "postgresql+psycopg://")):
+            errors.append("DATABASE_URL must use PostgreSQL")
+        if not self.cors_origins:
+            errors.append("CORS_ORIGINS must contain the production frontend origin")
+        if any(origin == "*" or not origin.startswith("https://") for origin in self.cors_origins):
+            errors.append("CORS_ORIGINS must contain only explicit HTTPS origins")
+        if errors:
+            raise ValueError("; ".join(errors))
+        return self
 
 
 @lru_cache

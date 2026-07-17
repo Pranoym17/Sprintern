@@ -138,6 +138,26 @@ async def test_resend_provider_uses_stable_idempotency_key() -> None:
     assert result == ProviderResult(DeliveryOutcome.SENT, provider_message_id="email-123")
 
 
+@pytest.mark.parametrize("provider_name", ["telegram", "resend"])
+async def test_notification_provider_timeout_is_retryable(provider_name: str) -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("provider timed out", request=request)
+
+    message = NotificationMessage(
+        "recipient", "Subject", "Text", "<p>Text</p>", "https://example.com", "key"
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = (
+            TelegramProvider("telegram-token", client)
+            if provider_name == "telegram"
+            else ResendProvider("resend-key", "alerts@example.com", client)
+        )
+        result = await provider.send(message)
+
+    assert result.outcome == DeliveryOutcome.TRANSIENT_FAILURE
+    assert result.error == "ReadTimeout"
+
+
 class RecordingProvider:
     def __init__(self, result: ProviderResult) -> None:
         self.result = result
