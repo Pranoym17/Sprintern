@@ -8,3 +8,78 @@ branch = "dev"
 term = "Summer 2027"
 poll_minutes = 15
 jitter_seconds = 30
+
+# Candidate sources stay disabled until their manual ingestion counters and links are reviewed.
+[[github]]
+enabled = false
+owner = "speedyapply"
+repository = "2027-SWE-College-Jobs"
+path = "README.md"
+branch = "main"
+poll_minutes = 180
+jitter_seconds = 60
+
+[[github]]
+enabled = false
+owner = "speedyapply"
+repository = "2027-AI-College-Jobs"
+path = "README.md"
+branch = "main"
+poll_minutes = 180
+jitter_seconds = 120
+
+[[github]]
+enabled = false
+owner = "SimplifyJobs"
+repository = "Summer2026-Internships"
+path = "README.md"
+branch = "dev"
+term = "Summer 2026"
+poll_minutes = 120
+jitter_seconds = 180
+
+[[github]]
+enabled = false
+owner = "sndsh404"
+repository = "summer-2027-internships"
+path = "README.md"
+branch = "main"
+term = "Summer 2027"
+poll_minutes = 360
+jitter_seconds = 240
+
+[[github]]
+enabled = false
+owner = "negarprh"
+repository = "Canadian-Tech-Internships-2026"
+path = "README.md"
+branch = "main"
+poll_minutes = 90
+jitter_seconds = 300
+
+[[github]]
+enabled = false
+owner = "zapplyjobs"
+repository = "Internships-2027"
+path = "README.md"
+branch = "main"
+poll_minutes = 60
+jitter_seconds = 30
+
+[[github]]
+enabled = false
+owner = "zapplyjobs"
+repository = "Canada-Internships-2027"
+path = "README.md"
+branch = "main"
+poll_minutes = 60
+jitter_seconds = 90
+
+[[github]]
+enabled = false
+owner = "zshah101"
+repository = "Automated-List-Of-Summer-2027-and-Fall-2026-Tech-Internships"
+path = "README.md"
+branch = "main"
+poll_minutes = 60
+jitter_seconds = 150

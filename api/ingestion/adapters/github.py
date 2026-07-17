@@ -11,8 +11,11 @@ from api.ingestion.http import RetryingHTTPClient, SourceHTTPError
 from api.models import JobSourceName, PollCompleteness
 
 MARKDOWN_LINK = re.compile(r"\[[^]]*]\((https?://[^)\s]+)[^)]*\)")
+NESTED_IMAGE_LINK = re.compile(r"\[!\[[^]]*]\(https?://[^)]+\)]\((https?://[^)\s]+)[^)]*\)")
 HTML_LINK = re.compile(r"href=[\"'](https?://[^\"']+)", re.IGNORECASE)
 RAW_LINK = re.compile(r"https?://[^\s<>|)]+")
+MARKDOWN_IMAGE = re.compile(r"!\[([^]]*)]\([^)]+\)")
+MARKDOWN_TEXT_LINK = re.compile(r"\[([^]]+)]\([^)]+\)")
 SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
 CLOSED_MARKERS = {"closed", "filled", "expired", "🔒"}
 
@@ -20,7 +23,14 @@ HEADER_ALIASES = {
     "company": {"company", "employer"},
     "title": {"role", "title", "position"},
     "location": {"location", "locations"},
-    "url": {"application", "apply", "link", "application link", "application/link"},
+    "url": {
+        "application",
+        "apply",
+        "link",
+        "posting",
+        "application link",
+        "application/link",
+    },
     "date": {"date", "date posted", "posted", "posting date"},
     "term": {"term", "season", "internship term", "internship season", "cycle"},
 }
@@ -192,6 +202,12 @@ class GitHubRepositoryAdapter:
                 return (html_to_text(match.group(1)) or "").strip() or None
         return None
 
+    @staticmethod
+    def _cell_text(value: str) -> str:
+        without_images = MARKDOWN_IMAGE.sub(r"\1", value)
+        without_links = MARKDOWN_TEXT_LINK.sub(r"\1", without_images)
+        return (html_to_text(without_links) or "").strip()
+
     def _map_row(
         self,
         cells: list[str],
@@ -200,7 +216,7 @@ class GitHubRepositoryAdapter:
         commit_sha: str,
         heading: str | None,
     ) -> tuple[RawSourceJob | None, str | None]:
-        company_text = html_to_text(cells[columns["company"]]) or ""
+        company_text = self._cell_text(cells[columns["company"]])
         if company_text.strip() in {"↳", "↪", ""}:
             company = previous_company
         else:
@@ -208,16 +224,16 @@ class GitHubRepositoryAdapter:
         if not company:
             raise ValueError("company is missing and cannot be inherited")
 
-        title = (html_to_text(cells[columns["title"]]) or "").strip("*~ ")
+        title = self._cell_text(cells[columns["title"]]).strip("*~ ")
         url_cell = cells[columns["url"]]
         if any(marker in url_cell.lower() for marker in CLOSED_MARKERS):
             return None, company
         apply_url = self._extract_url(url_cell)
         if not apply_url:
             raise ValueError("application URL is missing")
-        location = html_to_text(cells[columns["location"]]) if "location" in columns else None
+        location = self._cell_text(cells[columns["location"]]) if "location" in columns else None
         posted_at = parse_datetime(cells[columns["date"]]) if "date" in columns else None
-        raw_term = html_to_text(cells[columns["term"]]) if "term" in columns else None
+        raw_term = self._cell_text(cells[columns["term"]]) if "term" in columns else None
         term, term_source = self._infer_term(raw_term, title, heading)
         external_id = hashlib.sha256(apply_url.encode()).hexdigest()
         source_url = (
@@ -285,7 +301,7 @@ class GitHubRepositoryAdapter:
 
     @staticmethod
     def _extract_url(value: str) -> str | None:
-        for pattern in (MARKDOWN_LINK, HTML_LINK, RAW_LINK):
+        for pattern in (NESTED_IMAGE_LINK, MARKDOWN_LINK, HTML_LINK, RAW_LINK):
             match = pattern.search(value)
             if match:
                 return match.group(1) if match.lastindex else match.group(0)

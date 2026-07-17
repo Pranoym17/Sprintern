@@ -28,5 +28,10 @@ def parse_datetime(value: Any) -> datetime | None:
             parsed = datetime.fromisoformat(normalized)
             return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
         except ValueError:
+            for date_format in ("%b %d, %Y", "%B %d, %Y"):
+                try:
+                    return datetime.strptime(normalized, date_format).replace(tzinfo=UTC)
+                except ValueError:
+                    continue
             return None
     return None

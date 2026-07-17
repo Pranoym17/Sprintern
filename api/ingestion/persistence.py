@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from enum import StrEnum
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from api.ingestion.normalization import NormalizedJob
@@ -45,10 +45,23 @@ class JobPersister:
             next_occurrence = 1
 
         cutoff = seen_at - self.repost_threshold
+        compatible_term = (
+            or_(Job.term == candidate.term, Job.term.is_(None))
+            if candidate.term
+            else Job.id.is_not(None)
+        )
         canonical_job = session.scalar(
             select(Job)
             .where(
-                Job.canonical_fingerprint == candidate.canonical_fingerprint,
+                or_(
+                    Job.canonical_fingerprint == candidate.canonical_fingerprint,
+                    (
+                        (Job.normalized_company == candidate.normalized_company)
+                        & (Job.normalized_title == candidate.normalized_title)
+                        & (Job.normalized_location == candidate.normalized_location)
+                        & compatible_term
+                    ),
+                ),
                 Job.first_seen_at >= cutoff,
             )
             .order_by(Job.first_seen_at.desc())
@@ -56,6 +69,9 @@ class JobPersister:
         )
         if canonical_job:
             canonical_job.last_seen_at = seen_at
+            if canonical_job.term is None and candidate.term:
+                canonical_job.term = candidate.term
+                canonical_job.canonical_fingerprint = candidate.canonical_fingerprint
             canonical_job.sources.append(
                 self._source_record(candidate, seen_at, occurrence=next_occurrence)
             )

@@ -194,3 +194,22 @@ async def test_github_fails_visibly_when_table_schema_changes() -> None:
             assert "no supported internship table schema" in str(exc)
         else:
             raise AssertionError("schema changes must fail the poll")
+
+
+def test_github_extracts_outer_apply_link_and_cleans_linked_company() -> None:
+    nested = (
+        "[![Apply](https://raw.githubusercontent.com/assets/apply.svg)]"
+        "(https://jobs.example.com/direct-application)"
+    )
+
+    assert GitHubRepositoryAdapter._extract_url(nested) == (
+        "https://jobs.example.com/direct-application"
+    )
+    assert GitHubRepositoryAdapter._cell_text("[Example Corp](https://example.com)") == (
+        "Example Corp"
+    )
+    assert GitHubRepositoryAdapter._column_map(["Company", "Position", "Posting"]) == {
+        "company": 0,
+        "title": 1,
+        "url": 2,
+    }

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from api.ingestion import PollBatch, RawSourceJob
 from api.ingestion.adapters import GreenhouseAdapter, LeverAdapter, RemoteOKAdapter
+from api.ingestion.adapters.utils import parse_datetime
 from api.ingestion.factory import build_adapter
 from api.ingestion.http import RetryingHTTPClient, SourceHTTPError
 from api.ingestion.normalization import canonicalize_url, normalize_job, normalize_text
@@ -84,7 +85,11 @@ def test_normalizes_text_url_and_fingerprint() -> None:
 
 def test_overlapping_repositories_share_one_canonical_job(db_session: Session) -> None:
     now = datetime.now(UTC)
-    first = normalize_job(JobSourceName.GITHUB_REPO, "owner/first:README.md", raw_job("first-row"))
+    first = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/first:README.md",
+        raw_job("first-row").model_copy(update={"term": "Summer 2027"}),
+    )
     second = normalize_job(
         JobSourceName.GITHUB_REPO, "owner/second:README.md", raw_job("second-row")
     )
@@ -100,10 +105,39 @@ def test_overlapping_repositories_share_one_canonical_job(db_session: Session) -
         )
     )
     assert len(jobs) == 1
+    assert jobs[0].term == "Summer 2027"
     assert {source.source_key for source in jobs[0].sources} == {
         "owner/first:README.md",
         "owner/second:README.md",
     }
+
+
+def test_explicit_different_terms_remain_distinct_jobs(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    persister = JobPersister()
+    summer = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/summer:README.md",
+        raw_job("summer-row").model_copy(update={"term": "Summer 2027"}),
+    )
+    fall = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/fall:README.md",
+        raw_job("fall-row").model_copy(update={"term": "Fall 2027"}),
+    )
+
+    assert persister.persist(db_session, summer, now) == PersistenceOutcome.CREATED
+    assert persister.persist(db_session, fall, now) == PersistenceOutcome.CREATED
+    db_session.flush()
+
+    jobs = list(
+        db_session.scalars(select(Job).where(Job.normalized_company == summer.normalized_company))
+    )
+    assert {job.term for job in jobs} == {"Summer 2027", "Fall 2027"}
+
+
+def test_parses_full_human_readable_source_date() -> None:
+    assert parse_datetime("Jul 17, 2026") == datetime(2026, 7, 17, tzinfo=UTC)
 
 
 async def test_http_client_honors_retry_after() -> None:
