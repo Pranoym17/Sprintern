@@ -168,3 +168,6 @@ htmlcov/
 .mcp.json
 CLAUDE.md
 AGENTS.md
+
+# Local planning and operational notes
+docs/

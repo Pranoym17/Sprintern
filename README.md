@@ -158,6 +158,11 @@ npm.cmd run typecheck:api
 npm.cmd run test:api
 ```
 
+Backend HTTP and scheduler logs are structured JSON. Every API response receives an
+`X-Request-ID`; a valid caller-provided ID is preserved for cross-service tracing. Logs intentionally
+exclude request bodies and query strings and redact configured credentials and common secret fields.
+Unexpected failures return a stable generic response while retaining only safe operational context.
+
 ### Why Playwright installs Chromium separately
 
 `@playwright/test` provides the test runner and browser-control code, but it does not assume that a
@@ -307,8 +312,10 @@ job IDs and next-run timestamps. Source results remain at `GET /internal/sources
 
 ## Current scope
 
-Phases 0-9 are complete: architecture boundaries, core schema, authenticated REST resources,
+Phases 0-10 are complete: architecture boundaries, core schema, authenticated REST resources,
 ingestion framework and MVP adapters, source-aware lifecycle handling, deterministic matching,
 Telegram/Resend notification delivery, automatic GitHub polling and delivery dispatch, Supabase
-frontend authentication, and the responsive product dashboard. Production deployment and the
-deferred Resend account/domain configuration remain operational follow-up work.
+frontend authentication, the responsive product dashboard, full workflow integration evidence,
+request correlation, structured redacted logging, deploy-time security validation, and CI security
+automation. Production deployment, credential rotation, and the Resend account/domain configuration
+remain owner-operated follow-up work.
