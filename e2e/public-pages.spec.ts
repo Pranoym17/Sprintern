@@ -15,6 +15,26 @@ test("sign-in form has accessible labels and links", async ({ page }) => {
   await expect(page.getByLabel("Email address")).toBeVisible();
   await expect(page.getByLabel("Password")).toBeVisible();
   await expect(page.getByRole("link", { name: "Create an account" })).toHaveAttribute("href", "/sign-up");
+  await expect(page.getByRole("link", { name: "Forgot password?" })).toHaveAttribute("href", "/forgot-password");
+});
+
+test("protected routes redirect signed-out users and preserve a safe destination", async ({ page }) => {
+  await page.goto("/matches");
+  await expect(page).toHaveURL(/\/sign-in\?next=%2Fmatches$/);
+  await expect(page.getByText("Sign in to your alerts")).toBeVisible();
+});
+
+test("password recovery is available", async ({ page }) => {
+  await page.goto("/forgot-password");
+  await expect(page.getByRole("heading", { name: "Reset your password" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /send reset link/i })).toBeVisible();
+});
+
+test("security headers are present", async ({ request }) => {
+  const response = await request.get("/");
+  expect(response.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(response.headers()["referrer-policy"]).toBe("strict-origin-when-cross-origin");
 });
 
 test("reduced motion removes continuous animations", async ({ page }) => {
