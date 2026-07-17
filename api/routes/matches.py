@@ -9,9 +9,10 @@ from api.auth import CurrentUser
 from api.database import get_db
 from api.errors import AppError
 from api.models import MatchStatus
-from api.repositories.matches import get_match, list_matches
+from api.repositories.matches import get_match, list_matches, match_status_counts
 from api.repositories.pagination import decode_cursor, encode_cursor
 from api.schemas import MatchPage, MatchResponse, MatchUpdate
+from api.schemas.match import MatchCounts
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 Database = Annotated[Session, Depends(get_db)]
@@ -23,13 +24,19 @@ def read_matches(
     session: Database,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     cursor: str | None = None,
+    status_filter: Annotated[MatchStatus | None, Query(alias="status")] = None,
 ) -> MatchPage:
-    matches = list_matches(session, user.id, limit, decode_cursor(cursor) if cursor else None)
+    matches = list_matches(
+        session, user.id, limit, decode_cursor(cursor) if cursor else None, status_filter
+    )
     has_more = len(matches) > limit
     items = matches[:limit]
     next_cursor = encode_cursor(items[-1].created_at, items[-1].id) if has_more else None
+    all_count, matched, applied, dismissed = match_status_counts(session, user.id)
     return MatchPage(
-        items=[MatchResponse.model_validate(match) for match in items], next_cursor=next_cursor
+        items=[MatchResponse.model_validate(match) for match in items],
+        next_cursor=next_cursor,
+        counts=MatchCounts(all=all_count, matched=matched, applied=applied, dismissed=dismissed),
     )
 
 

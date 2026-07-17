@@ -25,6 +25,14 @@ class MatchResponse(APIModel):
 class MatchPage(APIModel):
     items: list[MatchResponse]
     next_cursor: str | None
+    counts: "MatchCounts"
+
+
+class MatchCounts(APIModel):
+    all: int
+    matched: int
+    applied: int
+    dismissed: int
 
 
 class AnalyticsSummary(APIModel):

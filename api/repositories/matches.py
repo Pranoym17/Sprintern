@@ -21,6 +21,7 @@ def list_matches(
     profile_id: uuid.UUID,
     limit: int,
     cursor: tuple[datetime, uuid.UUID] | None,
+    status: MatchStatus | None = None,
 ) -> list[JobMatch]:
     statement = (
         select(JobMatch)
@@ -33,6 +34,8 @@ def list_matches(
         .order_by(JobMatch.created_at.desc(), JobMatch.id.desc())
         .limit(limit + 1)
     )
+    if status is not None:
+        statement = statement.where(JobMatch.status == status)
     if cursor:
         created_at, item_id = cursor
         statement = statement.where(
@@ -42,6 +45,22 @@ def list_matches(
             )
         )
     return list(session.scalars(statement))
+
+
+def match_status_counts(session: Session, profile_id: uuid.UUID) -> tuple[int, int, int, int]:
+    visible = or_(Job.status == JobStatus.ACTIVE, JobMatch.status == MatchStatus.APPLIED)
+    statement = (
+        select(
+            func.count(JobMatch.id),
+            func.count(JobMatch.id).filter(JobMatch.status == MatchStatus.MATCHED),
+            func.count(JobMatch.id).filter(JobMatch.status == MatchStatus.APPLIED),
+            func.count(JobMatch.id).filter(JobMatch.status == MatchStatus.DISMISSED),
+        )
+        .join(Job, Job.id == JobMatch.job_id)
+        .where(JobMatch.profile_id == profile_id, visible)
+    )
+    all_count, matched, applied, dismissed = session.execute(statement).one()
+    return int(all_count), int(matched), int(applied), int(dismissed)
 
 
 def analytics_summary(session: Session, profile_id: uuid.UUID) -> tuple[int, int, float | None]:

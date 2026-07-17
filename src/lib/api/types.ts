@@ -8,7 +8,8 @@ export interface JobSource { source:string; external_id:string; source_url:strin
 export interface Job { id:string; company:string; title:string; location:string|null; term:string|null; description:string|null; work_mode:WorkMode; status:"active"|"stale"|"expired"; posted_at:string|null; first_seen_at:string; last_seen_at:string; sources:JobSource[]; }
 export interface MatchReason { filter_id?:string; filter_name?:string; matcher_version?:string; dimensions?:Record<string,string>; }
 export interface JobMatch { id:string; profile_id:string; reasons:MatchReason[]; status:MatchStatus; applied_at:string|null; created_at:string; updated_at:string; job:Job; }
-export interface MatchPage { items:JobMatch[]; next_cursor:string|null; }
+export interface MatchCounts { all:number; matched:number; applied:number; dismissed:number; }
+export interface MatchPage { items:JobMatch[]; next_cursor:string|null; counts:MatchCounts; }
 export interface JobFilter { id:string; profile_id:string; name:string; role_keywords:string[]; location_keywords:string[]; terms:string[]; work_mode:WorkMode; active:boolean; created_at:string; updated_at:string; }
 export interface FilterInput { name:string; role_keywords:string[]; location_keywords:string[]; terms:string[]; work_mode:WorkMode; active:boolean; }
 export interface Analytics { matched_count:number; applied_count:number; average_seconds_to_apply:number|null; }

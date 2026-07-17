@@ -83,6 +83,36 @@ async def test_match_applied_and_analytics(
     assert summary.json()["applied_count"] == 1
 
 
+async def test_matches_filter_and_counts_are_authoritative(
+    api_client: AsyncClient,
+    db_session: Session,
+    authenticated_user: AuthenticatedUser,
+) -> None:
+    now = datetime.now(UTC)
+    profile = Profile(id=authenticated_user.id, email=authenticated_user.email)
+    statuses = [MatchStatus.MATCHED, MatchStatus.APPLIED, MatchStatus.DISMISSED]
+    for index, match_status in enumerate(statuses):
+        job = Job(
+            company=f"Company {index}",
+            normalized_company=f"company {index}",
+            title="Software Intern",
+            normalized_title="software intern",
+            canonical_fingerprint=str(index) * 64,
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+        profile.matches.append(JobMatch(job=job, status=match_status, reasons=[]))
+    db_session.add(profile)
+    db_session.commit()
+
+    response = await api_client.get("/matches", params={"status": "applied", "limit": 1})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["status"] for item in body["items"]] == ["applied"]
+    assert body["counts"] == {"all": 3, "matched": 1, "applied": 1, "dismissed": 1}
+
+
 async def test_invalid_cursor_uses_standard_error(api_client: AsyncClient) -> None:
     response = await api_client.get("/jobs", params={"cursor": "not-a-cursor"})
 

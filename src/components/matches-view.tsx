@@ -15,7 +15,7 @@ import {
 import { useApp } from "./app-provider";
 import { EmptyState, PageHeader } from "./dashboard-view";
 import { MatchesSkeleton, PageError } from "./page-state";
-import type { JobMatch, MatchStatus } from "@/lib/api/types";
+import type { JobMatch, MatchCounts, MatchStatus } from "@/lib/api/types";
 
 const tabs: ["all" | MatchStatus, string][] = [
   ["all", "All"], ["matched", "New"], ["applied", "Applied"], ["dismissed", "Dismissed"],
@@ -26,6 +26,7 @@ export function MatchesView() {
   const { api, notify } = useApp();
   const [items, setItems] = useState<JobMatch[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
+  const [counts, setCounts] = useState<MatchCounts>({ all: 0, matched: 0, applied: 0, dismissed: 0 });
   const [tab, setTab] = useState<"all" | MatchStatus>("all");
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
@@ -34,13 +35,14 @@ export function MatchesView() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (next?: string) => {
+  const load = useCallback(async (next?: string, selected: "all" | MatchStatus = "all") => {
     setError("");
     if (next) setLoadingMore(true);
     try {
-      const page = await api.matches(next);
+      const page = await api.matches(next, selected === "all" ? undefined : selected);
       setItems((current) => next ? [...current, ...page.items] : page.items);
       setCursor(page.next_cursor);
+      setCounts(page.counts);
       const seen = readSeenMatches();
       setNewIds((current) => new Set([...current, ...page.items.filter((item) => !seen.has(item.id)).map((item) => item.id)]));
       writeSeenMatches(new Set([...seen, ...page.items.map((item) => item.id)]));
@@ -50,6 +52,12 @@ export function MatchesView() {
       setLoading(false); setLoadingMore(false);
     }
   }, [api]);
+
+  async function selectTab(value: "all" | MatchStatus) {
+    if (value === tab) return;
+    setTab(value); setLoading(true); setItems([]); setCursor(null);
+    await load(undefined, value);
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -65,7 +73,10 @@ export function MatchesView() {
     setItems((current) => current.map((match) => match.id === item.id ? { ...match, status } : match));
     try {
       const updated = await api.updateMatch(item.id, status);
-      setItems((current) => current.map((match) => match.id === item.id ? updated : match));
+      setItems((current) => tab !== "all" && status !== tab
+        ? current.filter((match) => match.id !== item.id)
+        : current.map((match) => match.id === item.id ? updated : match));
+      setCounts((current) => ({ ...current, [previous]: Math.max(0, current[previous] - 1), [status]: current[status] + 1 }));
       if (offerUndo) setUndo({ item: updated, previous });
       notify(status === "applied" ? "Marked as applied." : status === "dismissed" ? "Match dismissed." : "Match restored.");
     } catch (reason) {
@@ -84,9 +95,9 @@ export function MatchesView() {
     {undo && <div className="undo-banner" role="status"><span><Check size={18} />Moved to Applied</span><button onClick={() => { void change(undo.item, undo.previous); setUndo(null); }}>Undo</button><button aria-label="Dismiss message" onClick={() => setUndo(null)}><X size={16} /></button></div>}
     <div className="feed-toolbar">
       <div className="tabs" aria-label="Filter loaded matches by status">
-        {tabs.map(([value, label]) => <button aria-pressed={tab === value} className={tab === value ? "active" : ""} key={value} onClick={() => setTab(value)}>{label}<span>{value === "all" ? items.length : items.filter((item) => item.status === value).length}</span></button>)}
+        {tabs.map(([value, label]) => <button aria-pressed={tab === value} className={tab === value ? "active" : ""} key={value} onClick={() => void selectTab(value)}>{label}<span>{counts[value]}</span></button>)}
       </div>
-      <small>Counts reflect loaded results</small>
+      <small>Server totals</small>
     </div>
     {shown.length ? <div className="job-list">{shown.map((item) => {
       const isNew = newIds.has(item.id);
@@ -113,7 +124,7 @@ export function MatchesView() {
         </div>
       </article>;
     })}</div> : <EmptyState icon={<BriefcaseBusiness />} title={`No ${tab === "all" ? "" : tab} matches yet`} copy="Sprintern is actively watching the source. You’ll be alerted as soon as a role clears your filters." action="/filters" actionLabel="Review filters" />}
-    {cursor && <button className="button button--ghost load-more" disabled={loadingMore} onClick={() => load(cursor)}>{loadingMore ? "Loading…" : "Load more matches"}<ChevronDown size={17} /></button>}
+    {cursor && <button className="button button--ghost load-more" disabled={loadingMore} onClick={() => load(cursor, tab)}>{loadingMore ? "Loading…" : "Load more matches"}<ChevronDown size={17} /></button>}
   </div>;
 }
 
