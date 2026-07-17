@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { apiUrl } from "../env";
 import { ApiClient, ApiError } from "./client";
 
 const token = vi.fn(async () => "access-token");
@@ -11,7 +12,7 @@ describe("ApiClient", () => {
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ matched_count: 4 }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await expect(api.analytics()).resolves.toEqual({ matched_count: 4 });
-    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:8010/analytics/summary", expect.objectContaining({ cache: "no-store", headers: expect.objectContaining({ Authorization: "Bearer access-token" }) }));
+    expect(fetchMock).toHaveBeenCalledWith(`${apiUrl}/analytics/summary`, expect.objectContaining({ cache: "no-store", headers: expect.objectContaining({ Authorization: "Bearer access-token" }) }));
   });
 
   it("normalizes application error envelopes", async () => {
