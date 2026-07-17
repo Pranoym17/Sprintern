@@ -99,6 +99,11 @@ In Supabase Authentication URL Configuration, use `http://localhost:3000` as the
 and allow `http://localhost:3000/auth/callback` as a redirect URL. Only the anon/publishable key is
 safe in a `NEXT_PUBLIC_` variable; never use a service-role key in the frontend.
 
+The auth screen offers Google as the fastest path. To enable it, configure the Google provider in
+Supabase Authentication, add the Supabase callback URL shown there to the Google OAuth client, and
+keep `http://localhost:3000/auth/callback` in the Supabase redirect allowlist. Email/password remains
+available when Google is not configured.
+
 ## Run locally
 
 Use three terminals for the full application:
@@ -128,6 +133,9 @@ The frontend includes:
 - Cursor-paginated match review with applied, dismissed, and restore actions
 - Filter creation, editing, activation, pausing, and deletion
 - Profile cadence, timezone, email preference, and Telegram link management
+- A warm-neutral and signal-coral visual system with Urbanist headings and Inter body text
+- Chip-based filter setup, browser-local new-match cues, relative posting times, skeleton feeds,
+  optimistic applied status, and one-click undo
 - Desktop sidebar and mobile bottom navigation with reduced-motion support
 
 ## Quality checks
