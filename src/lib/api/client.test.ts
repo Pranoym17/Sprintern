@@ -41,6 +41,22 @@ describe("ApiClient", () => {
     await expect(api.profile()).rejects.toMatchObject({ status: 0, code: "network_error" } satisfies Partial<ApiError>);
   });
 
+  it("times out stalled requests", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (_input, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    })));
+    const impatient = new ApiClient(async () => "token", undefined, 1);
+    await expect(impatient.profile()).rejects.toMatchObject({ code: "request_timeout" } satisfies Partial<ApiError>);
+  });
+
+  it("invokes centralized session recovery once on 401", async () => {
+    const recover = vi.fn();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ detail: "expired" }), { status: 401 })));
+    const expiring = new ApiClient(async () => "token", recover);
+    await expect(expiring.profile()).rejects.toMatchObject({ status: 401 });
+    expect(recover).toHaveBeenCalledOnce();
+  });
+
   it("encodes opaque cursors and sends match status mutations", async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ id: "match-id", status: "applied" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

@@ -2,8 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseConfig } from "@/lib/env";
 
-const protectedPaths = ["/dashboard", "/matches", "/filters", "/settings"];
-const authPaths = ["/sign-in", "/sign-up"];
+const protectedPaths = ["/dashboard", "/matches", "/filters", "/settings", "/onboarding", "/reset-password"];
+const authPaths = ["/sign-in", "/sign-up", "/forgot-password"];
+
+function redirectWithCookies(url: URL, source: NextResponse) {
+  const redirect = NextResponse.redirect(url);
+  source.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  return redirect;
+}
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -24,8 +30,8 @@ export async function updateSession(request: NextRequest) {
     const redirect = request.nextUrl.clone();
     redirect.pathname = "/sign-in";
     redirect.searchParams.set("next", pathname);
-    return NextResponse.redirect(redirect);
+    return redirectWithCookies(redirect, response);
   }
-  if (user && authPaths.includes(pathname)) return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (user && authPaths.includes(pathname)) return redirectWithCookies(new URL("/dashboard", request.url), response);
   return response;
 }

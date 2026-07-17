@@ -1,4 +1,4 @@
-const allowedPaths = new Set(["/dashboard", "/matches", "/filters", "/settings"]);
+const allowedPaths = new Set(["/dashboard", "/matches", "/filters", "/settings", "/onboarding", "/reset-password"]);
 
 export function safeInternalPath(value: string | null | undefined, fallback = "/dashboard") {
   if (!value || value.includes("\\") || /[\u0000-\u001F\u007F]/.test(value)) return fallback;
