@@ -213,6 +213,40 @@ def test_github_extracts_outer_apply_link_and_cleans_linked_company() -> None:
         "title": 1,
         "url": 2,
     }
+    assert GitHubRepositoryAdapter._column_map(["Company", "Role", "**Apply**"])["url"] == 2
+
+
+async def test_github_parses_simplify_style_html_table() -> None:
+    readme = """
+# Summer 2026 Internships
+<table>
+<thead><tr><th>Company</th><th>Role</th><th>Location</th><th>Application</th><th>Age</th></tr></thead>
+<tbody><tr>
+<td><strong><a href="https://simplify.jobs/c/example">Example</a></strong></td>
+<td>Software Engineer Intern</td><td>Toronto</td>
+<td><div><a href="https://jobs.example.com/direct"><img alt="Apply"></a>
+<a href="https://simplify.jobs/p/example"><img alt="Simplify"></a></div></td><td>1d</td>
+</tr></tbody></table>
+"""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/commits"):
+            return httpx.Response(200, json=[{"sha": "html-sha"}])
+        return httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(readme.encode()).decode()},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = GitHubRepositoryAdapter(
+            "SimplifyJobs", "Summer2026-Internships", RetryingHTTPClient(client)
+        )
+        batch = await adapter.fetch({})
+
+    assert len(batch.records) == 1
+    assert batch.records[0].company == "Example"
+    assert str(batch.records[0].apply_url) == "https://jobs.example.com/direct"
+    assert batch.records[0].term == "Summer 2026"
 
 
 async def test_github_uses_repository_term_only_after_posting_evidence() -> None:

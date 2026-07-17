@@ -42,9 +42,7 @@ SEASON_ALIASES = {
     "fall": "Fall",
     "autumn": "Fall",
 }
-SEASON_PATTERN = re.compile(
-    r"\b(winter|spring|summer|fall|autumn)(?=\b|20\d{2})", re.IGNORECASE
-)
+SEASON_PATTERN = re.compile(r"\b(winter|spring|summer|fall|autumn)(?=\b|20\d{2})", re.IGNORECASE)
 OFF_CYCLE_PATTERN = re.compile(r"\boff[- ]cycle\b", re.IGNORECASE)
 MONTH_RANGE_PATTERNS = {
     "Winter": re.compile(r"\bjan(?:uary)?\b.{0,12}\b(?:apr(?:il)?|may)\b", re.IGNORECASE),
@@ -53,6 +51,9 @@ MONTH_RANGE_PATTERNS = {
 }
 YEAR_PATTERN = re.compile(r"\b(20\d{2})\b")
 HEADING_PATTERN = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
+HTML_TABLE = re.compile(r"<table\b[^>]*>(.*?)</table>", re.IGNORECASE | re.DOTALL)
+HTML_ROW = re.compile(r"<tr\b[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
+HTML_CELL = re.compile(r"<t[hd]\b[^>]*>(.*?)</t[hd]>", re.IGNORECASE | re.DOTALL)
 
 
 class GitHubRepositoryAdapter:
@@ -173,9 +174,51 @@ class GitHubRepositoryAdapter:
                         index += 1
                     continue
             index += 1
+        html_records, html_errors, found_html_table = self._parse_html_tables(markdown, commit_sha)
+        records.extend(html_records)
+        errors.extend(html_errors[: max(25 - len(errors), 0)])
+        found_table = found_table or found_html_table
         if not found_table:
             raise SourceHTTPError("GitHub file has no supported internship table schema")
         return records, errors
+
+    def _parse_html_tables(
+        self, markdown: str, commit_sha: str
+    ) -> tuple[list[RawSourceJob], list[str], bool]:
+        records: list[RawSourceJob] = []
+        errors: list[str] = []
+        found_table = False
+        for table_match in HTML_TABLE.finditer(markdown):
+            rows = [HTML_CELL.findall(row) for row in HTML_ROW.findall(table_match.group(1))]
+            rows = [row for row in rows if row]
+            if len(rows) < 2:
+                continue
+            columns = self._column_map(rows[0])
+            if not {"company", "title", "url"}.issubset(columns):
+                continue
+            found_table = True
+            heading = self._nearest_heading(
+                markdown[: table_match.start()].splitlines(),
+                len(markdown[: table_match.start()].splitlines()),
+            )
+            previous_company: str | None = None
+            for row_number, cells in enumerate(rows[1:], start=2):
+                if len(cells) != len(rows[0]):
+                    if len(errors) < 25:
+                        errors.append(
+                            f"GitHub HTML table row {row_number} has the wrong cell count"
+                        )
+                    continue
+                try:
+                    record, previous_company = self._map_row(
+                        cells, columns, previous_company, commit_sha, heading
+                    )
+                    if record:
+                        records.append(record)
+                except (TypeError, ValueError, ValidationError) as exc:
+                    if len(errors) < 25:
+                        errors.append(f"GitHub HTML table row {row_number} rejected: {exc}")
+        return records, errors, found_table
 
     @staticmethod
     def _split_row(line: str) -> list[str]:
@@ -190,7 +233,7 @@ class GitHubRepositoryAdapter:
     def _column_map(headers: list[str]) -> dict[str, int]:
         result: dict[str, int] = {}
         for index, header in enumerate(headers):
-            normalized = (html_to_text(header) or "").lower().strip()
+            normalized = (html_to_text(header) or "").lower().strip("*_`~ ")
             for name, aliases in HEADER_ALIASES.items():
                 if normalized in aliases:
                     result[name] = index
