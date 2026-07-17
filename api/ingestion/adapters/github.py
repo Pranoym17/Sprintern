@@ -22,7 +22,27 @@ HEADER_ALIASES = {
     "location": {"location", "locations"},
     "url": {"application", "apply", "link", "application link", "application/link"},
     "date": {"date", "date posted", "posted", "posting date"},
+    "term": {"term", "season", "internship term", "internship season", "cycle"},
 }
+
+SEASON_ALIASES = {
+    "winter": "Winter",
+    "spring": "Spring",
+    "summer": "Summer",
+    "fall": "Fall",
+    "autumn": "Fall",
+    "off-cycle": "Off-cycle",
+    "off cycle": "Off-cycle",
+}
+SEASON_PATTERN = re.compile(r"\b(winter|spring|summer|fall|autumn|off[- ]cycle)\b", re.IGNORECASE)
+MONTH_RANGE_PATTERNS = {
+    "Winter": re.compile(r"\bjan(?:uary)?\b.{0,12}\bapr(?:il)?\b", re.IGNORECASE),
+    "Spring": re.compile(r"\bjan(?:uary)?\b.{0,12}\bmay\b", re.IGNORECASE),
+    "Summer": re.compile(r"\bmay\b.{0,12}\baug(?:ust)?\b", re.IGNORECASE),
+    "Fall": re.compile(r"\bsep(?:t(?:ember)?)?\b.{0,12}\bdec(?:ember)?\b", re.IGNORECASE),
+}
+YEAR_PATTERN = re.compile(r"\b(20\d{2})\b")
+HEADING_PATTERN = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
 
 
 class GitHubRepositoryAdapter:
@@ -124,6 +144,8 @@ class GitHubRepositoryAdapter:
                 columns = self._column_map(headers)
                 if {"company", "title", "url"}.issubset(columns):
                     found_table = True
+                    previous_company = None
+                    heading = self._nearest_heading(lines, index)
                     index += 2
                     while index < len(lines):
                         cells = self._split_row(lines[index])
@@ -131,7 +153,7 @@ class GitHubRepositoryAdapter:
                             break
                         try:
                             record, previous_company = self._map_row(
-                                cells, columns, previous_company, commit_sha
+                                cells, columns, previous_company, commit_sha, heading
                             )
                             if record:
                                 records.append(record)
@@ -164,12 +186,21 @@ class GitHubRepositoryAdapter:
                     result[name] = index
         return result
 
+    @staticmethod
+    def _nearest_heading(lines: list[str], table_index: int) -> str | None:
+        for line in reversed(lines[:table_index]):
+            match = HEADING_PATTERN.match(line)
+            if match:
+                return (html_to_text(match.group(1)) or "").strip() or None
+        return None
+
     def _map_row(
         self,
         cells: list[str],
         columns: dict[str, int],
         previous_company: str | None,
         commit_sha: str,
+        heading: str | None,
     ) -> tuple[RawSourceJob | None, str | None]:
         company_text = html_to_text(cells[columns["company"]]) or ""
         if company_text.strip() in {"↳", "↪", ""}:
@@ -188,6 +219,8 @@ class GitHubRepositoryAdapter:
             raise ValueError("application URL is missing")
         location = html_to_text(cells[columns["location"]]) if "location" in columns else None
         posted_at = parse_datetime(cells[columns["date"]]) if "date" in columns else None
+        raw_term = html_to_text(cells[columns["term"]]) if "term" in columns else None
+        term, term_source = self._infer_term(raw_term, title, heading)
         external_id = hashlib.sha256(apply_url.encode()).hexdigest()
         source_url = (
             f"https://github.com/{self.owner}/{self.repository}/blob/{commit_sha}/{self.path}"
@@ -198,14 +231,57 @@ class GitHubRepositoryAdapter:
                 company=company,
                 title=title,
                 location=location,
-                term=self.term,
+                term=term,
                 source_url=source_url,
                 apply_url=apply_url,
                 posted_at=posted_at,
-                raw_metadata={"commit_sha": commit_sha, "repository": self.source_key},
+                raw_metadata={
+                    "commit_sha": commit_sha,
+                    "repository": self.source_key,
+                    "raw_term": raw_term,
+                    "section_heading": heading,
+                    "term_source": term_source,
+                },
             ),
             company,
         )
+
+    def _infer_term(
+        self, raw_term: str | None, title: str, heading: str | None
+    ) -> tuple[str | None, str | None]:
+        candidates = (
+            ("column", raw_term),
+            ("title", title),
+            ("heading", heading),
+            ("fallback", self.term),
+        )
+        year_context = next(
+            (
+                match.group(1)
+                for value in (raw_term, title, heading, self.repository, self.term)
+                if value and (match := YEAR_PATTERN.search(value))
+            ),
+            None,
+        )
+        for source, value in candidates:
+            if not value:
+                continue
+            seasons = {
+                SEASON_ALIASES[match.group(1).lower()] for match in SEASON_PATTERN.finditer(value)
+            }
+            seasons.update(
+                season for season, pattern in MONTH_RANGE_PATTERNS.items() if pattern.search(value)
+            )
+            if len(seasons) > 1:
+                # A listing that explicitly spans multiple seasons should not be forced into
+                # one term-specific filter.
+                return None, None
+            if len(seasons) == 1:
+                year_match = YEAR_PATTERN.search(value)
+                year = year_match.group(1) if year_match else year_context
+                if year:
+                    return f"{seasons.pop()} {year}", source
+        return None, None
 
     @staticmethod
     def _extract_url(value: str) -> str | None:

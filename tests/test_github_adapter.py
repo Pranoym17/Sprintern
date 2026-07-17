@@ -14,8 +14,7 @@ README = "\n".join(
         "| ------- | ---- | -------- | ----------- | ----------- |",
         "| Example | Software Engineering Intern | Toronto, ON | "
         "[Apply](https://example.com/apply?utm_source=github) | 2026-07-13 |",
-        "| ↳ | Data Engineering Intern | Remote | "
-        "[Apply](https://example.com/data) | 2026-07-13 |",
+        "| ↳ | Data Engineering Intern | Remote | [Apply](https://example.com/data) | 2026-07-13 |",
         "| Closed Co | Backend Intern | New York | 🔒 Closed | 2026-07-12 |",
     ]
 )
@@ -31,6 +30,29 @@ CURRENT_REPOSITORY_STYLE_README = "\n".join(
         "| ↳ | Data Engineer Intern | New York, NY | "
         '<a href="https://example.com/data"><img alt="Apply"></a> | Jul 08 |',
         "| Closed Co | Backend Intern | Chicago, IL | 🔒 | Jul 07 |",
+    ]
+)
+
+MIXED_TERM_README = "\n".join(
+    [
+        "# 2027 and 2028 internships",
+        "",
+        "## Summer 2027 opportunities",
+        "| Company | Role | Location | Application |",
+        "| ------- | ---- | -------- | ----------- |",
+        "| Heading Co | Backend Intern | Toronto | [Apply](https://example.com/heading) |",
+        "",
+        "## Opportunities by term",
+        "| Company | Role | Term | Application |",
+        "| ------- | ---- | ---- | ----------- |",
+        "| Column Co | Developer Intern | Autumn 2027 | [Apply](https://example.com/column) |",
+        "| Title Co | Winter 2028 Software Intern | | [Apply](https://example.com/title) |",
+        "| Mixed Co | Platform Intern | Summer / Winter 2027 | "
+        "[Apply](https://example.com/mixed) |",
+        "| Fallback Co | Product Intern | | [Apply](https://example.com/fallback) |",
+        "| Range Co | Systems Intern | Sep - Dec 2027 | [Apply](https://example.com/range) |",
+        "| Offcycle Co | Security Intern | Off-cycle 2028 | "
+        "[Apply](https://example.com/offcycle) |",
     ]
 )
 
@@ -113,6 +135,39 @@ async def test_github_parses_current_repository_table_style() -> None:
     assert batch.records[0].location == "Toronto, ON Remote"
     assert batch.records[1].company == "Example"
     assert batch.rejected_count == 0
+
+
+async def test_github_infers_mixed_terms_with_explicit_priority() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/commits"):
+            return httpx.Response(200, json=[{"sha": "mixed-sha"}])
+        return httpx.Response(
+            200,
+            json={
+                "encoding": "base64",
+                "content": base64.b64encode(MIXED_TERM_README.encode()).decode(),
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = GitHubRepositoryAdapter(
+            "owner",
+            "mixed-internships",
+            RetryingHTTPClient(client),
+            term="Spring 2027",
+        )
+        batch = await adapter.fetch({})
+
+    by_company = {record.company: record for record in batch.records}
+    assert by_company["Heading Co"].term == "Summer 2027"
+    assert by_company["Column Co"].term == "Fall 2027"
+    assert by_company["Title Co"].term == "Winter 2028"
+    assert by_company["Mixed Co"].term is None
+    assert by_company["Fallback Co"].term == "Spring 2027"
+    assert by_company["Range Co"].term == "Fall 2027"
+    assert by_company["Offcycle Co"].term == "Off-cycle 2028"
+    assert by_company["Column Co"].raw_metadata["raw_term"] == "Autumn 2027"
+    assert by_company["Heading Co"].raw_metadata["term_source"] == "heading"
 
 
 async def test_github_fails_visibly_when_table_schema_changes() -> None:
