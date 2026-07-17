@@ -95,6 +95,11 @@ The browser also needs the public API address:
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8010
 ```
 
+For deployment, set `APP_ENV=production` and use an HTTPS `NEXT_PUBLIC_API_URL`. Production startup
+fails when the public API URL is missing, malformed, or insecure, preventing a successful build that
+would accidentally call each user's localhost. The Next.js layer also sends CSP, anti-framing,
+content-type, referrer, permissions, and HSTS headers.
+
 In Supabase Authentication URL Configuration, use `http://localhost:3000` as the local site URL
 and allow `http://localhost:3000/auth/callback` as a redirect URL. Only the anon/publishable key is
 safe in a `NEXT_PUBLIC_` variable; never use a service-role key in the frontend.
@@ -102,7 +107,8 @@ safe in a `NEXT_PUBLIC_` variable; never use a service-role key in the frontend.
 The auth screen offers Google as the fastest path. To enable it, configure the Google provider in
 Supabase Authentication, add the Supabase callback URL shown there to the Google OAuth client, and
 keep `http://localhost:3000/auth/callback` in the Supabase redirect allowlist. Email/password remains
-available when Google is not configured.
+available when Google is not configured. Password recovery uses the same callback allowlist and
+exchanges a short-lived Supabase recovery session before accepting a new password.
 
 ## Run locally
 
@@ -136,6 +142,7 @@ The frontend includes:
 - A warm-neutral and signal-coral visual system with Urbanist headings and Inter body text
 - Chip-based filter setup, browser-local new-match cues, relative posting times, skeleton feeds,
   optimistic applied status, and one-click undo
+- Guided first-run filter/channel setup and password recovery
 - Desktop sidebar and mobile bottom navigation with reduced-motion support
 
 ## Quality checks
@@ -150,6 +157,25 @@ npm.cmd run lint:api
 npm.cmd run typecheck:api
 npm.cmd run test:api
 ```
+
+### Why Playwright installs Chromium separately
+
+`@playwright/test` provides the test runner and browser-control code, but it does not assume that a
+compatible browser binary already exists. Chrome installed on the computer may be a different
+version, have user extensions, or update independently and make tests inconsistent. On each new
+computer or fresh clone, install dependencies and then download Playwright's pinned Chromium build:
+
+```powershell
+npm.cmd install
+$env:PLAYWRIGHT_BROWSERS_PATH="0"
+npx.cmd playwright install chromium
+```
+
+`PLAYWRIGHT_BROWSERS_PATH=0` stores that browser under this project's `node_modules` tree instead of
+the user's shared Playwright cache. The committed `test:e2e` script uses the same location, making
+the selected browser deterministic. The binary is ignored by Git. Run the installation once per
+fresh dependency installation, and again only when a Playwright upgrade requests a newer browser.
+It is not required before every test run.
 
 ## Database migrations
 
@@ -169,6 +195,7 @@ SQLAlchemy/Alembic is the only application database layer. Prisma is intentional
 - Profile and filter resources with ownership enforcement
 - Active job feed and stable cursor pagination
 - Match status and basic analytics resources
+- Status-filtered match pagination with authoritative matched/applied/dismissed totals
 - Standard validation and application error bodies
 - Service-key-protected source status endpoint
 
