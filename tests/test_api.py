@@ -150,3 +150,15 @@ async def test_match_ownership_hides_other_users_records(
     assert (
         await api_client.patch(f"/matches/{match.id}", json={"status": "applied"})
     ).status_code == 404
+
+
+async def test_every_internal_route_requires_service_key(api_client: AsyncClient) -> None:
+    requests = [
+        ("GET", "/internal/sources/status", None),
+        ("GET", "/internal/scheduler/status", None),
+        ("POST", "/internal/notifications/dispatch", None),
+        ("POST", "/internal/ingestion-runs", {}),
+    ]
+    for method, path, body in requests:
+        response = await api_client.request(method, path, json=body)
+        assert response.status_code in {401, 503}, path

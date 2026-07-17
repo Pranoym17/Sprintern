@@ -2,7 +2,9 @@ import json
 import logging
 
 import httpx
+from fastapi import FastAPI
 
+from api.errors import register_exception_handlers
 from api.observability import JsonFormatter, configure_logging, request_id_context
 
 
@@ -45,3 +47,22 @@ def test_json_logs_include_correlation_and_redact_secrets() -> None:
     assert "configured-secret-value" not in serialized
     assert "header.payload.signature" not in serialized
     assert "BotTokenValue" not in serialized
+
+
+async def test_unexpected_errors_return_no_internal_details() -> None:
+    test_app = FastAPI()
+    register_exception_handlers(test_app)
+
+    @test_app.get("/failure")
+    def failure() -> None:
+        raise RuntimeError("database password leaked-detail")
+
+    transport = httpx.ASGITransport(app=test_app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/failure")
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": {"code": "internal_error", "message": "An unexpected error occurred"}
+    }
+    assert "leaked-detail" not in response.text

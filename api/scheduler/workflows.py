@@ -46,9 +46,13 @@ class SchedulerWorkflows:
             )
             if state and state.backoff_until and state.backoff_until > now:
                 logger.info(
-                    "scheduler ingestion skipped source=%s reason=backoff until=%s",
-                    source.source_key,
-                    state.backoff_until.isoformat(),
+                    "scheduler.ingestion.skipped",
+                    extra={
+                        "event": "scheduler.ingestion.skipped",
+                        "source": source.source_key,
+                        "reason": "backoff",
+                        "backoff_until": state.backoff_until.isoformat(),
+                    },
                 )
                 return
 
@@ -67,23 +71,28 @@ class SchedulerWorkflows:
             )
             elapsed = (datetime.now(UTC) - started).total_seconds()
             logger.info(
-                "scheduler ingestion completed source=%s status=%s fetched=%d accepted=%d "
-                "created=%d updated=%d rejected=%d duplicates=%d duration_seconds=%.3f",
-                source.source_key,
-                run.status.value,
-                run.fetched_count,
-                run.accepted_count,
-                run.created_count,
-                run.updated_count,
-                run.rejected_count,
-                run.duplicate_count,
-                elapsed,
+                "scheduler.ingestion.completed",
+                extra={
+                    "event": "scheduler.ingestion.completed",
+                    "source": source.source_key,
+                    "run_status": run.status.value,
+                    "fetched": run.fetched_count,
+                    "accepted": run.accepted_count,
+                    "created": run.created_count,
+                    "updated": run.updated_count,
+                    "rejected": run.rejected_count,
+                    "duplicates": run.duplicate_count,
+                    "duration_seconds": round(elapsed, 3),
+                },
             )
         except Exception as exc:
             logger.error(
-                "scheduler ingestion failed source=%s error_type=%s",
-                source.source_key,
-                type(exc).__name__,
+                "scheduler.ingestion.failed",
+                extra={
+                    "event": "scheduler.ingestion.failed",
+                    "source": source.source_key,
+                    "exception_class": type(exc).__name__,
+                },
             )
 
     async def dispatch_notifications(self) -> None:
@@ -95,13 +104,20 @@ class SchedulerWorkflows:
             sent = await build_dispatcher(self.client, self.session_factory).dispatch_due(limit=100)
             elapsed = (datetime.now(UTC) - started).total_seconds()
             logger.info(
-                "scheduler notification dispatch completed sent=%d duration_seconds=%.3f",
-                sent,
-                elapsed,
+                "scheduler.notifications.completed",
+                extra={
+                    "event": "scheduler.notifications.completed",
+                    "sent": sent,
+                    "duration_seconds": round(elapsed, 3),
+                },
             )
         except Exception as exc:
             logger.error(
-                "scheduler notification dispatch failed error_type=%s", type(exc).__name__
+                "scheduler.notifications.failed",
+                extra={
+                    "event": "scheduler.notifications.failed",
+                    "exception_class": type(exc).__name__,
+                },
             )
 
     async def wait_until_idle(self, timeout_seconds: int) -> bool:

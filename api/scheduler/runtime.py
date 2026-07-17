@@ -104,10 +104,13 @@ async def run_scheduler(app_settings: Settings = settings) -> None:
                     runtime_started = True
                     scheduler.resume()
                     logger.info(
-                        "scheduler started github_sources=%d jobs=%d timezone=%s",
-                        len(source_config.enabled_github),
-                        len(scheduler.get_jobs()),
-                        app_settings.scheduler_timezone,
+                        "scheduler.started",
+                        extra={
+                            "event": "scheduler.started",
+                            "github_sources": len(source_config.enabled_github),
+                            "jobs": len(scheduler.get_jobs()),
+                            "timezone": app_settings.scheduler_timezone,
+                        },
                     )
                     await stop_event.wait()
                 finally:
@@ -116,12 +119,15 @@ async def run_scheduler(app_settings: Settings = settings) -> None:
                         app_settings.scheduler_shutdown_timeout_seconds
                     )
                     if not idle:
-                        logger.warning("scheduler shutdown timed out; cancelling active jobs")
+                        logger.warning(
+                            "scheduler.shutdown_timeout",
+                            extra={"event": "scheduler.shutdown_timeout"},
+                        )
                     scheduler.shutdown(wait=False)
                     await asyncio.sleep(0)
                     if runtime_started:
                         runtime_store.stop(instance_id)
-                    logger.info("scheduler stopped")
+                    logger.info("scheduler.stopped", extra={"event": "scheduler.stopped"})
     finally:
         restore_signals()
 

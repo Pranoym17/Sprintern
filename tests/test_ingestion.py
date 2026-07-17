@@ -189,6 +189,24 @@ async def test_failed_run_preserves_cursor_and_records_failure(
     assert state.last_error == "RuntimeError: source unavailable"
 
 
+async def test_failed_run_redacts_credentials_from_operator_state(
+    ingestion_factory: sessionmaker[Session],
+) -> None:
+    service = IngestionService(ingestion_factory)
+    with pytest.raises(RuntimeError):
+        await service.run(
+            FakeAdapter(error=RuntimeError("provider rejected Bearer header.payload.signature"))
+        )
+
+    with ingestion_factory() as session:
+        state = session.scalar(
+            select(SourceState).where(SourceState.source_key == FakeAdapter.source_key)
+        )
+
+    assert state is not None
+    assert state.last_error == "RuntimeError: provider rejected Bearer [REDACTED]"
+
+
 async def test_same_source_runs_do_not_overlap(
     ingestion_factory: sessionmaker[Session],
 ) -> None:

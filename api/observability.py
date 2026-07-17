@@ -28,6 +28,10 @@ def _redact(value: Any, key: str = "") -> Any:
     return redacted
 
 
+def redact_text(value: str) -> str:
+    return str(_redact(value))
+
+
 class JsonFormatter(logging.Formatter):
     """Emit machine-readable events without request bodies or provider credentials."""
 

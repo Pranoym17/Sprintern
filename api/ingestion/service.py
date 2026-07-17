@@ -16,6 +16,7 @@ from api.ingestion.normalization import normalize_job
 from api.ingestion.persistence import JobPersister, PersistenceOutcome
 from api.matching import matching_service
 from api.models import IngestionRun, IngestionRunStatus, PollCompleteness, SourceState
+from api.observability import redact_text
 
 
 class IngestionService:
@@ -155,7 +156,7 @@ class IngestionService:
 
     def _record_failure(self, state_id: Any, run_id: Any, exc: Exception) -> None:
         now = datetime.now(UTC)
-        message = f"{type(exc).__name__}: {exc}"[:2000]
+        message = redact_text(f"{type(exc).__name__}: {exc}")[:2000]
         with self.session_factory() as session:
             state = session.get_one(SourceState, state_id)
             run = session.get_one(IngestionRun, run_id)
