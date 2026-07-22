@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Check, Link2, LoaderCircle, Mail, RefreshCw, Send, Unlink } from "lucide-react";
+import { Check, Download, Link2, LoaderCircle, Mail, RefreshCw, Send, Trash2, Unlink } from "lucide-react";
 
 import { useApp } from "./app-provider";
 import { PageHeader } from "./dashboard-view";
@@ -9,12 +9,14 @@ import { PageError, PageLoading } from "./page-state";
 import type { NotificationCadence, Profile } from "@/lib/api/types";
 
 export function SettingsView() {
-  const { api, notify } = useApp();
+  const { api, notify, signOut } = useApp();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [pending, setPending] = useState(false);
   const [channelPending, setChannelPending] = useState(false);
   const [error, setError] = useState("");
   const [link, setLink] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [accountPending, setAccountPending] = useState(false);
 
   const load = useCallback(async () => {
     try { const next = await api.profile(); setProfile(next); setError(""); return next; }
@@ -55,15 +57,32 @@ export function SettingsView() {
     finally { setChannelPending(false); }
   }
 
+  async function exportAccount() {
+    if (accountPending) return; setAccountPending(true);
+    try {
+      const data = await api.exportAccount();
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+      const linkElement = document.createElement("a"); linkElement.href = url; linkElement.download = `sprintern-export-${new Date().toISOString().slice(0, 10)}.json`; linkElement.click(); URL.revokeObjectURL(url);
+      notify("Your data export is ready.");
+    } catch (reason) { notify(reason instanceof Error ? reason.message : "Export failed.", "error"); }
+    finally { setAccountPending(false); }
+  }
+
+  async function deleteAccount() {
+    if (accountPending || deleteConfirmation !== "DELETE") return; setAccountPending(true);
+    try { await api.deleteAccount(); await signOut(); }
+    catch (reason) { notify(reason instanceof Error ? reason.message : "Account deletion failed.", "error"); setAccountPending(false); }
+  }
+
   if (!profile && !error) return <PageLoading label="Loading settings" />;
   if (error || !profile) return <PageError message={error || "Profile unavailable."} retry={load} />;
 
   return <div className="app-page notification-page">
     <PageHeader eyebrow="Notifications" title="Be first without staying online" copy="Choose where alerts land and how quickly they arrive." />
     <form onSubmit={save} aria-busy={pending}>
-      <section className="preference-section"><div className="preference-heading"><span>01</span><div><h2>Choose your channels</h2><p>Telegram is ready now. Email begins once the project sender is configured.</p></div></div><div className="channel-grid">
+      <section className="preference-section"><div className="preference-heading"><span>01</span><div><h2>Choose your channels</h2><p>Each channel stays off until you explicitly enable it.</p></div></div><div className="channel-grid">
         <label className={`channel-card ${profile.telegram_chat_id ? "channel-card--connected" : ""}`}><span className="channel-icon channel-icon--telegram"><Send /></span><span className="channel-copy"><strong>Telegram</strong><small>{profile.telegram_chat_id ? "Connected and ready" : "Not connected — link the bot"}</small>{profile.telegram_chat_id && <em><Check size={13} />Connected</em>}</span>{profile.telegram_chat_id && <input type="checkbox" name="telegram" defaultChecked={profile.telegram_notifications_enabled} aria-label="Enable Telegram alerts" />}</label>
-        <label className="channel-card"><span className="channel-icon"><Mail /></span><span className="channel-copy"><strong>Email</strong><small>{profile.email ?? "No email on account"}</small><em className="channel-note">Sender setup pending</em></span><input type="checkbox" name="email" defaultChecked={profile.email_notifications_enabled} aria-label="Enable email alerts" /></label>
+        <label className={`channel-card ${profile.email_notifications_enabled ? "channel-card--connected" : ""}`}><span className="channel-icon"><Mail /></span><span className="channel-copy"><strong>Email</strong><small>{profile.email ?? "No email on account"}</small><em className={profile.email_notifications_enabled ? "" : "channel-note"}>{profile.email_notifications_enabled ? <><Check size={13} />Connected and active</> : profile.email_suppressed_at ? `Delivery blocked — ${profile.email_suppression_reason?.replaceAll("_", " ") ?? "address rejected"}` : profile.email ? "Connected — alerts off" : "Not connected"}</em></span><input type="checkbox" name="email" disabled={!profile.email || Boolean(profile.email_suppressed_at)} defaultChecked={profile.email_notifications_enabled} aria-label="Enable email alerts" /></label>
       </div>
       <div className="telegram-actions">{profile.telegram_chat_id ? <button className="icon-text-button" type="button" disabled={channelPending} onClick={disconnect}><Unlink size={16} />Disconnect Telegram</button> : <><button className="button button--dark button--small" type="button" disabled={channelPending} onClick={connect}><Link2 size={16} />Open Telegram bot</button>{link && <button className="button button--ghost button--small" type="button" disabled={channelPending} onClick={refresh}><RefreshCw size={16} />I pressed Start — check status</button>}</>}</div></section>
 
@@ -72,5 +91,6 @@ export function SettingsView() {
       <section className="preference-section preference-section--compact"><div className="preference-heading"><span>03</span><div><h2>Local time</h2><p>Used to schedule hourly and daily digests correctly.</p></div></div><div className="field timezone-field"><label htmlFor="timezone">Timezone</label><input id="timezone" name="timezone" defaultValue={profile.timezone} required /><span className="field__help">IANA format, for example America/Toronto.</span></div></section>
       <div className="settings-save"><p>Changes affect future delivery attempts.</p><button className="button button--primary" disabled={pending}>{pending && <LoaderCircle className="spin" size={18} />}Save preferences</button></div>
     </form>
+    <section className="account-controls" aria-labelledby="account-controls-title"><div><span className="page-eyebrow">Account controls</span><h2 id="account-controls-title">Your data, your choice</h2><p>Download a copy of your Sprintern data or permanently remove your account and application activity.</p></div><button className="button button--ghost button--small" type="button" disabled={accountPending} onClick={exportAccount}><Download size={17} />Export my data</button><div className="danger-zone"><div><h3>Delete account</h3><p>This permanently removes your profile, filters, matches, delivery history, notification connections, and sign-in account.</p></div><div className="field"><label htmlFor="delete-confirmation">Type DELETE to confirm</label><input id="delete-confirmation" autoComplete="off" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} /></div><button className="button button--danger button--small" type="button" disabled={accountPending || deleteConfirmation !== "DELETE"} onClick={deleteAccount}><Trash2 size={17} />Delete account</button></div></section>
   </div>;
 }

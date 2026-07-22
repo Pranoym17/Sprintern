@@ -12,11 +12,12 @@ import {
 } from "lucide-react";
 
 import { Brand } from "@/components/brand";
+import { SiteFooter } from "@/components/site-footer";
 
 const steps = [
-  { number: "01", title: "We watch the source", copy: "Sprintern checks a live community-maintained Summer 2027 internship board every 15 minutes." },
+  { number: "01", title: "We watch the sources", copy: "Sprintern checks community-maintained GitHub repositories throughout the day." },
   { number: "02", title: "Your rules cut the noise", copy: "Role, location, term, and work-mode filters create a short list you can actually act on." },
-  { number: "03", title: "You hear about matches", copy: "Get an instant Telegram alert with the original application link. Email is ready when configured." },
+  { number: "03", title: "You hear about matches", copy: "Get an email or Telegram alert with the original application link." },
 ];
 
 export default function Home() {
@@ -29,7 +30,7 @@ export default function Home() {
           <nav className="site-nav" aria-label="Primary navigation">
             <a href="#how-it-works">How it works</a>
             <a href="#features">Features</a>
-            <a href="#source">Current source</a>
+            <a href="#source">Data sources</a>
           </nav>
           <div className="header-actions">
             <Link className="text-link" href="/sign-in">Sign in</Link>
@@ -40,21 +41,21 @@ export default function Home() {
 
       <section className="hero" id="main-content">
         <div className="hero__copy">
-          <div className="eyebrow"><span className="status-dot" /> Summer 2027 signal is live</div>
+          <div className="eyebrow"><span className="status-dot" /> Internship signal is live</div>
           <h1>Stop finding internships <em>after everyone else.</em></h1>
           <p className="hero__lede">Sprintern watches new software internships, filters out the noise, and sends the right roles straight to you.</p>
           <div className="hero__actions">
             <Link className="button button--primary" href="/sign-up">Create your alert <ArrowRight size={18} /></Link>
             <a className="button button--ghost" href="#how-it-works">See how it works</a>
           </div>
-          <p className="hero__note"><Check size={16} /> Free portfolio MVP · No scraping of LinkedIn or Indeed</p>
+          <p className="hero__note"><Check size={16} /> Free to use · Original application links</p>
         </div>
 
         <div className="signal-stage" aria-label="Illustration of an internship passing through Sprintern's matching pipeline">
           <div className="orbit orbit--outer" />
           <div className="orbit orbit--middle" />
           <div className="orbit orbit--inner" />
-          <div className="source-node source-node--github"><GitBranch size={18} /><span>GitHub board</span></div>
+          <div className="source-node source-node--github"><GitBranch size={18} /><span>GitHub repositories</span></div>
           <div className="source-node source-node--role"><Sparkles size={18} /><span>Software</span></div>
           <div className="source-node source-node--place"><MapPin size={18} /><span>Toronto</span></div>
           <div className="signal-core">
@@ -71,9 +72,9 @@ export default function Home() {
       </section>
 
       <section className="proof-strip" aria-label="Current capabilities">
-        <span><GitBranch size={18} /> GitHub source live</span>
-        <span><Radio size={18} /> 15-minute polling</span>
-        <span><BellRing size={18} /> Telegram alerts</span>
+        <span><GitBranch size={18} /> GitHub repositories</span>
+        <span><Radio size={18} /> Scheduled monitoring</span>
+        <span><BellRing size={18} /> Email and Telegram alerts</span>
         <span><ExternalLink size={18} /> Direct apply links</span>
       </section>
 
@@ -94,12 +95,12 @@ export default function Home() {
       </section>
 
       <section className="section source-section" id="source">
-        <div><span className="section-kicker">Honest by design</span><h2>Focused on one source today.</h2></div>
-        <div><p>The live MVP watches the community-maintained Summer 2027 GitHub repository. Greenhouse, Lever, and other adapters exist in the backend roadmap, but the product does not pretend they are active yet.</p><p className="source-footnote">Community tables can change format. Sprintern records source health and fails visibly instead of silently dropping jobs.</p></div>
+        <div><span className="section-kicker">Honest by design</span><h2>Community data, clearly sourced.</h2></div>
+        <div><p>Sprintern monitors curated, community-maintained GitHub repositories and keeps the original source and employer application links attached.</p><p className="source-footnote">Community tables can change format or become stale. Sprintern monitors source health and fails visibly instead of silently dropping jobs.</p><Link className="inline-link" href="/data-sources">How sources and attribution work</Link></div>
       </section>
 
       <section className="final-cta"><span className="section-kicker">Your next application could arrive first</span><h2>Set the signal once.<br />Let Sprintern keep watch.</h2><Link className="button button--paper" href="/sign-up">Create a free alert <ArrowRight size={18} /></Link></section>
-      <footer className="site-footer"><Brand /><p>Internship alerts without the refresh loop.</p><span>Built transparently as a portfolio MVP.</span></footer>
+      <SiteFooter />
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import { apiUrl } from "@/lib/env";
-import type { Analytics, FilterInput, JobFilter, JobMatch, MatchPage, MatchStatus, Profile, ProfileUpdate, TelegramLink } from "./types";
+import type { AccountExport, Analytics, FilterInput, JobFilter, JobMatch, MatchPage, MatchStatus, Profile, ProfileUpdate, SourceHealth, TelegramLink } from "./types";
 
 export class ApiError extends Error {
   constructor(public status:number, public code:string, message:string, public details?:unknown) { super(message); this.name = "ApiError"; }
@@ -42,6 +42,9 @@ export class ApiClient {
   updateProfile = (value:ProfileUpdate) => this.request<Profile>("/users/me", {method:"PATCH", body:JSON.stringify(value)});
   createTelegramLink = () => this.request<TelegramLink>("/users/me/telegram-link", {method:"POST"});
   unlinkTelegram = () => this.request<void>("/users/me/telegram-link", {method:"DELETE"});
+  exportAccount = () => this.request<AccountExport>("/users/me/export");
+  deleteAccount = () => this.request<void>("/users/me", {method:"DELETE", body:JSON.stringify({confirmation:"DELETE"})});
+  sourceHealth = () => this.request<SourceHealth>("/sources/status");
   filters = () => this.request<JobFilter[]>("/filters");
   createFilter = (value:FilterInput) => this.request<JobFilter>("/filters", {method:"POST", body:JSON.stringify(value)});
   updateFilter = (id:string, value:Partial<FilterInput>) => this.request<JobFilter>(`/filters/${id}`, {method:"PATCH", body:JSON.stringify(value)});

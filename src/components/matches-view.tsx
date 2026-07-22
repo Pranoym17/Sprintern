@@ -110,20 +110,21 @@ export function MatchesView() {
             <h2>{item.job.title}</h2>
             <div className="job-meta">
               <span><MapPin size={15} />{item.job.location ?? "Location not listed"}</span>
-              <span><BriefcaseBusiness size={15} />{item.job.term ?? "Term not listed"}</span>
+              <span><BriefcaseBusiness size={15} />{item.job.term ?? "Term unknown"}</span>
               <span><Clock3 size={15} />{relativeTime(item.job.posted_at ?? item.job.first_seen_at)}</span>
             </div>
           </div>
           <span className={`status-pill status-pill--${item.status}`}>{item.status}</span>
         </div>
         {item.reasons[0]?.dimensions && <div className="reason-row"><span>Matched on</span>{Object.values(item.reasons[0].dimensions).map((value) => <em key={value}>{value}</em>)}</div>}
+        {!!item.deliveries?.length && <div className="delivery-row" aria-label="Notification delivery status">{item.deliveries.map((delivery)=><span className={`delivery-badge delivery-badge--${delivery.status}`} key={delivery.channel}>{delivery.channel} {delivery.status}</span>)}</div>}
         <div className="job-card__actions">
           {applyUrl ? <a className="button button--primary button--small" href={applyUrl} target="_blank" rel="noopener noreferrer">Apply now <ArrowUpRight size={16} /></a> : <span className="apply-unavailable">Application link unavailable</span>}
           {item.status !== "applied" && <button className="button apply-button button--small" disabled={pendingIds.has(item.id)} onClick={() => change(item, "applied", true)}><Check size={16} />Mark applied</button>}
           {item.status === "matched" ? <button className="icon-text-button" disabled={pendingIds.has(item.id)} onClick={() => change(item, "dismissed")}><X size={16} />Dismiss</button> : item.status === "dismissed" && <button className="icon-text-button" disabled={pendingIds.has(item.id)} onClick={() => change(item, "matched")}><RotateCcw size={16} />Restore</button>}
         </div>
       </article>;
-    })}</div> : <EmptyState icon={<BriefcaseBusiness />} title={`No ${tab === "all" ? "" : tab} matches yet`} copy="Sprintern is actively watching the source. You’ll be alerted as soon as a role clears your filters." action="/filters" actionLabel="Review filters" />}
+    })}</div> : <EmptyState icon={<BriefcaseBusiness />} title={`No ${tab === "all" ? "" : tab} matches yet`} copy="Sprintern is actively watching GitHub repositories. You’ll be alerted as soon as a role clears your filters." action="/filters" actionLabel="Review filters" />}
     {cursor && <button className="button button--ghost load-more" disabled={loadingMore} onClick={() => load(cursor, tab)}>{loadingMore ? "Loading…" : "Load more matches"}<ChevronDown size={17} /></button>}
   </div>;
 }

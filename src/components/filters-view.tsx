@@ -8,7 +8,8 @@ import { EmptyState, PageHeader } from "./dashboard-view";
 import { PageError, PageLoading } from "./page-state";
 import type { FilterInput, JobFilter, WorkMode } from "@/lib/api/types";
 
-const blank: FilterInput = { name: "", role_keywords: [], location_keywords: [], terms: ["Summer 2027"], work_mode: "any", active: true };
+const blank: FilterInput = { name: "", role_keywords: [], location_keywords: [], terms: [], work_mode: "any", active: true };
+const termOptions = ["Fall 2026", "Winter 2027", "Summer 2027", "Fall 2027", "Winter 2028", "Summer 2028", "Fall 2028"];
 
 export function FiltersView() {
   const { api, notify } = useApp();
@@ -79,7 +80,7 @@ function FilterEditor({ initial, onCancel, onSaved }: { initial: FilterInput | J
     <div className="panel-heading"><div><span className="page-eyebrow">{isExisting ? "Edit signal" : "Quick setup"}</span><h2 id="filter-editor-title">{isExisting ? initial.name : "What should we watch for?"}</h2></div><button className="close-button" onClick={onCancel} aria-label="Close filter editor"><X /></button></div>
     <form onSubmit={submit} aria-busy={pending}>
       <div className="field field--wide"><label htmlFor="filter-name"><b>01</b>Name this search</label><input id="filter-name" name="name" defaultValue={initial.name} maxLength={100} required placeholder="Software internships" /></div>
-      <div className="guided-group field--wide"><div className="guided-group__heading"><span>02</span><div><strong>Add what matters</strong><small>Press Enter after each keyword. Choices within a row broaden the search.</small></div></div><div className="guided-fields"><ChipInput id="roles" label="Roles or fields" values={roles} onChange={setRoles} placeholder="software" /><ChipInput id="locations" label="Locations" values={locations} onChange={setLocations} placeholder="Toronto" /><ChipInput id="terms" label="Internship term" values={terms} onChange={setTerms} placeholder="Summer 2027" /></div></div>
+      <div className="guided-group field--wide"><div className="guided-group__heading"><span>02</span><div><strong>Add what matters</strong><small>Press Enter after each keyword. Choices within a row broaden the search.</small></div></div><div className="guided-fields"><ChipInput id="roles" label="Roles or fields" values={roles} onChange={setRoles} placeholder="software" /><ChipInput id="locations" label="Locations" values={locations} onChange={setLocations} placeholder="Toronto" /><div className="field term-field"><span className="field-label">Internship terms</span><div className="term-options" role="group" aria-label="Internship terms">{termOptions.map((term)=><button aria-pressed={terms.includes(term)} className={terms.includes(term)?"active":""} key={term} onClick={()=>setTerms(terms.includes(term)?terms.filter((value)=>value!==term):[...terms,term])} type="button">{term}</button>)}</div></div></div></div>
       <div className="field"><label htmlFor="work-mode"><b>03</b>Work mode</label><select id="work-mode" name="work_mode" defaultValue={initial.work_mode}>{["any", "remote", "hybrid", "onsite", "unknown"].map((value) => <option value={value} key={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></div>
       <label className="switch-row"><input type="checkbox" name="active" defaultChecked={initial.active} /><span><strong>Start watching now</strong><small>Pause this filter any time without deleting it.</small></span></label>
       <div className="filter-live-preview field--wide"><span>Signal preview</span><p>{previewSentence(roles, locations, terms)}</p><small>Exact match counts appear after saving because matching runs on the server.</small></div>

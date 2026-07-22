@@ -30,6 +30,13 @@ describe("ApiClient", () => {
     await expect(api.deleteFilter("filter-id")).resolves.toBeUndefined();
   });
 
+  it("requires an explicit account deletion confirmation payload", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.deleteAccount();
+    expect(fetchMock).toHaveBeenCalledWith(`${apiUrl}/users/me`, expect.objectContaining({ method:"DELETE", body:JSON.stringify({ confirmation:"DELETE" }) }));
+  });
+
   it("reports missing sessions before calling fetch", async () => {
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
     const signedOut = new ApiClient(async () => null);

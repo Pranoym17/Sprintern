@@ -7,7 +7,7 @@ const headingFont = Urbanist({ subsets: ["latin"], variable: "--font-heading" })
 
 export const metadata: Metadata = {
   title: { default: "Sprintern — Internship alerts without the refresh loop", template: "%s · Sprintern" },
-  description: "Track Summer 2027 software internships with focused filters and instant Telegram alerts.",
+  description: "Track software internships with focused filters and timely email or Telegram alerts.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
