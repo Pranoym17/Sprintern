@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from api.routes import (
     analytics,
+    applications,
     discovery,
     email,
     filters,
@@ -26,5 +27,6 @@ api_router.include_router(telegram.router)
 api_router.include_router(email.router)
 api_router.include_router(discovery.router)
 api_router.include_router(watchlists.router)
+api_router.include_router(applications.router)
 
 __all__ = ["api_router"]

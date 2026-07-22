@@ -1,5 +1,5 @@
 import { apiUrl } from "@/lib/env";
-import type { AccountExport, Analytics, Collection, CompanyWatchlist, FilterInput, FilterPreview, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceHealth, TelegramLink } from "./types";
+import type { AccountExport, Analytics, Application, ApplicationStage, Collection, CompanyWatchlist, CSVImportResult, FilterInput, FilterPreview, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceHealth, TelegramLink, WeeklyProgress } from "./types";
 
 export class ApiError extends Error {
   constructor(public status:number, public code:string, message:string, public details?:unknown) { super(message); this.name = "ApiError"; }
@@ -38,6 +38,15 @@ export class ApiClient {
     }
     return body as T;
   }
+  async download(path:string, filename:string) {
+    const token = await this.getToken();
+    if (!token) throw new ApiError(401, "not_authenticated", "Please sign in again.");
+    const response = await fetch(`${apiUrl}${path}`, {headers:{Authorization:`Bearer ${token}`}});
+    if (!response.ok) throw new ApiError(response.status, "download_failed", "Could not create export.");
+    const url = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click();
+    URL.revokeObjectURL(url);
+  }
   profile = () => this.request<Profile>("/users/me");
   updateProfile = (value:ProfileUpdate) => this.request<Profile>("/users/me", {method:"PATCH", body:JSON.stringify(value)});
   createTelegramLink = () => this.request<TelegramLink>("/users/me/telegram-link", {method:"POST"});
@@ -62,5 +71,11 @@ export class ApiClient {
   reportJob = (jobId:string, reason:string) => this.request(`/jobs/${jobId}/reports`, {method:"POST", body:JSON.stringify({reason})});
   shareJob = (jobId:string) => this.request<ShareLink>(`/jobs/${jobId}/shares`, {method:"POST", body:JSON.stringify({expires_in_hours:72})});
   similarJobs = (jobId:string) => this.request<Job[]>(`/jobs/${jobId}/similar`);
+  applications = (stage?:ApplicationStage) => this.request<Application[]>(`/applications${stage ? `?stage=${stage}` : ""}`);
+  updateApplication = (id:string, value:Record<string,unknown>) => this.request<Application>(`/applications/${id}`, {method:"PATCH", body:JSON.stringify(value)});
+  deleteApplication = (id:string) => this.request<void>(`/applications/${id}`, {method:"DELETE"});
+  importApplications = (csvText:string, mapping:Record<string,string>, dryRun:boolean) => this.request<CSVImportResult>("/imports/applications/csv", {method:"POST", body:JSON.stringify({csv_text:csvText,mapping,dry_run:dryRun})});
+  weeklyGoal = () => this.request<WeeklyProgress>("/goals/weekly");
+  updateWeeklyGoal = (value:{target:number;reminders_enabled:boolean;streaks_enabled:boolean}) => this.request<WeeklyProgress>("/goals/weekly", {method:"PUT", body:JSON.stringify(value)});
   analytics = () => this.request<Analytics>("/analytics/summary");
 }

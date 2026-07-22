@@ -11,7 +11,16 @@ from sqlalchemy.orm import Session, selectinload
 from api.auth import CurrentUser
 from api.database import get_db
 from api.errors import AppError
-from api.models import Job, JobInteraction, JobMatch, JobReport, ShareLink
+from api.models import (
+    Application,
+    ApplicationEvent,
+    ApplicationStage,
+    Job,
+    JobInteraction,
+    JobMatch,
+    JobReport,
+    ShareLink,
+)
 from api.rate_limiting import user_rate_limit
 from api.schemas.discovery import (
     InteractionResponse,
@@ -78,6 +87,27 @@ def update_interaction(
     now = datetime.now(UTC)
     if payload.bookmarked is not None:
         interaction.bookmarked_at = now if payload.bookmarked else None
+        if payload.bookmarked:
+            application = session.scalar(
+                select(Application).where(
+                    Application.profile_id == user.id,
+                    Application.job_id == job_id,
+                )
+            )
+            if application is None:
+                application = Application(
+                    profile_id=user.id, job_id=job_id, stage=ApplicationStage.SAVED
+                )
+                session.add(application)
+                session.flush()
+                session.add(
+                    ApplicationEvent(
+                        application_id=application.id,
+                        profile_id=user.id,
+                        event_type="saved",
+                        data={"source": "bookmark"},
+                    )
+                )
     if payload.hidden is not None:
         interaction.hidden_at = now if payload.hidden else None
     if "not_interested_reason" in payload.model_fields_set:

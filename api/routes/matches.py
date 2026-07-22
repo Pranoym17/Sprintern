@@ -3,12 +3,13 @@ from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.auth import CurrentUser
 from api.database import get_db
 from api.errors import AppError
-from api.models import MatchStatus
+from api.models import Application, ApplicationEvent, ApplicationStage, MatchStatus
 from api.rate_limiting import user_rate_limit
 from api.repositories.matches import get_match, list_matches, match_status_counts
 from api.repositories.pagination import decode_cursor, encode_cursor
@@ -30,10 +31,17 @@ def read_matches(
     sort: Literal["newest", "company", "relevance", "deadline"] = "newest",
     page: Annotated[int, Query(ge=1, le=1000)] = 1,
     collection: Literal[
-        "toronto", "remote", "canadian", "new-week", "closing-soon", "reopened",
-        "followed-companies", "strongest",
+        "toronto",
+        "remote",
+        "canadian",
+        "new-week",
+        "closing-soon",
+        "reopened",
+        "followed-companies",
+        "strongest",
         "recently-viewed",
-    ] | None = None,
+    ]
+    | None = None,
     include_hidden: bool = False,
 ) -> MatchPage:
     if cursor and cursor.isdigit():
@@ -58,7 +66,9 @@ def read_matches(
     next_cursor = (
         encode_cursor(items[-1].created_at, items[-1].id)
         if has_more and page == 1 and not query and sort == "newest" and collection is None
-        else str(page + 1) if has_more else None
+        else str(page + 1)
+        if has_more
+        else None
     )
     all_count, matched, applied, dismissed = match_status_counts(session, user.id)
     return MatchPage(
@@ -89,6 +99,33 @@ def update_match(
         raise AppError(404, "not_found", "Match not found")
     match.status = payload.status
     match.applied_at = datetime.now(UTC) if payload.status == MatchStatus.APPLIED else None
+    if payload.status == MatchStatus.APPLIED:
+        application = session.scalar(
+            select(Application).where(
+                Application.profile_id == user.id,
+                Application.job_id == match.job_id,
+            )
+        )
+        if application is None:
+            application = Application(
+                profile_id=user.id,
+                job_id=match.job_id,
+                stage=ApplicationStage.APPLIED,
+                applied_at=match.applied_at,
+            )
+            session.add(application)
+            session.flush()
+            session.add(
+                ApplicationEvent(
+                    application_id=application.id,
+                    profile_id=user.id,
+                    event_type="application_submitted",
+                    data={"source": "match_action"},
+                )
+            )
+        elif application.stage in {ApplicationStage.SAVED, ApplicationStage.PREPARING}:
+            application.stage = ApplicationStage.APPLIED
+            application.applied_at = match.applied_at
     session.commit()
     session.refresh(match)
     return match

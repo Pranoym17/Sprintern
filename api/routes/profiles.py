@@ -9,7 +9,7 @@ from api.auth import CurrentUser
 from api.auth.admin import SupabaseAuthAdmin
 from api.database import get_db
 from api.errors import AppError
-from api.models import JobFilter, JobMatch, Profile
+from api.models import Application, JobFilter, JobMatch, Profile
 from api.notifications.email_preferences import cancel_email_deliveries, is_email_suppressed
 from api.notifications.planning import notification_planner
 from api.notifications.telegram_linking import telegram_link_service
@@ -117,6 +117,13 @@ def export_me(user: CurrentUser, session: Database) -> dict[str, Any]:
             .where(JobMatch.profile_id == profile.id)
         )
     )
+    applications = list(
+        session.scalars(
+            select(Application)
+            .options(selectinload(Application.job), selectinload(Application.events))
+            .where(Application.profile_id == profile.id)
+        )
+    )
     return {
         "exported_at": datetime.now(UTC).isoformat(),
         "profile": {
@@ -165,6 +172,37 @@ def export_me(user: CurrentUser, session: Database) -> dict[str, Any]:
                 ],
             }
             for item in matches
+        ],
+        "applications": [
+            {
+                "id": str(item.id),
+                "job_id": str(item.job_id),
+                "company": item.job.company,
+                "title": item.job.title,
+                "stage": item.stage.value,
+                "notes": item.notes,
+                "deadline_at": item.deadline_at,
+                "follow_up_at": item.follow_up_at,
+                "interview_at": item.interview_at,
+                "contact": item.contact,
+                "resume_version": item.resume_version,
+                "application_url": item.application_url,
+                "applied_at": item.applied_at,
+                "outcome": item.outcome,
+                "timeline": [
+                    {
+                        "id": str(event.id),
+                        "event_type": event.event_type,
+                        "data": event.data,
+                        "corrected_event_id": (
+                            str(event.corrected_event_id) if event.corrected_event_id else None
+                        ),
+                        "created_at": event.created_at,
+                    }
+                    for event in item.events
+                ],
+            }
+            for item in applications
         ],
     }
 
