@@ -19,6 +19,8 @@ beforeEach(() => {
   api = {
     matches: vi.fn(async (_cursor, status) => ({ items: status === "applied" ? [{...match,id:"applied-1",status:"applied"}] : [match], next_cursor:null, counts:{all:2,matched:1,applied:1,dismissed:0} })),
     updateMatch: vi.fn(async (_id, status) => ({...match,status})),
+    interactions: vi.fn(async () => []),
+    updateInteraction: vi.fn(), recordView: vi.fn(), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
     filters: vi.fn(async () => []), createFilter:vi.fn(async (value) => ({...value,id:"filter",profile_id:"profile",created_at:"",updated_at:""})), updateFilter:vi.fn(), deleteFilter:vi.fn(),
     profile:vi.fn(async () => profile), updateProfile:vi.fn(async (value) => ({...profile,...value})), createTelegramLink:vi.fn(), unlinkTelegram:vi.fn(), exportAccount:vi.fn(), deleteAccount:vi.fn(async () => undefined), sourceHealth:vi.fn(async () => ({state:"healthy",last_updated_at:"2026-07-01"})),
   };
@@ -32,7 +34,7 @@ describe("authenticated product workflows", () => {
     await user.click(screen.getByRole("button", { name:/mark applied/i }));
     expect(api.updateMatch).toHaveBeenCalledWith("match-1", "applied");
     await user.click(screen.getByRole("button", { name:/applied/i }));
-    await waitFor(() => expect(api.matches).toHaveBeenCalledWith(undefined, "applied"));
+    await waitFor(() => expect(api.matches).toHaveBeenCalledWith(undefined, "applied", "", "newest", undefined));
   });
 
   it("creates a guided chip filter", async () => {

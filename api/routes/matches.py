@@ -1,6 +1,6 @@
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -26,13 +26,40 @@ def read_matches(
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     cursor: str | None = None,
     status_filter: Annotated[MatchStatus | None, Query(alias="status")] = None,
+    query: Annotated[str, Query(max_length=120)] = "",
+    sort: Literal["newest", "company", "relevance", "deadline"] = "newest",
+    page: Annotated[int, Query(ge=1, le=1000)] = 1,
+    collection: Literal[
+        "toronto", "remote", "canadian", "new-week", "closing-soon", "reopened",
+        "followed-companies", "strongest",
+        "recently-viewed",
+    ] | None = None,
+    include_hidden: bool = False,
 ) -> MatchPage:
+    if cursor and cursor.isdigit():
+        page = int(cursor)
+        decoded_cursor = None
+    else:
+        decoded_cursor = decode_cursor(cursor) if cursor else None
     matches = list_matches(
-        session, user.id, limit, decode_cursor(cursor) if cursor else None, status_filter
+        session,
+        user.id,
+        limit,
+        decoded_cursor,
+        status_filter,
+        query,
+        sort,
+        page,
+        collection,
+        include_hidden,
     )
     has_more = len(matches) > limit
     items = matches[:limit]
-    next_cursor = encode_cursor(items[-1].created_at, items[-1].id) if has_more else None
+    next_cursor = (
+        encode_cursor(items[-1].created_at, items[-1].id)
+        if has_more and page == 1 and not query and sort == "newest" and collection is None
+        else str(page + 1) if has_more else None
+    )
     all_count, matched, applied, dismissed = match_status_counts(session, user.id)
     return MatchPage(
         items=[MatchResponse.model_validate(match) for match in items],

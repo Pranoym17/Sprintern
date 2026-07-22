@@ -1,5 +1,5 @@
 import { apiUrl } from "@/lib/env";
-import type { AccountExport, Analytics, FilterInput, JobFilter, JobMatch, MatchPage, MatchStatus, Profile, ProfileUpdate, SourceHealth, TelegramLink } from "./types";
+import type { AccountExport, Analytics, Collection, FilterInput, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceHealth, TelegramLink } from "./types";
 
 export class ApiError extends Error {
   constructor(public status:number, public code:string, message:string, public details?:unknown) { super(message); this.name = "ApiError"; }
@@ -49,7 +49,13 @@ export class ApiClient {
   createFilter = (value:FilterInput) => this.request<JobFilter>("/filters", {method:"POST", body:JSON.stringify(value)});
   updateFilter = (id:string, value:Partial<FilterInput>) => this.request<JobFilter>(`/filters/${id}`, {method:"PATCH", body:JSON.stringify(value)});
   deleteFilter = (id:string) => this.request<void>(`/filters/${id}`, {method:"DELETE"});
-  matches = (cursor?:string, status?:MatchStatus) => this.request<MatchPage>(`/matches?limit=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}${status ? `&status=${status}` : ""}`);
+  matches = (cursor?:string, status?:MatchStatus, query="", sort:MatchSort="newest", collection?:Collection, includeHidden=false) => this.request<MatchPage>(`/matches?limit=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}${status ? `&status=${status}` : ""}${query ? `&query=${encodeURIComponent(query)}` : ""}&sort=${sort}${collection ? `&collection=${collection}` : ""}${includeHidden ? "&include_hidden=true" : ""}`);
   updateMatch = (id:string, status:MatchStatus) => this.request<JobMatch>(`/matches/${id}`, {method:"PATCH", body:JSON.stringify({status})});
+  interactions = () => this.request<JobInteraction[]>("/job-interactions");
+  updateInteraction = (jobId:string, value:Record<string,unknown>) => this.request<JobInteraction>(`/jobs/${jobId}/interaction`, {method:"PATCH", body:JSON.stringify(value)});
+  recordView = (jobId:string) => this.request<JobInteraction>(`/jobs/${jobId}/view`, {method:"POST"});
+  reportJob = (jobId:string, reason:string) => this.request(`/jobs/${jobId}/reports`, {method:"POST", body:JSON.stringify({reason})});
+  shareJob = (jobId:string) => this.request<ShareLink>(`/jobs/${jobId}/shares`, {method:"POST", body:JSON.stringify({expires_in_hours:72})});
+  similarJobs = (jobId:string) => this.request<Job[]>(`/jobs/${jobId}/similar`);
   analytics = () => this.request<Analytics>("/analytics/summary");
 }
