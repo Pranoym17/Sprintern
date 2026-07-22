@@ -5,7 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from api.ingestion.normalization import NormalizedJob
-from api.models import Job, JobSource, JobStatus
+from api.models import DeadlineSource, Job, JobChangeEvent, JobSource, JobStatus
 
 
 class PersistenceOutcome(StrEnum):
@@ -38,7 +38,7 @@ class JobPersister:
                 and seen_at - source_record.last_seen_at >= self.repost_threshold
             )
             if not reposted:
-                self._update_existing(source_record, candidate, seen_at)
+                self._update_existing(session, source_record, candidate, seen_at)
                 return PersistenceOutcome.UPDATED
             next_occurrence = source_record.occurrence + 1
         else:
@@ -90,6 +90,9 @@ class JobPersister:
             canonical_fingerprint=candidate.canonical_fingerprint,
             status=JobStatus.ACTIVE,
             posted_at=candidate.posted_at,
+            deadline_at=candidate.deadline_at,
+            deadline_source=DeadlineSource.SOURCE if candidate.deadline_at else None,
+            title_incomplete=self._title_is_incomplete(candidate.title),
             first_seen_at=seen_at,
             last_seen_at=seen_at,
         )
@@ -114,9 +117,44 @@ class JobPersister:
         )
 
     @staticmethod
+    def _title_is_incomplete(title: str) -> bool:
+        stripped = title.strip()
+        return (
+            stripped.endswith(("...", "…", "-", "/"))
+            or stripped.count("(") > stripped.count(")")
+            or stripped.count("[") > stripped.count("]")
+        )
+
     def _update_existing(
-        source_record: JobSource, candidate: NormalizedJob, seen_at: datetime
+        self,
+        session: Session,
+        source_record: JobSource,
+        candidate: NormalizedJob,
+        seen_at: datetime,
     ) -> None:
+        job = source_record.job
+        tracked = {
+            "company": (job.company, candidate.company),
+            "title": (job.title, candidate.title),
+            "location": (job.location, candidate.location),
+            "term": (job.term, candidate.term),
+            "apply_url": (source_record.apply_url, candidate.apply_url),
+            "deadline_at": (
+                job.deadline_at.isoformat() if job.deadline_at else None,
+                candidate.deadline_at.isoformat() if candidate.deadline_at else None,
+            ),
+        }
+        changes = {
+            field: {"from": before, "to": after}
+            for field, (before, after) in tracked.items()
+            if before != after
+        }
+        was_inactive = job.status != JobStatus.ACTIVE or not source_record.active
+        if changes:
+            session.add(JobChangeEvent(job_id=job.id, event_type="updated", changes=changes))
+        if was_inactive:
+            session.add(JobChangeEvent(job_id=job.id, event_type="reopened", changes={}))
+            job.reopened_at = seen_at
         source_record.source_url = candidate.source_url
         source_record.apply_url = candidate.apply_url
         source_record.raw_metadata = candidate.raw_metadata
@@ -124,7 +162,6 @@ class JobPersister:
         source_record.missing_snapshot_count = 0
         source_record.missing_since = None
         source_record.active = True
-        job = source_record.job
         job.company = candidate.company
         job.normalized_company = candidate.normalized_company
         job.title = candidate.title
@@ -135,6 +172,10 @@ class JobPersister:
         job.description = candidate.description
         job.work_mode = candidate.work_mode
         job.posted_at = candidate.posted_at
+        if candidate.deadline_at:
+            job.deadline_at = candidate.deadline_at
+            job.deadline_source = DeadlineSource.SOURCE
+        job.title_incomplete = self._title_is_incomplete(candidate.title)
         job.last_seen_at = seen_at
         job.status = JobStatus.ACTIVE
         job.expired_at = None

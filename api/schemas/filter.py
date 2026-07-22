@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import Field, field_validator
 
-from api.models.enums import WorkMode
+from api.models.enums import ExclusionType, WorkMode
 from api.schemas.common import APIModel
 
 
@@ -31,10 +31,20 @@ class FilterCreate(APIModel):
     terms: list[str] = Field(default_factory=list)
     work_mode: WorkMode = WorkMode.ANY
     active: bool = True
+    remote_only: bool = False
+    radius_km: int | None = Field(default=None, ge=1, le=500)
+    center_latitude: float | None = Field(default=None, ge=-90, le=90)
+    center_longitude: float | None = Field(default=None, ge=-180, le=180)
+    excluded_keywords: list[str] = Field(default_factory=list)
+    excluded_companies: list[str] = Field(default_factory=list)
+    excluded_locations: list[str] = Field(default_factory=list)
 
     _clean_roles = field_validator("role_keywords")(clean_values)
     _clean_locations = field_validator("location_keywords")(clean_values)
     _clean_terms = field_validator("terms")(clean_terms)
+    _clean_excluded_keywords = field_validator("excluded_keywords")(clean_values)
+    _clean_excluded_companies = field_validator("excluded_companies")(clean_values)
+    _clean_excluded_locations = field_validator("excluded_locations")(clean_values)
 
 
 class FilterUpdate(APIModel):
@@ -44,6 +54,13 @@ class FilterUpdate(APIModel):
     terms: list[str] | None = None
     work_mode: WorkMode | None = None
     active: bool | None = None
+    remote_only: bool | None = None
+    radius_km: int | None = Field(default=None, ge=1, le=500)
+    center_latitude: float | None = Field(default=None, ge=-90, le=90)
+    center_longitude: float | None = Field(default=None, ge=-180, le=180)
+    excluded_keywords: list[str] | None = None
+    excluded_companies: list[str] | None = None
+    excluded_locations: list[str] | None = None
 
     _clean_roles = field_validator("role_keywords")(
         lambda value: clean_values(value) if value else value
@@ -52,6 +69,20 @@ class FilterUpdate(APIModel):
         lambda value: clean_values(value) if value else value
     )
     _clean_terms = field_validator("terms")(lambda value: clean_terms(value) if value else value)
+    _clean_excluded_keywords = field_validator("excluded_keywords")(
+        lambda value: clean_values(value) if value else value
+    )
+    _clean_excluded_companies = field_validator("excluded_companies")(
+        lambda value: clean_values(value) if value else value
+    )
+    _clean_excluded_locations = field_validator("excluded_locations")(
+        lambda value: clean_values(value) if value else value
+    )
+
+
+class FilterExclusionResponse(APIModel):
+    kind: ExclusionType
+    value: str
 
 
 class FilterResponse(APIModel):
@@ -63,5 +94,10 @@ class FilterResponse(APIModel):
     terms: list[str]
     work_mode: WorkMode
     active: bool
+    remote_only: bool
+    radius_km: int | None
+    center_latitude: float | None
+    center_longitude: float | None
+    exclusions: list[FilterExclusionResponse]
     created_at: datetime
     updated_at: datetime

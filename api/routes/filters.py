@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 from api.auth import CurrentUser
 from api.database import get_db
 from api.errors import AppError
+from api.ingestion.normalization import normalize_text
 from api.matching import matching_service
-from api.models import JobFilter
+from api.models import ExclusionType, FilterExclusion, JobFilter
 from api.rate_limiting import user_rate_limit
 from api.repositories.filters import get_filter, list_filters
 from api.repositories.profiles import get_or_create_profile
@@ -16,6 +17,31 @@ from api.schemas import FilterCreate, FilterResponse, FilterUpdate
 
 router = APIRouter(prefix="/filters", tags=["filters"])
 Database = Annotated[Session, Depends(get_db)]
+
+EXCLUSION_FIELDS = {
+    "excluded_keywords": ExclusionType.KEYWORD,
+    "excluded_companies": ExclusionType.COMPANY,
+    "excluded_locations": ExclusionType.LOCATION,
+}
+
+
+def _replace_exclusions(job_filter: JobFilter, values: dict[str, Any]) -> None:
+    supplied = {field: values.pop(field) for field in EXCLUSION_FIELDS if field in values}
+    if not supplied:
+        return
+    retained = [
+        item
+        for item in job_filter.exclusions
+        if item.kind not in {EXCLUSION_FIELDS[k] for k in supplied}
+    ]
+    for field, entries in supplied.items():
+        retained.extend(
+            FilterExclusion(
+                kind=EXCLUSION_FIELDS[field], value=value, normalized_value=normalize_text(value)
+            )
+            for value in entries
+        )
+    job_filter.exclusions = retained
 
 
 @router.get("", response_model=list[FilterResponse])
@@ -33,7 +59,10 @@ def create_filter(
     payload: FilterCreate, response: Response, user: CurrentUser, session: Database
 ) -> object:
     get_or_create_profile(session, user.id, user.email)
-    job_filter = JobFilter(profile_id=user.id, **payload.model_dump())
+    values = payload.model_dump()
+    exclusions = {field: values.pop(field) for field in EXCLUSION_FIELDS}
+    job_filter = JobFilter(profile_id=user.id, **values)
+    _replace_exclusions(job_filter, exclusions)
     session.add(job_filter)
     session.flush()
     matching_service.match_profile(session, user.id)
@@ -65,6 +94,7 @@ def update_filter(
     updates = payload.model_dump(exclude_unset=True)
     if any(value is None for value in updates.values()):
         raise AppError(422, "validation_error", "Filter fields cannot be null")
+    _replace_exclusions(job_filter, updates)
     for field, value in updates.items():
         setattr(job_filter, field, value)
     session.flush()

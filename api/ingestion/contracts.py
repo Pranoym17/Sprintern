@@ -19,6 +19,7 @@ class RawSourceJob(BaseModel):
     source_url: AnyHttpUrl | None = None
     apply_url: AnyHttpUrl
     posted_at: datetime | None = None
+    deadline_at: datetime | None = None
     raw_metadata: dict[str, Any] = Field(default_factory=dict)
 
 

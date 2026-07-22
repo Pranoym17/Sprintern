@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -18,7 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.database import Base
 from api.models.base import TimestampMixin
-from api.models.enums import InternshipStatus, JobSourceName, JobStatus, WorkMode
+from api.models.enums import DeadlineSource, InternshipStatus, JobSourceName, JobStatus, WorkMode
 
 
 class Job(TimestampMixin, Base):
@@ -79,9 +80,25 @@ class Job(TimestampMixin, Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deadline_source: Mapped[DeadlineSource | None] = mapped_column(
+        Enum(
+            DeadlineSource,
+            native_enum=False,
+            create_constraint=True,
+            name="deadline_source",
+            length=16,
+            values_callable=lambda enum: [item.value for item in enum],
+        )
+    )
+    title_incomplete: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
 
     sources = relationship("JobSource", back_populates="job", cascade="all, delete-orphan")
     matches = relationship("JobMatch", back_populates="job")
+    changes = relationship("JobChangeEvent", back_populates="job", cascade="all, delete-orphan")
 
 
 class JobSource(TimestampMixin, Base):

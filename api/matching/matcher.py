@@ -4,16 +4,22 @@ from dataclasses import dataclass
 from typing import Any
 
 from api.ingestion.normalization import normalize_text
-from api.models import Job, JobFilter, WorkMode
+from api.models import ExclusionType, Job, JobFilter, WorkMode
 
-MATCHER_VERSION = "keyword-v1"
+MATCHER_VERSION = "keyword-v2"
 ROLE_ALIASES = {
-    "swe": ("software engineer", "software engineering"),
-    "ml": ("machine learning",),
+    "swe": ("software engineer", "software engineering", "software developer"),
+    "sde": ("software developer", "software development engineer", "software engineer"),
+    "pm": ("product manager", "product management"),
+    "qa": ("quality assurance", "test engineer", "software tester"),
+    "devops": ("devops", "site reliability", "platform engineer", "sre"),
+    "ml": ("machine learning", "ml engineer"),
+    "ds": ("data scientist", "data science"),
     "ai": ("artificial intelligence",),
     "frontend": ("front end", "frontend"),
     "backend": ("back end", "backend"),
 }
+UNRESTRICTED_LOCATIONS = {"all", "any", "everywhere"}
 SEASONS = ("winter", "spring", "summer", "fall", "autumn")
 
 
@@ -45,6 +51,28 @@ def match_filter(job: Job, job_filter: JobFilter) -> FilterMatch | None:
     if job_filter.active is False:
         return None
     dimensions: dict[str, str] = {}
+    excluded: list[dict[str, str]] = []
+
+    # Exclusions are hard gates before positive scoring. Recording the exact gate keeps
+    # previews and debugging explainable even as aliases expand over time.
+    searchable = normalize_text(" ".join((job.title, job.description or "")))
+    company = normalize_text(job.company)
+    location = normalize_text(job.location or "")
+    for exclusion in job_filter.exclusions:
+        target = {
+            ExclusionType.KEYWORD: searchable,
+            ExclusionType.COMPANY: company,
+            ExclusionType.LOCATION: location,
+        }[exclusion.kind]
+        if _matches_phrase(target, exclusion.normalized_value):
+            excluded.append({"kind": exclusion.kind.value, "value": exclusion.value})
+    if excluded:
+        return None
+
+    if job_filter.remote_only and job.work_mode != WorkMode.REMOTE:
+        return None
+    if job_filter.remote_only:
+        dimensions["work_mode"] = WorkMode.REMOTE.value
 
     if job_filter.role_keywords:
         title = normalize_text(job.title)
@@ -60,12 +88,16 @@ def match_filter(job: Job, job_filter: JobFilter) -> FilterMatch | None:
             return None
         dimensions["role"] = role
 
-    if job_filter.location_keywords:
-        location = normalize_text(job.location or "")
+    restricted_locations = [
+        value
+        for value in job_filter.location_keywords
+        if normalize_text(value) not in UNRESTRICTED_LOCATIONS
+    ]
+    if restricted_locations:
         location_match = next(
             (
                 normalize_text(keyword)
-                for keyword in job_filter.location_keywords
+                for keyword in restricted_locations
                 if _matches_phrase(location, keyword)
                 or (normalize_text(keyword) == "remote" and job.work_mode == WorkMode.REMOTE)
             ),
@@ -96,5 +128,7 @@ def match_filter(job: Job, job_filter: JobFilter) -> FilterMatch | None:
             "filter_name": job_filter.name,
             "matcher_version": MATCHER_VERSION,
             "dimensions": dimensions,
+            "positive": [{"kind": kind, "value": value} for kind, value in dimensions.items()],
+            "negative": excluded,
         },
     )

@@ -2,7 +2,7 @@ import uuid
 from collections import defaultdict
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from api.matching.classifier import classify_internship
 from api.matching.matcher import MATCHER_VERSION, match_filter
@@ -21,16 +21,22 @@ from api.notifications.planning import notification_planner
 class MatchingService:
     def match_all(self, session: Session) -> int:
         jobs = list(session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))
-        filters = list(session.scalars(select(JobFilter).where(JobFilter.active.is_(True))))
+        filters = list(
+            session.scalars(
+                select(JobFilter)
+                .options(selectinload(JobFilter.exclusions))
+                .where(JobFilter.active.is_(True))
+            )
+        )
         return sum(self._match_job(session, job, filters) for job in jobs)
 
     def match_profile(self, session: Session, profile_id: uuid.UUID) -> int:
         jobs = list(session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))
         filters = list(
             session.scalars(
-                select(JobFilter).where(
-                    JobFilter.profile_id == profile_id, JobFilter.active.is_(True)
-                )
+                select(JobFilter)
+                .options(selectinload(JobFilter.exclusions))
+                .where(JobFilter.profile_id == profile_id, JobFilter.active.is_(True))
             )
         )
         return sum(self._match_job(session, job, filters, profile_id) for job in jobs)

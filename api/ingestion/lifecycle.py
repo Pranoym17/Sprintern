@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from api.models import Job, JobSource, JobSourceName, JobStatus
+from api.models import Job, JobChangeEvent, JobSource, JobSourceName, JobStatus
 
 
 @dataclass(frozen=True)
@@ -62,10 +62,12 @@ class JobLifecycleService:
             if all(item.missing_snapshot_count >= self.expire_after_misses for item in job.sources):
                 if job.status != JobStatus.EXPIRED:
                     expired += 1
+                    session.add(JobChangeEvent(job_id=job.id, event_type="expired", changes={}))
                 job.status = JobStatus.EXPIRED
                 job.expired_at = observed_at
             else:
                 if job.status != JobStatus.STALE:
                     stale += 1
+                    session.add(JobChangeEvent(job_id=job.id, event_type="stale", changes={}))
                 job.status = JobStatus.STALE
         return LifecycleResult(stale_jobs=stale, expired_jobs=expired)

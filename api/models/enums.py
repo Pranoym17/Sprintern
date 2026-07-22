@@ -5,6 +5,7 @@ class NotificationCadence(StrEnum):
     INSTANT = "instant"
     HOURLY = "hourly"
     DAILY = "daily"
+    WEEKLY = "weekly"
 
 
 class NotificationChannel(StrEnum):
@@ -67,3 +68,46 @@ class InternshipStatus(StrEnum):
     CONFIRMED = "confirmed"
     REJECTED = "rejected"
     AMBIGUOUS = "ambiguous"
+
+
+class DeadlineSource(StrEnum):
+    SOURCE = "source"
+    INFERRED = "inferred"
+    USER = "user"
+
+
+class ApplicationStage(StrEnum):
+    SAVED = "saved"
+    PREPARING = "preparing"
+    APPLIED = "applied"
+    OA = "oa"
+    INTERVIEW = "interview"
+    OFFER = "offer"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+
+
+class ExclusionType(StrEnum):
+    KEYWORD = "keyword"
+    COMPANY = "company"
+    LOCATION = "location"
+
+
+class ReportReason(StrEnum):
+    CLOSED = "closed"
+    DUPLICATE = "duplicate"
+    SUSPICIOUS = "suspicious"
+    INACCURATE = "inaccurate"
+
+
+class NotificationPriority(StrEnum):
+    NORMAL = "normal"
+    HIGH = "high"
+
+
+class ReminderType(StrEnum):
+    DEADLINE = "deadline"
+    FOLLOW_UP = "follow_up"
+    INTERVIEW = "interview"
+    SAVED = "saved"
+    PREPARING = "preparing"

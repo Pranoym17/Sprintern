@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Index, String, text
+from sqlalchemy import Boolean, Enum, Float, ForeignKey, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,5 +40,12 @@ class JobFilter(TimestampMixin, Base):
         server_default=WorkMode.ANY.value,
     )
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    remote_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    radius_km: Mapped[int | None] = mapped_column(Integer)
+    center_latitude: Mapped[float | None] = mapped_column(Float)
+    center_longitude: Mapped[float | None] = mapped_column(Float)
 
     profile = relationship("Profile", back_populates="filters")
+    exclusions = relationship(
+        "FilterExclusion", back_populates="job_filter", cascade="all, delete-orphan"
+    )

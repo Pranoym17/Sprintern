@@ -42,6 +42,7 @@ class NormalizedJob(BaseModel):
     source_url: str | None
     apply_url: str
     posted_at: datetime | None
+    deadline_at: datetime | None
     raw_metadata: dict[str, object]
     canonical_fingerprint: str
 
@@ -81,6 +82,9 @@ def normalize_job(source: JobSourceName, source_key: str, raw: RawSourceJob) -> 
     posted_at = raw.posted_at
     if posted_at and posted_at.tzinfo is None:
         posted_at = posted_at.replace(tzinfo=UTC)
+    deadline_at = raw.deadline_at
+    if deadline_at and deadline_at.tzinfo is None:
+        deadline_at = deadline_at.replace(tzinfo=UTC)
     return NormalizedJob(
         source=source,
         source_key=source_key,
@@ -97,6 +101,7 @@ def normalize_job(source: JobSourceName, source_key: str, raw: RawSourceJob) -> 
         source_url=canonicalize_url(str(raw.source_url)) if raw.source_url else None,
         apply_url=canonicalize_url(str(raw.apply_url)),
         posted_at=posted_at,
+        deadline_at=deadline_at,
         raw_metadata=metadata,
         canonical_fingerprint=hashlib.sha256(fingerprint_input.encode()).hexdigest(),
     )
