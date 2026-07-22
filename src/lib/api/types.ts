@@ -16,6 +16,8 @@ export interface MatchPage { items:JobMatch[]; next_cursor:string|null; counts:M
 export interface FilterExclusion { kind:"keyword"|"company"|"location"; value:string; }
 export interface JobFilter { id:string; profile_id:string; name:string; role_keywords:string[]; location_keywords:string[]; terms:string[]; work_mode:WorkMode; active:boolean; remote_only:boolean; radius_km:number|null; center_latitude:number|null; center_longitude:number|null; exclusions:FilterExclusion[]; created_at:string; updated_at:string; }
 export interface FilterInput { name:string; role_keywords:string[]; location_keywords:string[]; terms:string[]; work_mode:WorkMode; active:boolean; remote_only?:boolean; radius_km?:number|null; center_latitude?:number|null; center_longitude?:number|null; excluded_keywords?:string[]; excluded_companies?:string[]; excluded_locations?:string[]; }
+export interface FilterPreview { estimated_count:number; examples:{id:string;company:string;title:string;location:string|null;reasons:Record<string,unknown>}[]; warnings:string[]; aliases:Record<string,string[]>; exclusions:Record<string,string[]>; }
+export interface CompanyWatchlist { id:string; company:string; terms:string[]; locations:string[]; active:boolean; created_at:string; updated_at:string; }
 export type MatchSort = "newest"|"company"|"relevance"|"deadline";
 export type Collection = "toronto"|"remote"|"canadian"|"new-week"|"closing-soon"|"reopened"|"followed-companies"|"strongest"|"recently-viewed";
 export interface JobInteraction { job_id:string; bookmarked_at:string|null; hidden_at:string|null; not_interested_reason:string|null; first_viewed_at:string|null; last_viewed_at:string|null; view_count:number; deadline_override_at:string|null; }

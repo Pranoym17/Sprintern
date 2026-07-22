@@ -11,6 +11,7 @@ from api.routes import (
     profiles,
     sources,
     telegram,
+    watchlists,
 )
 
 api_router = APIRouter()
@@ -24,5 +25,6 @@ api_router.include_router(internal.router)
 api_router.include_router(telegram.router)
 api_router.include_router(email.router)
 api_router.include_router(discovery.router)
+api_router.include_router(watchlists.router)
 
 __all__ = ["api_router"]

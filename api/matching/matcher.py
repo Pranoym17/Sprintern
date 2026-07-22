@@ -1,9 +1,10 @@
 import re
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from api.ingestion.normalization import normalize_text
+from api.locations import distance_km
 from api.models import ExclusionType, Job, JobFilter, WorkMode
 
 MATCHER_VERSION = "keyword-v2"
@@ -73,6 +74,22 @@ def match_filter(job: Job, job_filter: JobFilter) -> FilterMatch | None:
         return None
     if job_filter.remote_only:
         dimensions["work_mode"] = WorkMode.REMOTE.value
+
+    if job_filter.radius_km is not None:
+        center = (job_filter.center_latitude, job_filter.center_longitude)
+        coordinates = (job.latitude, job.longitude)
+        if job.work_mode == WorkMode.REMOTE:
+            dimensions["radius"] = "remote"
+        elif None in center or None in coordinates:
+            return None
+        else:
+            distance = distance_km(
+                (cast(float, center[0]), cast(float, center[1])),
+                (cast(float, coordinates[0]), cast(float, coordinates[1])),
+            )
+            if distance > job_filter.radius_km:
+                return None
+            dimensions["radius"] = f"{round(distance)} km"
 
     if job_filter.role_keywords:
         title = normalize_text(job.title)

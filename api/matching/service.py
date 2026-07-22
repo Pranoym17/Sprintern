@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from api.matching.classifier import classify_internship
 from api.matching.matcher import MATCHER_VERSION, match_filter
 from api.models import (
+    CompanyWatchlist,
     InternshipStatus,
     Job,
     JobFilter,
@@ -28,7 +29,10 @@ class MatchingService:
                 .where(JobFilter.active.is_(True))
             )
         )
-        return sum(self._match_job(session, job, filters) for job in jobs)
+        watchlists = list(
+            session.scalars(select(CompanyWatchlist).where(CompanyWatchlist.active.is_(True)))
+        )
+        return sum(self._match_job(session, job, filters, watchlists=watchlists) for job in jobs)
 
     def match_profile(self, session: Session, profile_id: uuid.UUID) -> int:
         jobs = list(session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))
@@ -39,7 +43,17 @@ class MatchingService:
                 .where(JobFilter.profile_id == profile_id, JobFilter.active.is_(True))
             )
         )
-        return sum(self._match_job(session, job, filters, profile_id) for job in jobs)
+        watchlists = list(
+            session.scalars(
+                select(CompanyWatchlist).where(
+                    CompanyWatchlist.profile_id == profile_id,
+                    CompanyWatchlist.active.is_(True),
+                )
+            )
+        )
+        return sum(
+            self._match_job(session, job, filters, profile_id, watchlists) for job in jobs
+        )
 
     def _match_job(
         self,
@@ -47,6 +61,7 @@ class MatchingService:
         job: Job,
         filters: list[JobFilter],
         only_profile_id: uuid.UUID | None = None,
+        watchlists: list[CompanyWatchlist] | None = None,
     ) -> int:
         job.internship_status = classify_internship(job.title, job.description)
         job.matcher_version = MATCHER_VERSION
@@ -56,6 +71,27 @@ class MatchingService:
                 result = match_filter(job, job_filter)
                 if result:
                     matched_by_profile[job_filter.profile_id].append(result.reasons)
+            for watchlist in watchlists or []:
+                term_matches = not watchlist.terms or job.term in watchlist.terms
+                location = (job.normalized_location or "").casefold()
+                location_matches = not watchlist.locations or any(
+                    item.casefold() in location for item in watchlist.locations
+                )
+                if (
+                    job.normalized_company == watchlist.normalized_company
+                    and term_matches
+                    and location_matches
+                ):
+                    matched_by_profile[watchlist.profile_id].append(
+                        {
+                            "watchlist_id": str(watchlist.id),
+                            "watchlist_company": watchlist.company,
+                            "matcher_version": MATCHER_VERSION,
+                            "dimensions": {"company": watchlist.company},
+                            "positive": [{"kind": "company", "value": watchlist.company}],
+                            "negative": [],
+                        }
+                    )
 
         statement = select(JobMatch).where(JobMatch.job_id == job.id)
         if only_profile_id:

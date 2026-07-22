@@ -22,6 +22,7 @@ beforeEach(() => {
     interactions: vi.fn(async () => []),
     updateInteraction: vi.fn(), recordView: vi.fn(), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
     filters: vi.fn(async () => []), createFilter:vi.fn(async (value) => ({...value,id:"filter",profile_id:"profile",created_at:"",updated_at:""})), updateFilter:vi.fn(), deleteFilter:vi.fn(),
+    previewFilter:vi.fn(async () => ({estimated_count:1,examples:[],warnings:[],aliases:{},exclusions:{}})), watchlists:vi.fn(async () => []), createWatchlist:vi.fn(), updateWatchlist:vi.fn(), deleteWatchlist:vi.fn(),
     profile:vi.fn(async () => profile), updateProfile:vi.fn(async (value) => ({...profile,...value})), createTelegramLink:vi.fn(), unlinkTelegram:vi.fn(), exportAccount:vi.fn(), deleteAccount:vi.fn(async () => undefined), sourceHealth:vi.fn(async () => ({state:"healthy",last_updated_at:"2026-07-01"})),
   };
 });

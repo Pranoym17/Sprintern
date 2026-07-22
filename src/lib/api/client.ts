@@ -1,5 +1,5 @@
 import { apiUrl } from "@/lib/env";
-import type { AccountExport, Analytics, Collection, FilterInput, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceHealth, TelegramLink } from "./types";
+import type { AccountExport, Analytics, Collection, CompanyWatchlist, FilterInput, FilterPreview, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceHealth, TelegramLink } from "./types";
 
 export class ApiError extends Error {
   constructor(public status:number, public code:string, message:string, public details?:unknown) { super(message); this.name = "ApiError"; }
@@ -49,6 +49,11 @@ export class ApiClient {
   createFilter = (value:FilterInput) => this.request<JobFilter>("/filters", {method:"POST", body:JSON.stringify(value)});
   updateFilter = (id:string, value:Partial<FilterInput>) => this.request<JobFilter>(`/filters/${id}`, {method:"PATCH", body:JSON.stringify(value)});
   deleteFilter = (id:string) => this.request<void>(`/filters/${id}`, {method:"DELETE"});
+  previewFilter = (value:FilterInput) => this.request<FilterPreview>("/filters/preview", {method:"POST", body:JSON.stringify(value)});
+  watchlists = () => this.request<CompanyWatchlist[]>("/watchlists");
+  createWatchlist = (value:{company:string;terms:string[];locations:string[];active:boolean}) => this.request<CompanyWatchlist>("/watchlists", {method:"POST", body:JSON.stringify(value)});
+  updateWatchlist = (id:string, value:Record<string,unknown>) => this.request<CompanyWatchlist>(`/watchlists/${id}`, {method:"PATCH", body:JSON.stringify(value)});
+  deleteWatchlist = (id:string) => this.request<void>(`/watchlists/${id}`, {method:"DELETE"});
   matches = (cursor?:string, status?:MatchStatus, query="", sort:MatchSort="newest", collection?:Collection, includeHidden=false) => this.request<MatchPage>(`/matches?limit=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}${status ? `&status=${status}` : ""}${query ? `&query=${encodeURIComponent(query)}` : ""}&sort=${sort}${collection ? `&collection=${collection}` : ""}${includeHidden ? "&include_hidden=true" : ""}`);
   updateMatch = (id:string, status:MatchStatus) => this.request<JobMatch>(`/matches/${id}`, {method:"PATCH", body:JSON.stringify({status})});
   interactions = () => this.request<JobInteraction[]>("/job-interactions");

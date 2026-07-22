@@ -2,18 +2,21 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from api.auth import CurrentUser
 from api.database import get_db
 from api.errors import AppError
 from api.ingestion.normalization import normalize_text
 from api.matching import matching_service
-from api.models import ExclusionType, FilterExclusion, JobFilter
+from api.matching.matcher import ROLE_ALIASES, match_filter
+from api.models import ExclusionType, FilterExclusion, Job, JobFilter, JobStatus
 from api.rate_limiting import user_rate_limit
 from api.repositories.filters import get_filter, list_filters
 from api.repositories.profiles import get_or_create_profile
 from api.schemas import FilterCreate, FilterResponse, FilterUpdate
+from api.schemas.filter import FilterPreviewExample, FilterPreviewResponse
 
 router = APIRouter(prefix="/filters", tags=["filters"])
 Database = Annotated[Session, Depends(get_db)]
@@ -42,6 +45,61 @@ def _replace_exclusions(job_filter: JobFilter, values: dict[str, Any]) -> None:
             for value in entries
         )
     job_filter.exclusions = retained
+
+
+@router.post(
+    "/preview",
+    response_model=FilterPreviewResponse,
+    dependencies=[Depends(user_rate_limit("filters.preview", 60))],
+)
+def preview_filter(
+    payload: FilterCreate, user: CurrentUser, session: Database
+) -> FilterPreviewResponse:
+    values = payload.model_dump()
+    exclusions = {field: values.pop(field) for field in EXCLUSION_FIELDS}
+    exclusion_summary = {field: list(items) for field, items in exclusions.items()}
+    candidate = JobFilter(id=uuid.uuid4(), profile_id=user.id, **values)
+    _replace_exclusions(candidate, exclusions.copy())
+    jobs = list(
+        session.scalars(
+            select(Job)
+            .options(selectinload(Job.sources))
+            .where(Job.status == JobStatus.ACTIVE)
+            .order_by(Job.first_seen_at.desc())
+            .limit(5000)
+        )
+    )
+    matches = [(job, result) for job in jobs if (result := match_filter(job, candidate))]
+    warnings: list[str] = []
+    if not matches:
+        warnings.append("No current jobs match; this filter may be too narrow.")
+    elif len(matches) > 500:
+        warnings.append("This filter is broad and may produce many alerts.")
+    if payload.radius_km and any(
+        job.latitude is None for job in jobs if job.work_mode.value != "remote"
+    ):
+        warnings.append("Jobs with unknown physical locations cannot pass a radius filter.")
+    aliases = {
+        keyword: list(ROLE_ALIASES.get(keyword.casefold(), ()))
+        for keyword in payload.role_keywords
+        if keyword.casefold() in ROLE_ALIASES
+    }
+    return FilterPreviewResponse(
+        estimated_count=len(matches),
+        examples=[
+            FilterPreviewExample(
+                id=job.id,
+                company=job.company,
+                title=job.title,
+                location=job.location,
+                reasons=result.reasons,
+            )
+            for job, result in matches[:5]
+        ],
+        warnings=warnings,
+        aliases=aliases,
+        exclusions=exclusion_summary,
+    )
 
 
 @router.get("", response_model=list[FilterResponse])
@@ -92,7 +150,8 @@ def update_filter(
     if job_filter is None:
         raise AppError(404, "not_found", "Filter not found")
     updates = payload.model_dump(exclude_unset=True)
-    if any(value is None for value in updates.values()):
+    nullable = {"radius_km", "center_latitude", "center_longitude"}
+    if any(value is None for field, value in updates.items() if field not in nullable):
         raise AppError(422, "validation_error", "Filter fields cannot be null")
     _replace_exclusions(job_filter, updates)
     for field, value in updates.items():

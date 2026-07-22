@@ -8,6 +8,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from pydantic import BaseModel, ConfigDict
 
 from api.ingestion.contracts import RawSourceJob
+from api.locations import coordinates_for_location
 from api.models import JobSourceName, WorkMode
 
 TRACKING_PARAMETERS = {
@@ -45,6 +46,8 @@ class NormalizedJob(BaseModel):
     deadline_at: datetime | None
     raw_metadata: dict[str, object]
     canonical_fingerprint: str
+    latitude: float | None
+    longitude: float | None
 
 
 def normalize_text(value: str) -> str:
@@ -85,6 +88,7 @@ def normalize_job(source: JobSourceName, source_key: str, raw: RawSourceJob) -> 
     deadline_at = raw.deadline_at
     if deadline_at and deadline_at.tzinfo is None:
         deadline_at = deadline_at.replace(tzinfo=UTC)
+    coordinates = coordinates_for_location(raw.location)
     return NormalizedJob(
         source=source,
         source_key=source_key,
@@ -104,6 +108,8 @@ def normalize_job(source: JobSourceName, source_key: str, raw: RawSourceJob) -> 
         deadline_at=deadline_at,
         raw_metadata=metadata,
         canonical_fingerprint=hashlib.sha256(fingerprint_input.encode()).hexdigest(),
+        latitude=coordinates[0] if coordinates else None,
+        longitude=coordinates[1] if coordinates else None,
     )
 
 

@@ -2,7 +2,7 @@ import re
 import uuid
 from datetime import datetime
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from api.models.enums import ExclusionType, WorkMode
 from api.schemas.common import APIModel
@@ -46,6 +46,14 @@ class FilterCreate(APIModel):
     _clean_excluded_companies = field_validator("excluded_companies")(clean_values)
     _clean_excluded_locations = field_validator("excluded_locations")(clean_values)
 
+    @model_validator(mode="after")
+    def validate_radius_center(self) -> "FilterCreate":
+        if self.radius_km is not None and (
+            self.center_latitude is None or self.center_longitude is None
+        ):
+            raise ValueError("radius filters require a recognized center location")
+        return self
+
 
 class FilterUpdate(APIModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
@@ -79,6 +87,14 @@ class FilterUpdate(APIModel):
         lambda value: clean_values(value) if value else value
     )
 
+    @model_validator(mode="after")
+    def validate_radius_center(self) -> "FilterUpdate":
+        if self.radius_km is not None and (
+            self.center_latitude is None or self.center_longitude is None
+        ):
+            raise ValueError("radius filters require a recognized center location")
+        return self
+
 
 class FilterExclusionResponse(APIModel):
     kind: ExclusionType
@@ -101,3 +117,19 @@ class FilterResponse(APIModel):
     exclusions: list[FilterExclusionResponse]
     created_at: datetime
     updated_at: datetime
+
+
+class FilterPreviewExample(APIModel):
+    id: uuid.UUID
+    company: str
+    title: str
+    location: str | None
+    reasons: dict[str, object]
+
+
+class FilterPreviewResponse(APIModel):
+    estimated_count: int
+    examples: list[FilterPreviewExample]
+    warnings: list[str]
+    aliases: dict[str, list[str]]
+    exclusions: dict[str, list[str]]

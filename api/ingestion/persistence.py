@@ -93,6 +93,8 @@ class JobPersister:
             deadline_at=candidate.deadline_at,
             deadline_source=DeadlineSource.SOURCE if candidate.deadline_at else None,
             title_incomplete=self._title_is_incomplete(candidate.title),
+            latitude=candidate.latitude,
+            longitude=candidate.longitude,
             first_seen_at=seen_at,
             last_seen_at=seen_at,
         )
@@ -176,6 +178,8 @@ class JobPersister:
             job.deadline_at = candidate.deadline_at
             job.deadline_source = DeadlineSource.SOURCE
         job.title_incomplete = self._title_is_incomplete(candidate.title)
+        job.latitude = candidate.latitude
+        job.longitude = candidate.longitude
         job.last_seen_at = seen_at
         job.status = JobStatus.ACTIVE
         job.expired_at = None
