@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from api.models import (
@@ -15,6 +15,7 @@ from api.models import (
     NotificationDelivery,
 )
 from api.notifications.domain import DeliveryOutcome, ProviderResult
+from api.notifications.email_preferences import suppress_email
 from api.notifications.message_builder import build_message
 from api.notifications.providers import NotificationProvider
 
@@ -64,7 +65,8 @@ class NotificationDispatcher:
                 .options(
                     selectinload(NotificationDelivery.match)
                     .selectinload(JobMatch.job)
-                    .selectinload(Job.sources)
+                    .selectinload(Job.sources),
+                    selectinload(NotificationDelivery.match).selectinload(JobMatch.profile),
                 )
                 .where(
                     NotificationDelivery.attempt_count < self.max_attempts,
@@ -130,6 +132,7 @@ class NotificationDispatcher:
                     select(NotificationDelivery).where(NotificationDelivery.id.in_(delivery_ids))
                 )
             )
+            permanently_failed_emails: set[str] = set()
             for delivery in deliveries:
                 delivery.locked_at = None
                 delivery.last_error = result.error[:2000] if result.error else None
@@ -141,6 +144,12 @@ class NotificationDispatcher:
                 elif result.outcome == DeliveryOutcome.PERMANENT_FAILURE:
                     delivery.status = DeliveryStatus.CANCELLED
                     delivery.next_attempt_at = None
+                    if (
+                        delivery.channel == NotificationChannel.EMAIL
+                        and result.error
+                        and result.error.startswith("Resend rejected")
+                    ):
+                        permanently_failed_emails.add(delivery.recipient)
                 elif delivery.attempt_count >= self.max_attempts:
                     delivery.status = DeliveryStatus.CANCELLED
                     delivery.next_attempt_at = None
@@ -150,4 +159,16 @@ class NotificationDispatcher:
                         3600.0, float(2**delivery.attempt_count)
                     )
                     delivery.next_attempt_at = attempted_at + timedelta(seconds=delay)
+            session.flush()
+            for email in permanently_failed_emails:
+                failure_count = session.scalar(
+                    select(func.count(NotificationDelivery.id)).where(
+                        NotificationDelivery.channel == NotificationChannel.EMAIL,
+                        func.lower(NotificationDelivery.recipient) == email.casefold(),
+                        NotificationDelivery.status == DeliveryStatus.CANCELLED,
+                        NotificationDelivery.last_error.like("Resend rejected%"),
+                    )
+                )
+                if (failure_count or 0) >= 3:
+                    suppress_email(session, email, "repeated_failure")
             session.commit()

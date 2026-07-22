@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Boolean, Enum, String, text
+from sqlalchemy import Boolean, DateTime, Enum, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,8 +30,11 @@ class Profile(TimestampMixin, Base):
     )
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     email_notifications_enabled: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default=text("true")
+        Boolean, default=False, server_default=text("false")
     )
+    email_notifications_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_suppressed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_suppression_reason: Mapped[str | None] = mapped_column(String(32))
     telegram_notifications_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )
@@ -39,4 +43,23 @@ class Profile(TimestampMixin, Base):
     matches = relationship("JobMatch", back_populates="profile", cascade="all, delete-orphan")
     telegram_link_tokens = relationship(
         "TelegramLinkToken", back_populates="profile", cascade="all, delete-orphan"
+    )
+
+
+class EmailSuppression(Base):
+    __tablename__ = "email_suppressions"
+
+    email: Mapped[str] = mapped_column(String(320), primary_key=True)
+    reason: Mapped[str] = mapped_column(String(32))
+    provider: Mapped[str] = mapped_column(String(32), server_default="resend")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailProviderEvent(Base):
+    __tablename__ = "email_provider_events"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(64))
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )

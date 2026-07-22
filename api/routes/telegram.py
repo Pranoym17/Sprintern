@@ -6,13 +6,18 @@ from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.notifications.telegram_linking import telegram_link_service
+from api.rate_limiting import ip_rate_limit
 from api.settings import settings
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"], include_in_schema=False)
 Database = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/telegram", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/telegram",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(ip_rate_limit("webhooks.telegram", 120))],
+)
 def telegram_webhook(
     payload: dict[str, Any],
     session: Database,

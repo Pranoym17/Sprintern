@@ -27,9 +27,7 @@ term = "Summer 2027"
 
     assert len(config.enabled_github) == 1
     assert config.enabled_github[0].poll_minutes == 15
-    assert config.enabled_github[0].source_key == (
-        "vanshb03/Summer2027-Internships:README.md"
-    )
+    assert config.enabled_github[0].source_key == ("vanshb03/Summer2027-Internships:README.md")
 
 
 def test_rejects_duplicate_enabled_sources() -> None:

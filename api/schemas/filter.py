@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 
@@ -16,6 +17,13 @@ def clean_values(values: list[str]) -> list[str]:
     return cleaned
 
 
+def clean_terms(values: list[str]) -> list[str]:
+    cleaned = clean_values(values)
+    if any(re.fullmatch(r"(?:Summer|Fall|Winter) \d{4}", value) is None for value in cleaned):
+        raise ValueError("terms must use Summer, Fall, or Winter followed by a four-digit year")
+    return cleaned
+
+
 class FilterCreate(APIModel):
     name: str = Field(min_length=1, max_length=100)
     role_keywords: list[str] = Field(default_factory=list)
@@ -26,7 +34,7 @@ class FilterCreate(APIModel):
 
     _clean_roles = field_validator("role_keywords")(clean_values)
     _clean_locations = field_validator("location_keywords")(clean_values)
-    _clean_terms = field_validator("terms")(clean_values)
+    _clean_terms = field_validator("terms")(clean_terms)
 
 
 class FilterUpdate(APIModel):
@@ -43,7 +51,7 @@ class FilterUpdate(APIModel):
     _clean_locations = field_validator("location_keywords")(
         lambda value: clean_values(value) if value else value
     )
-    _clean_terms = field_validator("terms")(lambda value: clean_values(value) if value else value)
+    _clean_terms = field_validator("terms")(lambda value: clean_terms(value) if value else value)
 
 
 class FilterResponse(APIModel):

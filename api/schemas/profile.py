@@ -32,6 +32,9 @@ class ProfileResponse(APIModel):
     notification_cadence: NotificationCadence
     telegram_chat_id: str | None
     email_notifications_enabled: bool
+    email_notifications_consent_at: datetime | None
+    email_suppressed_at: datetime | None
+    email_suppression_reason: str | None
     telegram_notifications_enabled: bool
     created_at: datetime
     updated_at: datetime
@@ -41,3 +44,12 @@ class TelegramLinkResponse(APIModel):
     token: str
     deep_link: str
     expires_at: datetime
+
+
+class AccountDeletionResponse(APIModel):
+    application_data_deleted: bool
+    auth_identity_deleted: bool
+
+
+class AccountDeletionRequest(APIModel):
+    confirmation: str = Field(min_length=6, max_length=6)

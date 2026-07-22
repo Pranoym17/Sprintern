@@ -2,13 +2,19 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from api.models.enums import MatchStatus
+from api.models.enums import DeliveryStatus, MatchStatus, NotificationChannel
 from api.schemas.common import APIModel
 from api.schemas.job import JobResponse
 
 
 class MatchUpdate(APIModel):
     status: MatchStatus
+
+
+class DeliverySummary(APIModel):
+    channel: NotificationChannel
+    status: DeliveryStatus
+    sent_at: datetime | None
 
 
 class MatchResponse(APIModel):
@@ -20,6 +26,7 @@ class MatchResponse(APIModel):
     created_at: datetime
     updated_at: datetime
     job: JobResponse
+    deliveries: list[DeliverySummary]
 
 
 class MatchPage(APIModel):

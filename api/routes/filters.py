@@ -9,6 +9,7 @@ from api.database import get_db
 from api.errors import AppError
 from api.matching import matching_service
 from api.models import JobFilter
+from api.rate_limiting import user_rate_limit
 from api.repositories.filters import get_filter, list_filters
 from api.repositories.profiles import get_or_create_profile
 from api.schemas import FilterCreate, FilterResponse, FilterUpdate
@@ -22,7 +23,12 @@ def read_filters(user: CurrentUser, session: Database) -> object:
     return list_filters(session, user.id)
 
 
-@router.post("", response_model=FilterResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=FilterResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(user_rate_limit("filters.create", 20))],
+)
 def create_filter(
     payload: FilterCreate, response: Response, user: CurrentUser, session: Database
 ) -> object:
@@ -45,7 +51,11 @@ def read_filter(filter_id: uuid.UUID, user: CurrentUser, session: Database) -> o
     return job_filter
 
 
-@router.patch("/{filter_id}", response_model=FilterResponse)
+@router.patch(
+    "/{filter_id}",
+    response_model=FilterResponse,
+    dependencies=[Depends(user_rate_limit("filters.update", 30))],
+)
 def update_filter(
     filter_id: uuid.UUID, payload: FilterUpdate, user: CurrentUser, session: Database
 ) -> object:
@@ -64,7 +74,11 @@ def update_filter(
     return job_filter
 
 
-@router.delete("/{filter_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{filter_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(user_rate_limit("filters.delete", 20))],
+)
 def delete_filter(filter_id: uuid.UUID, user: CurrentUser, session: Database) -> Response:
     job_filter = get_filter(session, user.id, filter_id)
     if job_filter is None:

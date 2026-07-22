@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from api.auth import AuthenticatedUser
 from api.models import (
     DeliveryStatus,
+    EmailSuppression,
     Job,
     JobMatch,
     JobSource,
@@ -51,6 +52,7 @@ def create_match(
         email="student@example.com",
         notification_cadence=cadence,
         email_notifications_enabled=True,
+        email_notifications_consent_at=now,
     )
     job = Job(
         company="Example <Corp>",
@@ -208,6 +210,54 @@ async def test_dispatcher_retries_transient_failure(db_session: Session) -> None
     assert delivery.next_attempt_at == now + timedelta(seconds=60)
 
 
+async def test_repeated_permanent_email_failures_suppress_recipient(db_session: Session) -> None:
+    profile, first_match = create_match(db_session)
+    matches = [first_match]
+    now = datetime.now(UTC)
+    for index in range(2):
+        job = Job(
+            company=f"Failure {index}",
+            normalized_company=f"failure {index}",
+            title="Software Intern",
+            normalized_title="software intern",
+            canonical_fingerprint=uuid.uuid4().hex.ljust(64, "0"),
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+        job.sources.append(
+            JobSource(
+                source=JobSourceName.GREENHOUSE,
+                source_key=f"failure-{index}",
+                external_id=uuid.uuid4().hex,
+                apply_url=f"https://example.com/apply/{index}",
+                first_seen_at=now,
+                last_seen_at=now,
+            )
+        )
+        match = JobMatch(profile=profile, job=job, reasons=[])
+        db_session.add(match)
+        matches.append(match)
+    planner = NotificationPlanner()
+    for match in matches:
+        planner.plan_match(db_session, match, profile, now)
+    db_session.commit()
+    provider = RecordingProvider(
+        ProviderResult(
+            DeliveryOutcome.PERMANENT_FAILURE, error="Resend rejected message with HTTP 422"
+        )
+    )
+    dispatcher = NotificationDispatcher(
+        notification_factory(db_session), {NotificationChannel.EMAIL: provider}
+    )
+
+    await dispatcher.dispatch_due(limit=10, now=now + timedelta(seconds=1))
+    db_session.refresh(profile)
+
+    assert profile.email_notifications_enabled is False
+    assert profile.email_suppression_reason == "repeated_failure"
+    assert db_session.get(EmailSuppression, "student@example.com") is not None
+
+
 async def test_dispatcher_groups_due_digest_deliveries(db_session: Session) -> None:
     profile, first_match = create_match(db_session, cadence=NotificationCadence.HOURLY)
     now = datetime.now(UTC)
@@ -261,6 +311,30 @@ def test_message_builder_escapes_untrusted_html(db_session: Session) -> None:
     assert "Example &lt;Corp&gt;" in message.html
     assert "Software Intern &amp; Builder" in message.html
     assert "&amp;" in message.html
+    assert message.unsubscribe_url is not None
+    assert "Unsubscribe" in message.html
+    assert "Support:" in message.text
+
+
+def test_telegram_message_has_no_email_unsubscribe_link(db_session: Session) -> None:
+    profile, match = create_match(db_session)
+    profile.email_notifications_enabled = False
+    profile.email_notifications_consent_at = None
+    profile.telegram_chat_id = "12345"
+    profile.telegram_notifications_enabled = True
+    NotificationPlanner().plan_match(db_session, match, profile)
+    db_session.flush()
+    delivery = db_session.scalar(
+        select(NotificationDelivery).where(
+            NotificationDelivery.channel == NotificationChannel.TELEGRAM
+        )
+    )
+    assert delivery is not None
+
+    message = build_message([delivery])
+
+    assert message.unsubscribe_url is None
+    assert "Unsubscribe" not in message.text
 
 
 def test_telegram_link_token_is_single_use_and_not_stored_raw(db_session: Session) -> None:

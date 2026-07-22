@@ -10,7 +10,10 @@ from api.models import Job, JobMatch, JobStatus, MatchStatus
 def get_match(session: Session, profile_id: uuid.UUID, match_id: uuid.UUID) -> JobMatch | None:
     statement = (
         select(JobMatch)
-        .options(selectinload(JobMatch.job).selectinload(Job.sources))
+        .options(
+            selectinload(JobMatch.job).selectinload(Job.sources),
+            selectinload(JobMatch.deliveries),
+        )
         .where(JobMatch.id == match_id, JobMatch.profile_id == profile_id)
     )
     return session.scalar(statement)
@@ -25,7 +28,10 @@ def list_matches(
 ) -> list[JobMatch]:
     statement = (
         select(JobMatch)
-        .options(selectinload(JobMatch.job).selectinload(Job.sources))
+        .options(
+            selectinload(JobMatch.job).selectinload(Job.sources),
+            selectinload(JobMatch.deliveries),
+        )
         .join(Job, Job.id == JobMatch.job_id)
         .where(
             JobMatch.profile_id == profile_id,

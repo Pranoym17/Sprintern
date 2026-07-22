@@ -17,6 +17,7 @@ class NotificationMessage:
     html: str
     apply_url: str
     idempotency_key: str
+    unsubscribe_url: str | None = None
 
 
 @dataclass(frozen=True)

@@ -3,12 +3,18 @@ import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from typing import Annotated
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from sqlalchemy.orm import Session
 
+from api.database import get_db
 from api.errors import register_exception_handlers
+from api.health import assert_ready
 from api.observability import configure_logging, request_id_context
+from api.rate_limiting import ip_rate_limit
 from api.routes import api_router
 from api.settings import settings
 
@@ -20,12 +26,16 @@ configure_logging(
         settings.telegram_webhook_secret,
         settings.resend_api_key,
         settings.supabase_anon_key,
+        settings.supabase_service_role_key,
+        settings.unsubscribe_signing_secret,
+        settings.resend_webhook_secret,
     ]
 )
 logger = logging.getLogger(__name__)
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 app = FastAPI(title="Sprintern API", version="0.1.0")
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -66,3 +76,22 @@ async def correlate_requests(
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get(
+    "/health/live",
+    tags=["system"],
+    dependencies=[Depends(ip_rate_limit("health.live", 120))],
+)
+def health_live() -> dict[str, str]:
+    return {"status": "alive"}
+
+
+@app.get(
+    "/health/ready",
+    tags=["system"],
+    dependencies=[Depends(ip_rate_limit("health.ready", 30))],
+)
+def health_ready(session: Annotated[Session, Depends(get_db)]) -> dict[str, str]:
+    assert_ready(session)
+    return {"status": "ready"}

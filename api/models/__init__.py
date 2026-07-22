@@ -13,12 +13,14 @@ from api.models.enums import (
 from api.models.filter import JobFilter
 from api.models.job import Job, JobSource
 from api.models.match import JobMatch, NotificationDelivery, TelegramLinkToken
-from api.models.profile import Profile
+from api.models.profile import EmailProviderEvent, EmailSuppression, Profile
 from api.models.scheduler import SchedulerRuntime
 from api.models.source import IngestionRun, SourceState
 
 __all__ = [
     "DeliveryStatus",
+    "EmailProviderEvent",
+    "EmailSuppression",
     "Job",
     "JobFilter",
     "JobMatch",

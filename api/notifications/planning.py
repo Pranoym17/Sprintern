@@ -12,6 +12,7 @@ from api.models import (
     NotificationDelivery,
     Profile,
 )
+from api.notifications.email_preferences import is_email_suppressed
 
 
 def next_delivery_time(cadence: NotificationCadence, timezone: str, now: datetime) -> datetime:
@@ -39,7 +40,12 @@ class NotificationPlanner:
         session.flush()
         now = now or datetime.now(UTC)
         destinations: list[tuple[NotificationChannel, str]] = []
-        if profile.email_notifications_enabled and profile.email:
+        if (
+            profile.email_notifications_enabled
+            and profile.email
+            and profile.email_notifications_consent_at is not None
+            and not is_email_suppressed(session, profile.email)
+        ):
             destinations.append((NotificationChannel.EMAIL, profile.email))
         if profile.telegram_notifications_enabled and profile.telegram_chat_id:
             destinations.append((NotificationChannel.TELEGRAM, profile.telegram_chat_id))

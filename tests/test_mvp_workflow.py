@@ -84,6 +84,7 @@ async def test_authenticated_mvp_workflow_is_idempotent(
     profile.telegram_chat_id = "phase10-chat"
     profile.telegram_notifications_enabled = True
     profile.email_notifications_enabled = True
+    profile.email_notifications_consent_at = datetime.now(UTC)
     db_session.commit()
 
     filter_response = await api_client.post(

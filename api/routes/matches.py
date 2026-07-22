@@ -9,6 +9,7 @@ from api.auth import CurrentUser
 from api.database import get_db
 from api.errors import AppError
 from api.models import MatchStatus
+from api.rate_limiting import user_rate_limit
 from api.repositories.matches import get_match, list_matches, match_status_counts
 from api.repositories.pagination import decode_cursor, encode_cursor
 from api.schemas import MatchPage, MatchResponse, MatchUpdate
@@ -48,7 +49,11 @@ def read_match(match_id: uuid.UUID, user: CurrentUser, session: Database) -> obj
     return match
 
 
-@router.patch("/{match_id}", response_model=MatchResponse)
+@router.patch(
+    "/{match_id}",
+    response_model=MatchResponse,
+    dependencies=[Depends(user_rate_limit("matches.update", 60))],
+)
 def update_match(
     match_id: uuid.UUID, payload: MatchUpdate, user: CurrentUser, session: Database
 ) -> object:

@@ -95,6 +95,16 @@ class ResendProvider:
                     "subject": message.subject.replace("\r", " ").replace("\n", " "),
                     "text": message.text,
                     "html": message.html,
+                    **(
+                        {
+                            "headers": {
+                                "List-Unsubscribe": f"<{message.unsubscribe_url}>",
+                                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                            }
+                        }
+                        if message.unsubscribe_url
+                        else {}
+                    ),
                 },
             )
         except (httpx.TimeoutException, httpx.NetworkError) as exc:

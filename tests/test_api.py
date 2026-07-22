@@ -52,6 +52,16 @@ async def test_filter_ownership_returns_not_found(
     assert response.json()["error"]["code"] == "not_found"
 
 
+async def test_filter_terms_only_accept_supported_seasons(api_client: AsyncClient) -> None:
+    response = await api_client.post(
+        "/filters",
+        json={"name": "Spring roles", "terms": ["Spring 2027"]},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
 async def test_match_applied_and_analytics(
     api_client: AsyncClient,
     db_session: Session,

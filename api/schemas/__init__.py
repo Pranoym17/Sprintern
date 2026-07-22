@@ -4,6 +4,7 @@ from api.schemas.job import JobPage, JobResponse
 from api.schemas.match import AnalyticsSummary, MatchPage, MatchResponse, MatchUpdate
 from api.schemas.profile import ProfileResponse, ProfileUpdate
 from api.schemas.scheduler import SchedulerJobStatus, SchedulerStatusResponse
+from api.schemas.source import PublicSourceStatus
 
 __all__ = [
     "AnalyticsSummary",
@@ -19,6 +20,7 @@ __all__ = [
     "MatchUpdate",
     "ProfileResponse",
     "ProfileUpdate",
+    "PublicSourceStatus",
     "SchedulerJobStatus",
     "SchedulerStatusResponse",
     "SourceStatusResponse",

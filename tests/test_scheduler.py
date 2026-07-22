@@ -55,8 +55,7 @@ def test_registers_stable_non_overlapping_jobs() -> None:
     assert all(job.max_instances == 1 for job in jobs.values())
     assert all(job.coalesce is True for job in jobs.values())
     assert all(
-        job.misfire_grace_time == settings.scheduler_misfire_grace_seconds
-        for job in jobs.values()
+        job.misfire_grace_time == settings.scheduler_misfire_grace_seconds for job in jobs.values()
     )
 
 
