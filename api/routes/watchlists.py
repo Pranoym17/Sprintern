@@ -104,9 +104,7 @@ def update_watchlist(
 
 
 @router.delete("/{watchlist_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_watchlist(
-    watchlist_id: uuid.UUID, user: CurrentUser, session: Database
-) -> Response:
+def delete_watchlist(watchlist_id: uuid.UUID, user: CurrentUser, session: Database) -> Response:
     session.delete(_owned(session, user.id, watchlist_id))
     session.flush()
     matching_service.match_profile(session, user.id)
@@ -115,9 +113,7 @@ def delete_watchlist(
 
 
 @router.get("/{watchlist_id}/jobs", response_model=WatchlistJobs)
-def watchlist_jobs(
-    watchlist_id: uuid.UUID, user: CurrentUser, session: Database
-) -> WatchlistJobs:
+def watchlist_jobs(watchlist_id: uuid.UUID, user: CurrentUser, session: Database) -> WatchlistJobs:
     watchlist = _owned(session, user.id, watchlist_id)
     statement = (
         select(Job)

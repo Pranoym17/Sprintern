@@ -13,6 +13,7 @@ from api.models import (
     NotificationCadence,
     NotificationChannel,
     NotificationDelivery,
+    ReminderEvent,
 )
 from api.notifications.domain import DeliveryOutcome, ProviderResult
 from api.notifications.email_preferences import suppress_email
@@ -67,6 +68,7 @@ class NotificationDispatcher:
                     .selectinload(JobMatch.job)
                     .selectinload(Job.sources),
                     selectinload(NotificationDelivery.match).selectinload(JobMatch.profile),
+                    selectinload(NotificationDelivery.profile),
                 )
                 .where(
                     NotificationDelivery.attempt_count < self.max_attempts,
@@ -108,7 +110,7 @@ class NotificationDispatcher:
         ] = defaultdict(list)
         result: list[list[NotificationDelivery]] = []
         for delivery in deliveries:
-            if delivery.cadence == NotificationCadence.INSTANT:
+            if delivery.cadence == NotificationCadence.INSTANT or delivery.match is None:
                 result.append([delivery])
             else:
                 grouped[(delivery.channel, delivery.recipient, delivery.cadence)].append(delivery)
@@ -117,9 +119,34 @@ class NotificationDispatcher:
 
     @staticmethod
     def _is_sendable(deliveries: list[NotificationDelivery]) -> bool:
-        return bool(deliveries[0].recipient) and all(
-            delivery.match.status == MatchStatus.MATCHED
-            and delivery.match.job.status == JobStatus.ACTIVE
+        if not deliveries[0].recipient:
+            return False
+        return all(
+            (
+                delivery.profile.notification_consents.get(
+                    delivery.notification_type, True
+                )
+                is not False
+            )
+            and (
+                (
+                    delivery.channel == NotificationChannel.EMAIL
+                    and delivery.profile.email_notifications_enabled
+                    and delivery.profile.email_notifications_consent_at is not None
+                    and delivery.profile.email_suppressed_at is None
+                )
+                or (
+                    delivery.channel == NotificationChannel.TELEGRAM
+                    and delivery.profile.telegram_notifications_enabled
+                )
+            )
+            and (
+                delivery.match is None
+                or (
+                    delivery.match.status == MatchStatus.MATCHED
+                    and delivery.match.job.status == JobStatus.ACTIVE
+                )
+            )
             for delivery in deliveries
         )
 
@@ -141,6 +168,11 @@ class NotificationDispatcher:
                     delivery.sent_at = attempted_at
                     delivery.provider_message_id = result.provider_message_id
                     delivery.next_attempt_at = None
+                    reminder_id = delivery.payload.get("reminder_id")
+                    if reminder_id:
+                        reminder = session.get(ReminderEvent, reminder_id)
+                        if reminder is not None:
+                            reminder.sent_at = attempted_at
                 elif result.outcome == DeliveryOutcome.PERMANENT_FAILURE:
                     delivery.status = DeliveryStatus.CANCELLED
                     delivery.next_attempt_at = None

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, field_validator
@@ -13,6 +13,12 @@ class ProfileUpdate(APIModel):
     notification_cadence: NotificationCadence | None = None
     email_notifications_enabled: bool | None = None
     telegram_notifications_enabled: bool | None = None
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
+    weekend_pause: bool | None = None
+    max_alerts_per_day: int | None = Field(default=None, ge=1, le=500)
+    priority_only_instant: bool | None = None
+    notification_consents: dict[str, bool] | None = None
 
     @field_validator("timezone")
     @classmethod
@@ -36,6 +42,12 @@ class ProfileResponse(APIModel):
     email_suppressed_at: datetime | None
     email_suppression_reason: str | None
     telegram_notifications_enabled: bool
+    quiet_hours_start: time | None
+    quiet_hours_end: time | None
+    weekend_pause: bool
+    max_alerts_per_day: int
+    priority_only_instant: bool
+    notification_consents: dict[str, bool]
     created_at: datetime
     updated_at: datetime
 

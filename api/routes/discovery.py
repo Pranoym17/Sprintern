@@ -145,8 +145,11 @@ def record_view(job_id: uuid.UUID, user: CurrentUser, session: Database) -> obje
     dependencies=[Depends(user_rate_limit("jobs.report", 20, 3600))],
 )
 def report_job(
-    job_id: uuid.UUID, payload: JobReportCreate, response: Response,
-    user: CurrentUser, session: Database,
+    job_id: uuid.UUID,
+    payload: JobReportCreate,
+    response: Response,
+    user: CurrentUser,
+    session: Database,
 ) -> object:
     _owned_job(session, user.id, job_id)
     report = session.scalar(
@@ -213,9 +216,7 @@ def revoke_share(share_id: uuid.UUID, user: CurrentUser, session: Database) -> R
 
 @router.get("/public/jobs/{job_id}", response_model=PublicJobResponse)
 def public_job(job_id: uuid.UUID, session: Database) -> PublicJobResponse:
-    job = session.scalar(
-        select(Job).options(selectinload(Job.sources)).where(Job.id == job_id)
-    )
+    job = session.scalar(select(Job).options(selectinload(Job.sources)).where(Job.id == job_id))
     if job is None:
         raise AppError(404, "not_found", "Job not found")
     return PublicJobResponse(job=JobResponse.model_validate(job))

@@ -46,6 +46,14 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, session: Database) -> o
         or updates.get("notification_cadence", "valid") is None
     ):
         raise AppError(422, "validation_error", "Timezone and cadence cannot be null")
+    non_nullable = {
+        "weekend_pause",
+        "max_alerts_per_day",
+        "priority_only_instant",
+        "notification_consents",
+    }
+    if any(updates.get(field) is None for field in non_nullable if field in updates):
+        raise AppError(422, "validation_error", "Notification safety settings cannot be null")
     email_preference = updates.get("email_notifications_enabled")
     if email_preference is True:
         if not profile.email:
@@ -66,8 +74,7 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, session: Database) -> o
         )
     for field, value in updates.items():
         setattr(profile, field, value)
-    if email_preference is True:
-        notification_planner.backfill_profile(session, profile.id)
+    notification_planner.backfill_profile(session, profile.id)
     session.commit()
     session.refresh(profile)
     return profile
@@ -135,6 +142,12 @@ def export_me(user: CurrentUser, session: Database) -> dict[str, Any]:
             "email_notifications_consent_at": profile.email_notifications_consent_at,
             "telegram_connected": profile.telegram_chat_id is not None,
             "telegram_notifications_enabled": profile.telegram_notifications_enabled,
+            "quiet_hours_start": profile.quiet_hours_start,
+            "quiet_hours_end": profile.quiet_hours_end,
+            "weekend_pause": profile.weekend_pause,
+            "max_alerts_per_day": profile.max_alerts_per_day,
+            "priority_only_instant": profile.priority_only_instant,
+            "notification_consents": profile.notification_consents,
             "created_at": profile.created_at,
         },
         "filters": [

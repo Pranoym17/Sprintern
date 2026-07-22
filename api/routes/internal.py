@@ -12,6 +12,7 @@ from api.ingestion.factory import build_adapter
 from api.ingestion.http import SourceHTTPError
 from api.ingestion.service import IngestionService
 from api.models import SourceState
+from api.notifications.planning import notification_planner
 from api.notifications.runtime import build_dispatcher
 from api.scheduler.status import scheduler_status
 from api.schemas import (
@@ -56,6 +57,9 @@ async def create_ingestion_run(payload: IngestionRunRequest) -> object:
 
 @router.post("/notifications/dispatch")
 async def dispatch_notifications(limit: int = 100) -> dict[str, int]:
+    with SessionLocal() as session:
+        notification_planner.plan_events(session)
+        session.commit()
     async with httpx.AsyncClient(timeout=10.0) as client:
         sent = await build_dispatcher(client).dispatch_due(limit=min(max(limit, 1), 500))
     return {"sent_deliveries": sent}

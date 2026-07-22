@@ -11,12 +11,25 @@ from api.errors import AppError
 from api.ingestion.normalization import normalize_text
 from api.matching import matching_service
 from api.matching.matcher import ROLE_ALIASES, match_filter
-from api.models import ExclusionType, FilterExclusion, Job, JobFilter, JobStatus
+from api.models import (
+    ExclusionType,
+    FilterExclusion,
+    FilterNotificationOverride,
+    Job,
+    JobFilter,
+    JobStatus,
+)
+from api.notifications.planning import notification_planner
 from api.rate_limiting import user_rate_limit
 from api.repositories.filters import get_filter, list_filters
 from api.repositories.profiles import get_or_create_profile
 from api.schemas import FilterCreate, FilterResponse, FilterUpdate
-from api.schemas.filter import FilterPreviewExample, FilterPreviewResponse
+from api.schemas.filter import (
+    FilterNotificationResponse,
+    FilterNotificationUpdate,
+    FilterPreviewExample,
+    FilterPreviewResponse,
+)
 
 router = APIRouter(prefix="/filters", tags=["filters"])
 Database = Annotated[Session, Depends(get_db)]
@@ -177,3 +190,45 @@ def delete_filter(filter_id: uuid.UUID, user: CurrentUser, session: Database) ->
     matching_service.match_profile(session, user.id)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{filter_id}/notifications", response_model=FilterNotificationResponse)
+def read_filter_notifications(
+    filter_id: uuid.UUID, user: CurrentUser, session: Database
+) -> FilterNotificationResponse:
+    if get_filter(session, user.id, filter_id) is None:
+        raise AppError(404, "not_found", "Filter not found")
+    override = session.get(FilterNotificationOverride, filter_id)
+    return FilterNotificationResponse(
+        filter_id=filter_id,
+        email_enabled=override.email_enabled if override else None,
+        telegram_enabled=override.telegram_enabled if override else None,
+        cadence=override.cadence if override else None,
+        priority=override.priority if override else "normal",
+        uses_profile_defaults=override is None,
+    )
+
+
+@router.put("/{filter_id}/notifications", response_model=FilterNotificationResponse)
+def update_filter_notifications(
+    filter_id: uuid.UUID,
+    payload: FilterNotificationUpdate,
+    user: CurrentUser,
+    session: Database,
+) -> FilterNotificationResponse:
+    if get_filter(session, user.id, filter_id) is None:
+        raise AppError(404, "not_found", "Filter not found")
+    override = session.get(FilterNotificationOverride, filter_id)
+    if override is None:
+        override = FilterNotificationOverride(filter_id=filter_id, profile_id=user.id)
+        session.add(override)
+    for field, value in payload.model_dump().items():
+        setattr(override, field, value)
+    session.flush()
+    notification_planner.backfill_profile(session, user.id)
+    session.commit()
+    return FilterNotificationResponse(
+        filter_id=filter_id,
+        **payload.model_dump(),
+        uses_profile_defaults=False,
+    )

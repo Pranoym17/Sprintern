@@ -9,6 +9,7 @@ from api.routes import (
     internal,
     jobs,
     matches,
+    notifications,
     profiles,
     sources,
     telegram,
@@ -28,5 +29,6 @@ api_router.include_router(email.router)
 api_router.include_router(discovery.router)
 api_router.include_router(watchlists.router)
 api_router.include_router(applications.router)
+api_router.include_router(notifications.router)
 
 __all__ = ["api_router"]

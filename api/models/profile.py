@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 
-from sqlalchemy import Boolean, DateTime, Enum, String, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String, Time, func, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.database import Base
@@ -38,11 +38,24 @@ class Profile(TimestampMixin, Base):
     telegram_notifications_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )
+    quiet_hours_start: Mapped[time | None] = mapped_column(Time)
+    quiet_hours_end: Mapped[time | None] = mapped_column(Time)
+    weekend_pause: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    max_alerts_per_day: Mapped[int] = mapped_column(Integer, default=25, server_default="25")
+    priority_only_instant: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    notification_consents: Mapped[dict[str, bool]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     filters = relationship("JobFilter", back_populates="profile", cascade="all, delete-orphan")
     matches = relationship("JobMatch", back_populates="profile", cascade="all, delete-orphan")
     telegram_link_tokens = relationship(
         "TelegramLinkToken", back_populates="profile", cascade="all, delete-orphan"
+    )
+    deliveries = relationship(
+        "NotificationDelivery", back_populates="profile", cascade="all, delete-orphan"
     )
 
 

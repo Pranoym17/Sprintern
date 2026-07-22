@@ -12,6 +12,7 @@ from api.database import SessionLocal
 from api.ingestion.factory import build_adapter
 from api.ingestion.service import IngestionService
 from api.models import JobSourceName, SourceState
+from api.notifications.planning import notification_planner
 from api.notifications.runtime import build_dispatcher
 from api.scheduler.config import GitHubSourceConfig
 from api.schemas import IngestionRunRequest
@@ -101,6 +102,9 @@ class SchedulerWorkflows:
     async def _dispatch_notifications(self) -> None:
         started = datetime.now(UTC)
         try:
+            with self.session_factory() as session:
+                notification_planner.plan_events(session)
+                session.commit()
             sent = await build_dispatcher(self.client, self.session_factory).dispatch_due(limit=100)
             elapsed = (datetime.now(UTC) - started).total_seconds()
             logger.info(

@@ -54,17 +54,13 @@ async def test_search_interactions_reports_and_private_share(
     assert search.status_code == 200
     assert [item["job"]["id"] for item in search.json()["items"]] == [str(job.id)]
 
-    bookmark = await api_client.patch(
-        f"/jobs/{job.id}/interaction", json={"bookmarked": True}
-    )
+    bookmark = await api_client.patch(f"/jobs/{job.id}/interaction", json={"bookmarked": True})
     assert bookmark.status_code == 200
     assert bookmark.json()["bookmarked_at"] is not None
     report = await api_client.post(f"/jobs/{job.id}/reports", json={"reason": "closed"})
     assert report.status_code == 201
 
-    shared = await api_client.post(
-        f"/jobs/{job.id}/shares", json={"expires_in_hours": 1}
-    )
+    shared = await api_client.post(f"/jobs/{job.id}/shares", json={"expires_in_hours": 1})
     assert shared.status_code == 201
     token = shared.json()["url"].rsplit("/", 1)[-1]
     public = await api_client.get(f"/shared/jobs/{token}")
@@ -79,9 +75,7 @@ async def test_discovery_mutations_are_ownership_scoped(
     other = AuthenticatedUser(id=uuid.uuid4(), email="other@example.com")
     job = discovery_job(db_session, other)
 
-    response = await api_client.patch(
-        f"/jobs/{job.id}/interaction", json={"hidden": True}
-    )
+    response = await api_client.patch(f"/jobs/{job.id}/interaction", json={"hidden": True})
 
     assert response.status_code == 404
 

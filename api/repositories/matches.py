@@ -17,8 +17,14 @@ from api.models import (
 
 MatchSort = Literal["newest", "company", "relevance", "deadline"]
 Collection = Literal[
-    "toronto", "remote", "canadian", "new-week", "closing-soon", "reopened",
-    "followed-companies", "strongest",
+    "toronto",
+    "remote",
+    "canadian",
+    "new-week",
+    "closing-soon",
+    "reopened",
+    "followed-companies",
+    "strongest",
     "recently-viewed",
 ]
 

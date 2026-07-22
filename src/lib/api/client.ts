@@ -1,5 +1,5 @@
 import { apiUrl } from "@/lib/env";
-import type { AccountExport, Analytics, Application, ApplicationStage, Collection, CompanyWatchlist, CSVImportResult, FilterInput, FilterPreview, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceHealth, TelegramLink, WeeklyProgress } from "./types";
+import type { AccountExport, Analytics, Application, ApplicationStage, Collection, CompanyWatchlist, CSVImportResult, DeliveryChannel, DeliveryQueue, FilterInput, FilterNotification, FilterPreview, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceHealth, TelegramLink, WeeklyProgress } from "./types";
 
 export class ApiError extends Error {
   constructor(public status:number, public code:string, message:string, public details?:unknown) { super(message); this.name = "ApiError"; }
@@ -59,6 +59,10 @@ export class ApiClient {
   updateFilter = (id:string, value:Partial<FilterInput>) => this.request<JobFilter>(`/filters/${id}`, {method:"PATCH", body:JSON.stringify(value)});
   deleteFilter = (id:string) => this.request<void>(`/filters/${id}`, {method:"DELETE"});
   previewFilter = (value:FilterInput) => this.request<FilterPreview>("/filters/preview", {method:"POST", body:JSON.stringify(value)});
+  filterNotifications = (id:string) => this.request<FilterNotification>(`/filters/${id}/notifications`);
+  updateFilterNotifications = (id:string, value:Omit<FilterNotification,"filter_id"|"uses_profile_defaults">) => this.request<FilterNotification>(`/filters/${id}/notifications`, {method:"PUT", body:JSON.stringify(value)});
+  notificationQueue = () => this.request<DeliveryQueue>("/notifications/queue");
+  testNotification = (channel:DeliveryChannel) => this.request<{channel:DeliveryChannel;outcome:string;error:string|null}>("/notifications/test", {method:"POST", body:JSON.stringify({channel})});
   watchlists = () => this.request<CompanyWatchlist[]>("/watchlists");
   createWatchlist = (value:{company:string;terms:string[];locations:string[];active:boolean}) => this.request<CompanyWatchlist>("/watchlists", {method:"POST", body:JSON.stringify(value)});
   updateWatchlist = (id:string, value:Record<string,unknown>) => this.request<CompanyWatchlist>(`/watchlists/${id}`, {method:"PATCH", body:JSON.stringify(value)});

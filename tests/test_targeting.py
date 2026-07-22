@@ -83,7 +83,5 @@ async def test_filter_preview_and_watchlists_are_owned(
     other = AuthenticatedUser(id=uuid.uuid4(), email="other@example.com")
     assert other.id != authenticated_user.id
     # Ownership is enforced in the SQL predicate; a random valid UUID remains hidden.
-    response = await api_client.patch(
-        f"/watchlists/{uuid.uuid4()}", json={"active": False}
-    )
+    response = await api_client.patch(f"/watchlists/{uuid.uuid4()}", json={"active": False})
     assert response.status_code == 404

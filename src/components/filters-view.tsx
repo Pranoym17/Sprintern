@@ -2,14 +2,15 @@
 
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Building2, Filter as FilterIcon, LoaderCircle, Pencil, Plus, Power, Trash2, X,
+  Bell, Building2, Filter as FilterIcon, LoaderCircle, Pencil, Plus, Power, Trash2, X,
 } from "lucide-react";
 
 import { useApp } from "./app-provider";
 import { EmptyState, PageHeader } from "./dashboard-view";
 import { PageError, PageLoading } from "./page-state";
 import type {
-  CompanyWatchlist, FilterInput, FilterPreview, JobFilter, WorkMode,
+  CompanyWatchlist, FilterInput, FilterNotification, FilterPreview, JobFilter,
+  NotificationCadence, WorkMode,
 } from "@/lib/api/types";
 
 const blank: FilterInput = {
@@ -79,7 +80,42 @@ function FilterCard({ filter, pending, edit, toggle, remove }: { filter: JobFilt
   return <article className={`filter-card ${filter.active ? "filter-card--active" : "filter-card--paused"}`}>
     <div className="filter-card__heading"><span className="feature-icon"><FilterIcon size={20} /></span><div><h2>{filter.name}</h2><span className={`status-pill ${filter.active ? "status-pill--matched" : ""}`}>{filter.active ? "Actively watching" : "Paused"}</span></div><div className="filter-card__controls"><button disabled={pending} onClick={edit} aria-label={`Edit ${filter.name}`}><Pencil size={18} /></button><button disabled={pending} onClick={toggle} aria-label={`${filter.active ? "Pause" : "Activate"} ${filter.name}`}><Power size={18} /></button><button disabled={pending} className="danger" onClick={remove} aria-label={`Delete ${filter.name}`}><Trash2 size={18} /></button></div></div>
     <dl className="filter-details"><div><dt>Roles</dt><dd>{filter.role_keywords.join(", ") || "Any role"}</dd></div><div><dt>Locations</dt><dd>{filter.remote_only ? "Remote only" : filter.location_keywords.join(", ") || "Any location"}</dd></div><div><dt>Term</dt><dd>{filter.terms.join(", ") || "Any term"}</dd></div><div><dt>Excluded</dt><dd>{exclusions.join(", ") || "Nothing"}</dd></div>{filter.radius_km && <div><dt>Radius</dt><dd>{filter.radius_km} km</dd></div>}</dl>
+    <FilterRouting filterId={filter.id} />
   </article>;
+}
+
+function FilterRouting({ filterId }: { filterId: string }) {
+  const { api, notify } = useApp();
+  const [value, setValue] = useState<FilterNotification | null>(null);
+  const [open, setOpen] = useState(false);
+  async function toggleOpen() {
+    const next = !open; setOpen(next);
+    if (next && !value) {
+      try { setValue(await api.filterNotifications(filterId)); }
+      catch (reason) { notify(reason instanceof Error ? reason.message : "Could not load alert routing.", "error"); }
+    }
+  }
+  async function save(next: FilterNotification) {
+    setValue(next);
+    try {
+      setValue(await api.updateFilterNotifications(filterId, {
+        email_enabled: next.email_enabled,
+        telegram_enabled: next.telegram_enabled,
+        cadence: next.cadence,
+        priority: next.priority,
+      }));
+      notify("Filter alert routing saved.");
+    } catch (reason) { notify(reason instanceof Error ? reason.message : "Could not save routing.", "error"); }
+  }
+  return <div className="filter-routing">
+    <button type="button" onClick={() => void toggleOpen()}><Bell size={15} />Alert routing</button>
+    {open && value && <div>
+      <label>Email<select value={String(value.email_enabled)} onChange={(event) => void save({ ...value, email_enabled: event.target.value === "null" ? null : event.target.value === "true" })}><option value="null">Profile default</option><option value="true">On</option><option value="false">Off</option></select></label>
+      <label>Telegram<select value={String(value.telegram_enabled)} onChange={(event) => void save({ ...value, telegram_enabled: event.target.value === "null" ? null : event.target.value === "true" })}><option value="null">Profile default</option><option value="true">On</option><option value="false">Off</option></select></label>
+      <label>Cadence<select value={value.cadence ?? ""} onChange={(event) => void save({ ...value, cadence: (event.target.value || null) as NotificationCadence | null })}><option value="">Profile default</option>{["instant", "hourly", "daily", "weekly"].map((item) => <option key={item}>{item}</option>)}</select></label>
+      <label>Priority<select value={value.priority} onChange={(event) => void save({ ...value, priority: event.target.value as "normal" | "high" })}><option value="normal">Normal</option><option value="high">High</option></select></label>
+    </div>}
+  </div>;
 }
 
 function FilterEditor({ initial, onCancel, onSaved }: { initial: FilterInput | JobFilter; onCancel: () => void; onSaved: (value: JobFilter) => void }) {

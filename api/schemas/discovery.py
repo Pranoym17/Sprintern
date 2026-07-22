@@ -12,16 +12,19 @@ from api.schemas.job import JobResponse
 class InteractionUpdate(APIModel):
     bookmarked: bool | None = None
     hidden: bool | None = None
-    not_interested_reason: Literal[
-        "wrong_role",
-        "wrong_location",
-        "wrong_term",
-        "authorization",
-        "unpaid",
-        "not_internship",
-        "company_preference",
-        "other",
-    ] | None = None
+    not_interested_reason: (
+        Literal[
+            "wrong_role",
+            "wrong_location",
+            "wrong_term",
+            "authorization",
+            "unpaid",
+            "not_internship",
+            "company_preference",
+            "other",
+        ]
+        | None
+    ) = None
     deadline_override_at: datetime | None = None
 
     @model_validator(mode="after")

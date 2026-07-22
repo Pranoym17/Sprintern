@@ -51,9 +51,7 @@ class MatchingService:
                 )
             )
         )
-        return sum(
-            self._match_job(session, job, filters, profile_id, watchlists) for job in jobs
-        )
+        return sum(self._match_job(session, job, filters, profile_id, watchlists) for job in jobs)
 
     def _match_job(
         self,

@@ -4,7 +4,12 @@ from datetime import datetime
 
 from pydantic import Field, field_validator, model_validator
 
-from api.models.enums import ExclusionType, WorkMode
+from api.models.enums import (
+    ExclusionType,
+    NotificationCadence,
+    NotificationPriority,
+    WorkMode,
+)
 from api.schemas.common import APIModel
 
 
@@ -133,3 +138,15 @@ class FilterPreviewResponse(APIModel):
     warnings: list[str]
     aliases: dict[str, list[str]]
     exclusions: dict[str, list[str]]
+
+
+class FilterNotificationUpdate(APIModel):
+    email_enabled: bool | None = None
+    telegram_enabled: bool | None = None
+    cadence: NotificationCadence | None = None
+    priority: NotificationPriority = NotificationPriority.NORMAL
+
+
+class FilterNotificationResponse(FilterNotificationUpdate):
+    filter_id: uuid.UUID
+    uses_profile_defaults: bool

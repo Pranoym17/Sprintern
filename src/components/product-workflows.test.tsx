@@ -10,7 +10,7 @@ const signOut = vi.fn();
 let api: Record<string, ReturnType<typeof vi.fn>>;
 vi.mock("./app-provider", () => ({ useApp: () => ({ api, notify, signOut }) }));
 
-const profile = { id:"profile",email:"student@example.com",timezone:"America/Toronto",notification_cadence:"instant",telegram_chat_id:"123",email_notifications_enabled:false,email_notifications_consent_at:null,email_suppressed_at:null,email_suppression_reason:null,telegram_notifications_enabled:true,created_at:"2026-01-01",updated_at:"2026-01-01" };
+const profile = { id:"profile",email:"student@example.com",timezone:"America/Toronto",notification_cadence:"instant",telegram_chat_id:"123",email_notifications_enabled:false,email_notifications_consent_at:null,email_suppressed_at:null,email_suppression_reason:null,telegram_notifications_enabled:true,quiet_hours_start:null,quiet_hours_end:null,weekend_pause:false,max_alerts_per_day:25,priority_only_instant:false,notification_consents:{},created_at:"2026-01-01",updated_at:"2026-01-01" };
 const match = { id:"match-1",profile_id:"profile",reasons:[{dimensions:{role:"software"}}],status:"matched",applied_at:null,created_at:"2026-07-01",updated_at:"2026-07-01",job:{id:"job-1",company:"Acme",title:"Software Intern",location:"Toronto",term:"Summer 2027",description:null,work_mode:"hybrid",status:"active",posted_at:"2026-07-01",first_seen_at:"2026-07-01",last_seen_at:"2026-07-01",sources:[{source:"github_repo",external_id:"1",source_url:null,apply_url:"https://example.com/apply"}]}};
 
 beforeEach(() => {
@@ -23,7 +23,7 @@ beforeEach(() => {
     updateInteraction: vi.fn(), recordView: vi.fn(), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
     filters: vi.fn(async () => []), createFilter:vi.fn(async (value) => ({...value,id:"filter",profile_id:"profile",created_at:"",updated_at:""})), updateFilter:vi.fn(), deleteFilter:vi.fn(),
     previewFilter:vi.fn(async () => ({estimated_count:1,examples:[],warnings:[],aliases:{},exclusions:{}})), watchlists:vi.fn(async () => []), createWatchlist:vi.fn(), updateWatchlist:vi.fn(), deleteWatchlist:vi.fn(),
-    profile:vi.fn(async () => profile), updateProfile:vi.fn(async (value) => ({...profile,...value})), createTelegramLink:vi.fn(), unlinkTelegram:vi.fn(), exportAccount:vi.fn(), deleteAccount:vi.fn(async () => undefined), sourceHealth:vi.fn(async () => ({state:"healthy",last_updated_at:"2026-07-01"})),
+    profile:vi.fn(async () => profile), updateProfile:vi.fn(async (value) => ({...profile,...value})), notificationQueue:vi.fn(async () => ({pending:0,delayed_by_quiet_hours:0,delayed_by_weekend:0,delayed_by_daily_cap:0,failed:0})), testNotification:vi.fn(), createTelegramLink:vi.fn(), unlinkTelegram:vi.fn(), exportAccount:vi.fn(), deleteAccount:vi.fn(async () => undefined), sourceHealth:vi.fn(async () => ({state:"healthy",last_updated_at:"2026-07-01"})),
   };
 });
 afterEach(cleanup);

@@ -23,9 +23,7 @@ class WatchlistUpdate(APIModel):
     locations: list[str] | None = None
     active: bool | None = None
 
-    _clean_terms = field_validator("terms")(
-        lambda value: clean_terms(value) if value else value
-    )
+    _clean_terms = field_validator("terms")(lambda value: clean_terms(value) if value else value)
     _clean_locations = field_validator("locations")(
         lambda value: clean_values(value) if value else value
     )

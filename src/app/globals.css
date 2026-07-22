@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./notification-controls.css";
 
 :root {
   --paper: #f5f1e8;

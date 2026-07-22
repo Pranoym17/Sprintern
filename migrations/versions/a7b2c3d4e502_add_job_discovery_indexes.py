@@ -22,8 +22,7 @@ def upgrade() -> None:
     )
     op.execute("CREATE INDEX ix_jobs_title_trgm ON jobs USING gin (normalized_title gin_trgm_ops)")
     op.execute(
-        "CREATE INDEX ix_jobs_company_trgm ON jobs USING gin "
-        "(normalized_company gin_trgm_ops)"
+        "CREATE INDEX ix_jobs_company_trgm ON jobs USING gin (normalized_company gin_trgm_ops)"
     )
     op.execute(
         "CREATE INDEX ix_jobs_location_trgm ON jobs USING gin "

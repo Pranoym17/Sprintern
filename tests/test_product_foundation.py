@@ -67,9 +67,7 @@ def test_cross_repository_dedup_and_incomplete_title_state(db_session: Session) 
     assert persister.persist(db_session, second, now) == PersistenceOutcome.DUPLICATE
     db_session.flush()
     job = (
-        db_session.query(Job)
-        .filter(Job.canonical_fingerprint == first.canonical_fingerprint)
-        .one()
+        db_session.query(Job).filter(Job.canonical_fingerprint == first.canonical_fingerprint).one()
     )
 
     assert job.title_incomplete is True

@@ -14,7 +14,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from api.database import Base
 from api.models.base import TimestampMixin
@@ -23,6 +23,7 @@ from api.models.enums import (
     MatchStatus,
     NotificationCadence,
     NotificationChannel,
+    NotificationPriority,
 )
 
 
@@ -65,14 +66,16 @@ class JobMatch(TimestampMixin, Base):
 class NotificationDelivery(TimestampMixin, Base):
     __tablename__ = "notification_deliveries"
     __table_args__ = (
-        UniqueConstraint("match_id", "channel", name="uq_deliveries_match_channel"),
         UniqueConstraint("idempotency_key", name="uq_delivery_idempotency_key"),
         Index("ix_deliveries_pending", "status", "next_attempt_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    match_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("matches.id", ondelete="CASCADE"), nullable=False
+    profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    match_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("matches.id", ondelete="CASCADE")
     )
     channel: Mapped[NotificationChannel] = mapped_column(
         Enum(
@@ -115,8 +118,33 @@ class NotificationDelivery(TimestampMixin, Base):
     provider_message_id: Mapped[str | None] = mapped_column(String(255))
     last_error: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notification_type: Mapped[str] = mapped_column(
+        String(40), default="new_match", server_default="new_match"
+    )
+    priority: Mapped[NotificationPriority] = mapped_column(
+        Enum(
+            NotificationPriority,
+            native_enum=False,
+            name="delivery_priority",
+            length=16,
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        default=NotificationPriority.NORMAL,
+        server_default=NotificationPriority.NORMAL.value,
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+    queued_reason: Mapped[str | None] = mapped_column(String(80))
 
     match = relationship("JobMatch", back_populates="deliveries")
+    profile = relationship("Profile", back_populates="deliveries")
+
+    @validates("match")
+    def inherit_profile(self, _: str, match: JobMatch | None) -> JobMatch | None:
+        if match is not None:
+            self.profile = match.profile
+            if match.profile_id is not None:
+                self.profile_id = match.profile_id
+        return match
 
 
 class TelegramLinkToken(Base):

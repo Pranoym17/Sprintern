@@ -2,7 +2,13 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from api.models.enums import DeliveryStatus, MatchStatus, NotificationChannel
+from api.models.enums import (
+    DeliveryStatus,
+    MatchStatus,
+    NotificationCadence,
+    NotificationChannel,
+    NotificationPriority,
+)
 from api.schemas.common import APIModel
 from api.schemas.job import JobResponse
 
@@ -14,6 +20,9 @@ class MatchUpdate(APIModel):
 class DeliverySummary(APIModel):
     channel: NotificationChannel
     status: DeliveryStatus
+    cadence: NotificationCadence
+    priority: NotificationPriority
+    queued_reason: str | None
     sent_at: datetime | None
 
 

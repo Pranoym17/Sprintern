@@ -36,7 +36,35 @@ def _preferred_source(match: JobMatch) -> JobSource:
 def build_message(deliveries: list[NotificationDelivery]) -> NotificationMessage:
     if not deliveries:
         raise ValueError("at least one delivery is required")
-    matches: list[JobMatch] = [delivery.match for delivery in deliveries]
+    if deliveries[0].match is None:
+        delivery = deliveries[0]
+        profile = delivery.profile
+        recipient = delivery.recipient
+        is_email = delivery.channel == NotificationChannel.EMAIL
+        unsubscribe_url = unsubscribe_tokens.url(profile.id, recipient) if is_email else None
+        title = str(delivery.payload.get("title") or "Sprintern update")
+        body_text = str(delivery.payload.get("body") or "You have a new Sprintern update.")
+        apply_url = str(delivery.payload.get("apply_url") or settings.public_api_url)
+        support = settings.support_email
+        footer = (
+            f"\n\nUnsubscribe: {unsubscribe_url}\nSupport: {support}" if unsubscribe_url else ""
+        )
+        html_footer = (
+            f'<hr><p><a href="{html.escape(unsubscribe_url, quote=True)}">Unsubscribe</a>'
+            f" &middot; Contact {html.escape(support)}</p>"
+            if unsubscribe_url
+            else ""
+        )
+        return NotificationMessage(
+            recipient=recipient,
+            subject=title,
+            text=f"{title}\n{body_text}{footer}"[:4096],
+            html=f"<h2>{html.escape(title)}</h2><p>{html.escape(body_text)}</p>{html_footer}",
+            apply_url=apply_url,
+            idempotency_key=delivery.idempotency_key,
+            unsubscribe_url=unsubscribe_url,
+        )
+    matches: list[JobMatch] = [cast(JobMatch, delivery.match) for delivery in deliveries]
     recipient = deliveries[0].recipient
     profile = matches[0].profile
     is_email = deliveries[0].channel == NotificationChannel.EMAIL
