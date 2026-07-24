@@ -1,3 +1,5 @@
+"""Operational source details exposed only through administrator-authorized routes."""
+
 import uuid
 from datetime import datetime
 from typing import Any, Literal

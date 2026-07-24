@@ -856,108 +856,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/v1/ingestion-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Ingestion Run */
-        post: operations["create_ingestion_run_internal_v1_ingestion_runs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/launch/readiness": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Launch Readiness */
-        get: operations["read_launch_readiness_internal_v1_launch_readiness_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/monitoring/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Operational Status */
-        get: operations["read_operational_status_internal_v1_monitoring_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/notifications/dispatch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Dispatch Notifications */
-        post: operations["dispatch_notifications_internal_v1_notifications_dispatch_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/scheduler/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Scheduler Status */
-        get: operations["read_scheduler_status_internal_v1_scheduler_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/v1/sources/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Source Status */
-        get: operations["read_source_status_internal_v1_sources_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1508,11 +1406,6 @@ export interface components {
             sent_at: string | null;
             status: components["schemas"]["DeliveryStatus"];
         };
-        /** DispatchResponse */
-        DispatchResponse: {
-            /** Sent Deliveries */
-            sent_deliveries: number;
-        };
         /** ErrorDetail */
         ErrorDetail: {
             /** Code */
@@ -1706,53 +1599,10 @@ export interface components {
             terms?: string[] | null;
             work_mode?: components["schemas"]["WorkMode"] | null;
         };
-        /** GitHubRateLimitStatus */
-        GitHubRateLimitStatus: {
-            /** Limit */
-            limit?: number | null;
-            /** Remaining */
-            remaining?: number | null;
-            /** Resets At */
-            resets_at?: string | null;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "healthy" | "warning" | "unavailable";
-        };
         /** HealthResponse */
         HealthResponse: {
             /** Status */
             status: string;
-        };
-        /** IngestionRunRequest */
-        IngestionRunRequest: {
-            /** Board Token */
-            board_token?: string | null;
-            /** Branch */
-            branch?: string | null;
-            /** Company */
-            company?: string | null;
-            /** Owner */
-            owner?: string | null;
-            /**
-             * Path
-             * @default README.md
-             */
-            path: string;
-            /**
-             * Region
-             * @default global
-             * @enum {string}
-             */
-            region: "global" | "eu";
-            /** Repository */
-            repository?: string | null;
-            /** Site */
-            site?: string | null;
-            source: components["schemas"]["JobSourceName"];
-            /** Term */
-            term?: string | null;
         };
         /** IngestionRunResponse */
         IngestionRunResponse: {
@@ -1851,36 +1701,10 @@ export interface components {
             reason: components["schemas"]["ReportReason"];
         };
         /**
-         * JobSourceName
-         * @enum {string}
-         */
-        JobSourceName: "greenhouse" | "lever" | "remoteok" | "github_repo" | "ashby" | "wwr";
-        /**
          * JobStatus
          * @enum {string}
          */
         JobStatus: "active" | "stale" | "expired";
-        /** LaunchCheck */
-        LaunchCheck: {
-            /** Configured */
-            configured: boolean;
-            /** Guidance */
-            guidance: string;
-            /** Key */
-            key: string;
-            /**
-             * Required
-             * @default true
-             */
-            required: boolean;
-        };
-        /** LaunchReadinessResponse */
-        LaunchReadinessResponse: {
-            /** Checks */
-            checks: components["schemas"]["LaunchCheck"][];
-            /** Ready */
-            ready: boolean;
-        };
         /** MatchCounts */
         MatchCounts: {
             /** All */
@@ -1957,31 +1781,6 @@ export interface components {
          * @enum {string}
          */
         NotificationPriority: "normal" | "high";
-        /** OperationalStatusResponse */
-        OperationalStatusResponse: {
-            /** Database Bytes */
-            database_bytes: number;
-            /** Database Capacity Warning */
-            database_capacity_warning: boolean;
-            /** Enabled Sources */
-            enabled_sources: number;
-            /** Failing Sources */
-            failing_sources: number;
-            github: components["schemas"]["GitHubRateLimitStatus"];
-            /** Resend Problem Events 24H */
-            resend_problem_events_24h: number;
-            /** Scheduler State */
-            scheduler_state: string;
-            /** Stale Sources */
-            stale_sources: number;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "healthy" | "degraded";
-            /** Unresolved Parser Alerts */
-            unresolved_parser_alerts: number;
-        };
         /**
          * PollCompleteness
          * @enum {string}
@@ -2153,37 +1952,6 @@ export interface components {
          * @enum {string}
          */
         ReportReason: "closed" | "duplicate" | "suspicious" | "inaccurate";
-        /** SchedulerJobStatus */
-        SchedulerJobStatus: {
-            /** Id */
-            id: string;
-            /** Next Run At */
-            next_run_at: string | null;
-        };
-        /** SchedulerStatusResponse */
-        SchedulerStatusResponse: {
-            /** Configured Jobs */
-            configured_jobs: components["schemas"]["SchedulerJobStatus"][];
-            /** Heartbeat Age Seconds */
-            heartbeat_age_seconds?: number | null;
-            /** Instance Id */
-            instance_id?: string | null;
-            /** Last Error */
-            last_error?: string | null;
-            /** Last Heartbeat At */
-            last_heartbeat_at?: string | null;
-            /** Started At */
-            started_at?: string | null;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "healthy" | "stale" | "stopped" | "unknown";
-            /** Stopped At */
-            stopped_at?: string | null;
-            /** Version */
-            version?: string | null;
-        };
         /** ShareCreate */
         ShareCreate: {
             /**
@@ -2277,33 +2045,6 @@ export interface components {
             confirmation: string;
             /** Enabled */
             enabled: boolean;
-        };
-        /** SourceStatusResponse */
-        SourceStatusResponse: {
-            /** Backoff Until */
-            backoff_until: string | null;
-            /** Consecutive Failures */
-            consecutive_failures: number;
-            /** Cursor */
-            cursor: {
-                [key: string]: unknown;
-            };
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Last Error */
-            last_error: string | null;
-            /** Last Failed At */
-            last_failed_at: string | null;
-            /** Last Started At */
-            last_started_at: string | null;
-            /** Last Succeeded At */
-            last_succeeded_at: string | null;
-            source: components["schemas"]["JobSourceName"];
-            /** Source Key */
-            source_key: string;
         };
         /** TelegramLinkResponse */
         TelegramLinkResponse: {
@@ -7233,306 +6974,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
-    };
-    create_ingestion_run_internal_v1_ingestion_runs_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-internal-api-key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["IngestionRunRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IngestionRunResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    read_launch_readiness_internal_v1_launch_readiness_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-internal-api-key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LaunchReadinessResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    read_operational_status_internal_v1_monitoring_status_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-internal-api-key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OperationalStatusResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    dispatch_notifications_internal_v1_notifications_dispatch_post: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: {
-                "x-internal-api-key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DispatchResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    read_scheduler_status_internal_v1_scheduler_status_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-internal-api-key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SchedulerStatusResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    read_source_status_internal_v1_sources_status_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-internal-api-key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SourceStatusResponse"][];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

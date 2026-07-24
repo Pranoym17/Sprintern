@@ -37,6 +37,11 @@ singleton scheduler --> PostgreSQL background_jobs --> worker(s)
 The public contract is `/api/v1/...`; internal operations use `/internal/v1/...` and an independent
 internal key. Health endpoints remain unversioned for hosting platforms.
 
+Ingestion origins remain hidden from regular users. Repository identities and parser diagnostics are
+an intentional exception available only to Supabase-authenticated administrators in the source
+control room; they never appear in public job, match, export, email, or Telegram payloads. The
+generated frontend contract excludes `/internal/v1` entirely.
+
 ### Important tradeoffs
 
 - SQLAlchemy/Alembic is the only application database layer; Prisma would duplicate models and

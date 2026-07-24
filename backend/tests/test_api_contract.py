@@ -2,19 +2,16 @@ import httpx
 
 from api.main import app
 from api.schemas.common import strip_internal_origin
+from scripts.export_openapi import public_contract
 
 
 def test_openapi_exposes_only_versioned_product_routes() -> None:
     paths = app.openapi()["paths"]
     product_paths = [
-        path
-        for path in paths
-        if path not in {"/health", "/health/live", "/health/ready"}
+        path for path in paths if path not in {"/health", "/health/live", "/health/ready"}
     ]
     assert product_paths
-    assert all(
-        path.startswith(("/api/v1/", "/internal/v1/")) for path in product_paths
-    )
+    assert all(path.startswith(("/api/v1/", "/internal/v1/")) for path in product_paths)
     assert "/api/v1/users/me" in paths
     assert "/internal/v1/ingestion-runs" in paths
 
@@ -25,9 +22,9 @@ def test_every_json_operation_documents_a_response_contract() -> None:
             if method not in {"get", "post", "put", "patch", "delete"}:
                 continue
             assert "responses" in operation, f"{method.upper()} {path} has no response contract"
-            assert any(
-                status.startswith("2") for status in operation["responses"]
-            ), f"{method.upper()} {path} has no success response"
+            assert any(status.startswith("2") for status in operation["responses"]), (
+                f"{method.upper()} {path} has no success response"
+            )
 
 
 def test_public_job_contract_does_not_expose_ingestion_origin() -> None:
@@ -50,6 +47,15 @@ def test_public_json_sanitizer_removes_nested_origin_metadata() -> None:
         "trigger": "bookmark",
         "nested": [{"safe": "visible"}],
     }
+
+
+def test_frontend_contract_excludes_internal_operations_and_schemas() -> None:
+    schema = public_contract()
+
+    assert all(not path.startswith("/internal/") for path in schema["paths"])
+    assert "/api/v1/users/me" in schema["paths"]
+    assert "/api/v1/admin/sources" in schema["paths"]
+    assert "SourceStatusResponse" not in schema["components"]["schemas"]
 
 
 async def test_unversioned_product_route_is_not_available() -> None:
