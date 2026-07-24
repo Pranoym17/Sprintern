@@ -2,6 +2,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from pydantic import field_validator
+
 from api.models.enums import (
     DeliveryStatus,
     MatchStatus,
@@ -9,7 +11,7 @@ from api.models.enums import (
     NotificationChannel,
     NotificationPriority,
 )
-from api.schemas.common import APIModel
+from api.schemas.common import APIModel, strip_internal_origin
 from api.schemas.job import JobResponse
 
 
@@ -36,6 +38,8 @@ class MatchResponse(APIModel):
     updated_at: datetime
     job: JobResponse
     deliveries: list[DeliverySummary]
+
+    _strip_origin = field_validator("reasons", mode="before")(strip_internal_origin)
 
 
 class MatchPage(APIModel):

@@ -4,12 +4,12 @@ test("landing page communicates the live product and stays within the viewport",
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Stop finding internships");
   await expect(page.getByRole("link", { name: /create your alert/i })).toBeVisible();
-  await expect(page.getByText("GitHub repositories").first()).toBeVisible();
+  await expect(page.getByText("Continuously updated jobs").first()).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
 });
 
-for (const [path, heading] of [["/privacy", "Privacy at Sprintern"], ["/terms", "Terms of use"], ["/data-sources", "Where postings come from"], ["/contact", "Contact Sprintern"]] as const) {
+for (const [path, heading] of [["/privacy", "Privacy at Sprintern"], ["/terms", "Terms of use"], ["/data-sources", "How Sprintern handles postings"], ["/contact", "Contact Sprintern"]] as const) {
   test(`${path} is public and linked back to the product`, async ({ page }) => {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();

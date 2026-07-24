@@ -2,10 +2,10 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from api.models.enums import ApplicationStage
-from api.schemas.common import APIModel
+from api.schemas.common import APIModel, strip_internal_origin
 from api.schemas.job import JobResponse
 
 
@@ -46,6 +46,8 @@ class ApplicationEventResponse(APIModel):
     data: dict[str, Any]
     corrected_event_id: uuid.UUID | None
     created_at: datetime
+
+    _strip_origin = field_validator("data", mode="before")(strip_internal_origin)
 
 
 class ApplicationResponse(APIModel):

@@ -1,6 +1,7 @@
 import httpx
 
 from api.main import app
+from api.schemas.common import strip_internal_origin
 
 
 def test_openapi_exposes_only_versioned_product_routes() -> None:
@@ -36,6 +37,19 @@ def test_public_job_contract_does_not_expose_ingestion_origin() -> None:
     assert "sources" not in properties
     assert "deadline_source" not in properties
     assert "application_url" in properties
+
+
+def test_public_json_sanitizer_removes_nested_origin_metadata() -> None:
+    value = {
+        "trigger": "bookmark",
+        "source": "github_repo",
+        "nested": [{"source_key": "private", "safe": "visible"}],
+    }
+
+    assert strip_internal_origin(value) == {
+        "trigger": "bookmark",
+        "nested": [{"safe": "visible"}],
+    }
 
 
 async def test_unversioned_product_route_is_not_available() -> None:
