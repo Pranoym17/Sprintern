@@ -9,6 +9,7 @@ from api.auth import AuthenticatedUser
 from api.models import (
     Application,
     ApplicationStage,
+    DeliveryStatus,
     FilterNotificationOverride,
     Job,
     JobFilter,
@@ -197,6 +198,113 @@ def test_match_uses_new_match_consent_and_deterministic_priority(
     assert delivery.notification_type == "new_match"
     assert delivery.cadence == NotificationCadence.DAILY
     assert delivery.priority == NotificationPriority.HIGH
+
+
+def test_optional_notifications_require_explicit_consent(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    profile = Profile(
+        id=uuid.uuid4(),
+        email="opt-in@example.com",
+        email_notifications_enabled=True,
+        email_notifications_consent_at=now,
+        notification_consents={},
+    )
+    job_filter = JobFilter(profile=profile, name="Consent filter")
+    match = notification_match(db_session, profile, job_filter)
+    application = Application(
+        profile_id=profile.id, job_id=match.job_id, stage=ApplicationStage.APPLIED
+    )
+    db_session.add(application)
+    db_session.flush()
+    reminder = ReminderEvent(
+        profile_id=profile.id,
+        application_id=application.id,
+        kind=ReminderType.FOLLOW_UP,
+        due_at=now - timedelta(minutes=1),
+        idempotency_key=f"test:{uuid.uuid4()}",
+    )
+    db_session.add(reminder)
+    db_session.flush()
+
+    NotificationPlanner().plan_events(db_session, now)
+    db_session.flush()
+
+    assert (
+        db_session.scalar(
+            select(NotificationDelivery.id).where(
+                NotificationDelivery.idempotency_key.like(f"reminder:{reminder.id}:%")
+            )
+        )
+        is None
+    )
+
+
+def test_telegram_daily_cap_queues_overflow_for_next_local_digest_time(
+    db_session: Session,
+) -> None:
+    profile = Profile(
+        id=uuid.uuid4(),
+        timezone="UTC",
+        preferred_email_time=time(8),
+        telegram_chat_id="daily-cap-chat",
+        telegram_notifications_enabled=True,
+        max_alerts_per_day=1,
+    )
+    job_filter = JobFilter(profile=profile, name="Daily cap")
+    first = notification_match(db_session, profile, job_filter)
+    second = notification_match(db_session, profile, job_filter)
+    now = datetime(2026, 7, 24, 13, 0, tzinfo=UTC)
+    planner = NotificationPlanner()
+
+    planner.plan_match(db_session, first, profile, now)
+    first_delivery = db_session.scalar(
+        select(NotificationDelivery).where(NotificationDelivery.match_id == first.id)
+    )
+    assert first_delivery is not None
+    first_delivery.status = DeliveryStatus.SENT
+    first_delivery.sent_at = now
+    first_delivery.next_attempt_at = None
+    planner.plan_match(db_session, second, profile, now + timedelta(minutes=1))
+    db_session.flush()
+    overflow = db_session.scalar(
+        select(NotificationDelivery).where(
+            NotificationDelivery.match_id == second.id,
+            NotificationDelivery.channel == NotificationChannel.TELEGRAM,
+        )
+    )
+
+    assert overflow is not None
+    assert overflow.next_attempt_at == datetime(2026, 7, 25, 8, 0, tzinfo=UTC)
+    assert overflow.queued_reason == "daily_cap"
+    assert overflow.cadence == NotificationCadence.INSTANT
+
+
+def test_priority_only_instant_suppresses_normal_telegram_but_keeps_daily_email(
+    db_session: Session,
+) -> None:
+    now = datetime(2026, 7, 24, 13, 0, tzinfo=UTC)
+    profile = Profile(
+        id=uuid.uuid4(),
+        email="priority@example.com",
+        email_notifications_enabled=True,
+        email_notifications_consent_at=now,
+        telegram_chat_id="priority-chat",
+        telegram_notifications_enabled=True,
+        priority_only_instant=True,
+    )
+    job_filter = JobFilter(profile=profile, name="Priority only")
+    match = notification_match(db_session, profile, job_filter)
+
+    NotificationPlanner().plan_match(db_session, match, profile, now)
+    db_session.flush()
+    deliveries = list(
+        db_session.scalars(
+            select(NotificationDelivery).where(NotificationDelivery.match_id == match.id)
+        )
+    )
+
+    assert [delivery.channel for delivery in deliveries] == [NotificationChannel.EMAIL]
+    assert deliveries[0].cadence == NotificationCadence.DAILY
 
 
 def test_empty_digest_is_opt_in_and_idempotent(db_session: Session) -> None:

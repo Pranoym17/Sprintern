@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, select, text
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from api.models import (
@@ -30,6 +30,11 @@ def _zone(name: str) -> ZoneInfo:
         return ZoneInfo(name)
     except ZoneInfoNotFoundError:
         return ZoneInfo("UTC")
+
+
+def has_notification_consent(profile: Profile, notification_type: str) -> bool:
+    """Only core match alerts default on; every optional notification requires consent."""
+    return profile.notification_consents.get(notification_type, notification_type == "new_match")
 
 
 def next_delivery_time(cadence: NotificationCadence, timezone: str, now: datetime) -> datetime:
@@ -167,7 +172,7 @@ class NotificationPlanner:
         notification_type: str = "new_match",
     ) -> list[tuple[NotificationChannel, str]]:
         overrides = overrides or []
-        if profile.notification_consents.get(notification_type, True) is False:
+        if not has_notification_consent(profile, notification_type):
             return []
         values: list[tuple[NotificationChannel, str]] = []
         if (
@@ -183,6 +188,51 @@ class NotificationPlanner:
         ):
             values.append((NotificationChannel.TELEGRAM, profile.telegram_chat_id))
         return values
+
+    @staticmethod
+    def _apply_telegram_daily_cap(
+        session: Session,
+        profile: Profile,
+        scheduled: datetime,
+    ) -> tuple[datetime, str | None]:
+        """Keep overflow alerts queued for the earliest local day with remaining capacity."""
+        zone = _zone(profile.timezone)
+        local_scheduled = scheduled.astimezone(zone)
+        candidate_date = local_scheduled.date()
+        while True:
+            day_start = datetime.combine(candidate_date, time.min, tzinfo=zone).astimezone(UTC)
+            day_end = datetime.combine(
+                candidate_date + timedelta(days=1), time.min, tzinfo=zone
+            ).astimezone(UTC)
+            planned = (
+                session.scalar(
+                    select(func.count(NotificationDelivery.id)).where(
+                        NotificationDelivery.profile_id == profile.id,
+                        NotificationDelivery.channel == NotificationChannel.TELEGRAM,
+                        NotificationDelivery.status != DeliveryStatus.CANCELLED,
+                        or_(
+                            and_(
+                                NotificationDelivery.status == DeliveryStatus.SENT,
+                                NotificationDelivery.sent_at >= day_start,
+                                NotificationDelivery.sent_at < day_end,
+                            ),
+                            and_(
+                                NotificationDelivery.status != DeliveryStatus.SENT,
+                                NotificationDelivery.next_attempt_at >= day_start,
+                                NotificationDelivery.next_attempt_at < day_end,
+                            ),
+                        ),
+                    )
+                )
+                or 0
+            )
+            if planned < profile.max_alerts_per_day:
+                if candidate_date == local_scheduled.date():
+                    return scheduled, None
+                next_local = _local_wall_time(candidate_date, profile.preferred_email_time, zone)
+                next_scheduled, _ = apply_delivery_window(profile, next_local.astimezone(UTC))
+                return next_scheduled, "daily_cap"
+            candidate_date += timedelta(days=1)
 
     def plan_match(
         self,
@@ -208,6 +258,12 @@ class NotificationPlanner:
         destinations = self._destinations(
             session, profile, overrides, notification_type=notification_type
         )
+        if profile.priority_only_instant and priority != NotificationPriority.HIGH:
+            destinations = [
+                destination
+                for destination in destinations
+                if destination[0] != NotificationChannel.TELEGRAM
+            ]
         destination_channels = {channel for channel, _ in destinations}
         for channel, delivery in existing.items():
             if channel not in destination_channels and delivery.status in {
@@ -226,8 +282,7 @@ class NotificationPlanner:
             if channel == NotificationChannel.TELEGRAM:
                 # Telegram is the urgent channel: every new match is immediately actionable.
                 cadence = NotificationCadence.INSTANT
-                scheduled = now
-                queued_reason = None
+                scheduled, queued_reason = self._apply_telegram_daily_cap(session, profile, now)
             else:
                 # Email is deliberately calmer: one curated digest at the user's local time.
                 cadence = NotificationCadence.DAILY

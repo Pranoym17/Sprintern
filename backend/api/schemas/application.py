@@ -22,6 +22,13 @@ class ApplicationCreate(APIModel):
     applied_at: datetime | None = None
     outcome: str | None = Field(default=None, max_length=100)
 
+    @field_validator("deadline_at", "follow_up_at", "interview_at", "applied_at", mode="after")
+    @classmethod
+    def require_aware_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("datetime must include a timezone offset")
+        return value
+
 
 class ApplicationUpdate(APIModel):
     stage: ApplicationStage | None = None
@@ -34,6 +41,13 @@ class ApplicationUpdate(APIModel):
     application_url: str | None = Field(default=None, max_length=2000)
     applied_at: datetime | None = None
     outcome: str | None = Field(default=None, max_length=100)
+
+    @field_validator("deadline_at", "follow_up_at", "interview_at", "applied_at", mode="after")
+    @classmethod
+    def require_aware_datetime(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("datetime must include a timezone offset")
+        return value
 
 
 class ApplicationCorrection(APIModel):

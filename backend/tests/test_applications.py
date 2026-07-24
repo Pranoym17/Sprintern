@@ -80,6 +80,20 @@ async def test_tracker_enforces_ownership(
     assert response.status_code == 404
 
 
+async def test_application_reminder_datetimes_require_timezone_offsets(
+    api_client: httpx.AsyncClient,
+    db_session: Session,
+) -> None:
+    job = tracker_job(db_session)
+
+    response = await api_client.post(
+        "/applications",
+        json={"job_id": str(job.id), "follow_up_at": "2026-08-01T09:00:00"},
+    )
+
+    assert response.status_code == 422
+
+
 async def test_csv_import_preview_retry_and_exports_are_user_scoped(
     api_client: httpx.AsyncClient,
     db_session: Session,

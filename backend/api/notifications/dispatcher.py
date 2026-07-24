@@ -23,6 +23,7 @@ from api.models import (
 from api.notifications.domain import DeliveryOutcome, ProviderResult
 from api.notifications.email_preferences import suppress_email
 from api.notifications.message_builder import build_message
+from api.notifications.planning import has_notification_consent
 from api.notifications.providers import NotificationProvider
 
 logger = logging.getLogger(__name__)
@@ -248,10 +249,7 @@ class NotificationDispatcher:
         if not deliveries[0].recipient:
             return False
         return all(
-            (
-                delivery.profile.notification_consents.get(delivery.notification_type, True)
-                is not False
-            )
+            (has_notification_consent(delivery.profile, delivery.notification_type))
             and (
                 (
                     delivery.channel == NotificationChannel.EMAIL
