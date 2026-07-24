@@ -45,11 +45,6 @@ class JobPersister:
             next_occurrence = 1
 
         cutoff = seen_at - self.repost_threshold
-        compatible_term = (
-            or_(Job.term == candidate.term, Job.term.is_(None))
-            if candidate.term
-            else Job.id.is_not(None)
-        )
         canonical_job = session.scalar(
             select(Job)
             .where(
@@ -59,7 +54,7 @@ class JobPersister:
                         (Job.normalized_company == candidate.normalized_company)
                         & (Job.normalized_title == candidate.normalized_title)
                         & (Job.normalized_location == candidate.normalized_location)
-                        & compatible_term
+                        & (Job.term == candidate.term)
                     ),
                 ),
                 Job.first_seen_at >= cutoff,

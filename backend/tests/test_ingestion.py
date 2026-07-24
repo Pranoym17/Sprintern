@@ -83,7 +83,7 @@ def test_normalizes_text_url_and_fingerprint() -> None:
     assert first.apply_url == "https://jobs.example.com/apply?id=1"
 
 
-def test_overlapping_repositories_share_one_canonical_job(db_session: Session) -> None:
+def test_missing_term_does_not_merge_with_explicit_term(db_session: Session) -> None:
     now = datetime.now(UTC)
     first = normalize_job(
         JobSourceName.GITHUB_REPO,
@@ -96,17 +96,41 @@ def test_overlapping_repositories_share_one_canonical_job(db_session: Session) -
     persister = JobPersister()
 
     assert persister.persist(db_session, first, now) == PersistenceOutcome.CREATED
-    assert persister.persist(db_session, second, now) == PersistenceOutcome.DUPLICATE
+    assert persister.persist(db_session, second, now) == PersistenceOutcome.CREATED
     db_session.flush()
 
     jobs = list(
-        db_session.scalars(
-            select(Job).where(Job.canonical_fingerprint == first.canonical_fingerprint)
-        )
+        db_session.scalars(select(Job).where(Job.normalized_company == first.normalized_company))
     )
-    assert len(jobs) == 1
-    assert jobs[0].term == "Summer 2027"
-    assert {source.source_key for source in jobs[0].sources} == {
+    assert len(jobs) == 2
+    assert {job.term for job in jobs} == {"Summer 2027", None}
+
+
+def test_exact_jobs_from_overlapping_repositories_share_one_canonical_job(
+    db_session: Session,
+) -> None:
+    now = datetime.now(UTC)
+    first = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/first:README.md",
+        raw_job("first-row").model_copy(update={"term": "Summer 2027"}),
+    )
+    second = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/second:README.md",
+        raw_job("second-row").model_copy(update={"term": "Summer 2027"}),
+    )
+    persister = JobPersister()
+
+    assert persister.persist(db_session, first, now) == PersistenceOutcome.CREATED
+    assert persister.persist(db_session, second, now) == PersistenceOutcome.DUPLICATE
+    db_session.flush()
+
+    job = db_session.scalar(
+        select(Job).where(Job.canonical_fingerprint == first.canonical_fingerprint)
+    )
+    assert job is not None
+    assert {source.source_key for source in job.sources} == {
         "owner/first:README.md",
         "owner/second:README.md",
     }
@@ -134,6 +158,32 @@ def test_explicit_different_terms_remain_distinct_jobs(db_session: Session) -> N
         db_session.scalars(select(Job).where(Job.normalized_company == summer.normalized_company))
     )
     assert {job.term for job in jobs} == {"Summer 2027", "Fall 2027"}
+
+
+def test_different_locations_remain_distinct_jobs(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    persister = JobPersister()
+    toronto = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/toronto:README.md",
+        raw_job("toronto-row").model_copy(update={"term": "Summer 2027"}),
+    )
+    vancouver = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/vancouver:README.md",
+        raw_job("vancouver-row").model_copy(
+            update={"location": "Vancouver, BC", "term": "Summer 2027"}
+        ),
+    )
+
+    assert persister.persist(db_session, toronto, now) == PersistenceOutcome.CREATED
+    assert persister.persist(db_session, vancouver, now) == PersistenceOutcome.CREATED
+    db_session.flush()
+
+    jobs = list(
+        db_session.scalars(select(Job).where(Job.normalized_company == toronto.normalized_company))
+    )
+    assert {job.location for job in jobs} == {"Toronto, ON", "Vancouver, BC"}
 
 
 def test_parses_full_human_readable_source_date() -> None:
