@@ -199,6 +199,38 @@ def test_match_uses_new_match_consent_and_deterministic_priority(
     assert delivery.priority == NotificationPriority.HIGH
 
 
+def test_empty_digest_is_opt_in_and_idempotent(db_session: Session) -> None:
+    now = datetime(2026, 7, 24, 13, 0, tzinfo=UTC)
+    profile = Profile(
+        id=uuid.uuid4(),
+        email="empty@example.com",
+        timezone="UTC",
+        preferred_email_time=time(8),
+        email_notifications_enabled=True,
+        email_notifications_consent_at=now,
+        email_empty_digest_enabled=True,
+    )
+    db_session.add(profile)
+    db_session.flush()
+    planner = NotificationPlanner()
+
+    first = planner.plan_events(db_session, now)
+    db_session.flush()
+    second = planner.plan_events(db_session, now)
+    empty = list(
+        db_session.scalars(
+            select(NotificationDelivery).where(
+                NotificationDelivery.profile_id == profile.id,
+                NotificationDelivery.notification_type == "daily_empty_digest",
+            )
+        )
+    )
+
+    assert first == 1
+    assert second == 0
+    assert len(empty) == 1
+
+
 async def test_filter_notification_preferences_are_owned(
     api_client: httpx.AsyncClient,
     authenticated_user: AuthenticatedUser,

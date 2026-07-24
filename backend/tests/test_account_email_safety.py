@@ -12,7 +12,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.auth import AuthenticatedUser
-from api.models import EmailProviderEvent, EmailSuppression, JobFilter, Profile
+from api.models import (
+    DeliveryStatus,
+    EmailProviderEvent,
+    EmailSuppression,
+    JobFilter,
+    NotificationCadence,
+    NotificationChannel,
+    NotificationDelivery,
+    Profile,
+)
 from api.notifications.email_preferences import UnsubscribeTokenService
 from api.routes import profiles
 from api.settings import settings
@@ -64,6 +73,16 @@ async def test_signed_unsubscribe_link_disables_email_and_rejects_tampering(
         email_notifications_consent_at=datetime.now(UTC),
     )
     db_session.add(profile)
+    delivery = NotificationDelivery(
+        profile=profile,
+        channel=NotificationChannel.EMAIL,
+        cadence=NotificationCadence.DAILY,
+        recipient=profile.email or "",
+        idempotency_key=f"generic:{uuid.uuid4()}",
+        notification_type="daily_empty_digest",
+        next_attempt_at=datetime.now(UTC),
+    )
+    db_session.add(delivery)
     db_session.commit()
     service = UnsubscribeTokenService(settings.unsubscribe_signing_secret, settings.public_api_url)
     token = service.create(profile.id, profile.email or "")
@@ -75,6 +94,7 @@ async def test_signed_unsubscribe_link_disables_email_and_rejects_tampering(
     assert response.status_code == 200
     assert profile.email_notifications_enabled is False
     assert profile.email_notifications_consent_at is None
+    assert delivery.status == DeliveryStatus.CANCELLED
     assert tampered.status_code == 400
 
 

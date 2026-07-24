@@ -336,6 +336,54 @@ async def test_dispatcher_groups_due_digest_deliveries(db_session: Session) -> N
     assert provider.messages[0].subject == "2 new internship matches for you today"
 
 
+async def test_dispatcher_sends_one_telegram_message_per_match(
+    db_session: Session,
+) -> None:
+    profile, first_match = create_match(db_session)
+    profile.email_notifications_enabled = False
+    profile.email_notifications_consent_at = None
+    profile.telegram_chat_id = "instant-chat"
+    profile.telegram_notifications_enabled = True
+    now = datetime.now(UTC)
+    second_job = Job(
+        company="Second Telegram",
+        normalized_company="second telegram",
+        title="Data Intern",
+        normalized_title="data intern",
+        canonical_fingerprint=uuid.uuid4().hex.ljust(64, "0"),
+        first_seen_at=now,
+        last_seen_at=now,
+    )
+    second_job.sources.append(
+        JobSource(
+            source=JobSourceName.LEVER,
+            source_key="telegram-second",
+            external_id=uuid.uuid4().hex,
+            apply_url="https://second.example/apply",
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+    )
+    second_match = JobMatch(profile=profile, job=second_job, reasons=[])
+    db_session.add(second_match)
+    db_session.flush()
+    planner = NotificationPlanner()
+    planner.plan_match(db_session, first_match, profile, now)
+    planner.plan_match(db_session, second_match, profile, now)
+    db_session.commit()
+    provider = RecordingProvider(ProviderResult(DeliveryOutcome.SENT, "telegram"))
+    dispatcher = NotificationDispatcher(
+        notification_factory(db_session), {NotificationChannel.TELEGRAM: provider}
+    )
+
+    sent = await dispatcher.dispatch_due(now=now + timedelta(seconds=1))
+
+    assert sent == 2
+    assert len(provider.messages) == 2
+    assert all(message.text.count("🎯 New match:") == 1 for message in provider.messages)
+    assert all("source" not in message.text.casefold() for message in provider.messages)
+
+
 async def test_dispatcher_curates_digest_to_user_limit(db_session: Session) -> None:
     profile, first_match = create_match(db_session)
     profile.email_digest_job_limit = 2

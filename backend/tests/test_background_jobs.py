@@ -1,11 +1,14 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import httpx
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.jobs import BackgroundJobQueue
 from api.models import BackgroundJob
+from api.worker.runtime import BackgroundJobHandler
 
 
 def test_queue_is_idempotent_and_retries_with_a_lease(db_session: Session) -> None:
@@ -79,3 +82,39 @@ def test_queue_dead_letters_after_max_attempts(db_session: Session) -> None:
     db_session.expire_all()
     failed = db_session.get_one(BackgroundJob, job_id)
     assert failed.status == "dead"
+
+
+async def test_matching_job_enqueues_immediate_notification_dispatch(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from api.worker import runtime
+
+    factory = sessionmaker(
+        bind=db_session.get_bind(),
+        class_=Session,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    monkeypatch.setattr(runtime, "SessionLocal", factory)
+    monkeypatch.setattr(
+        "api.worker.runtime.matching_service.match_all", lambda _session: 0
+    )
+    matching_job = BackgroundJob(
+        id=uuid.uuid4(),
+        job_type="matching.all",
+        idempotency_key=f"test:matching:{uuid.uuid4()}",
+        correlation_id="matching-correlation",
+    )
+    async with httpx.AsyncClient() as client:
+        await BackgroundJobHandler(client).handle(matching_job)
+
+    dispatch = db_session.scalar(
+        select(BackgroundJob).where(
+            BackgroundJob.idempotency_key
+            == f"notifications:matching:{matching_job.id}"
+        )
+    )
+
+    assert dispatch is not None
+    assert dispatch.job_type == "notifications.dispatch"
+    assert dispatch.correlation_id == "matching-correlation"
