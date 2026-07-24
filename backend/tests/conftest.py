@@ -26,9 +26,9 @@ def _configure_isolated_test_database() -> None:
 
 _configure_isolated_test_database()
 
-from api.auth import AuthenticatedUser, get_current_user
-from api.database import engine, get_db, get_user_db
-from api.main import app
+from api.auth import AuthenticatedUser, get_current_user  # noqa: E402
+from api.database import engine, get_db, get_user_db  # noqa: E402
+from api.main import app  # noqa: E402
 
 
 class VersionedASGITransport(httpx.AsyncBaseTransport):
