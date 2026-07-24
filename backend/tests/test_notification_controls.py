@@ -125,9 +125,7 @@ def test_email_digest_time_handles_dst_gap() -> None:
         preferred_email_time=time(2, 30),
     )
 
-    scheduled = next_email_digest_time(
-        profile, datetime(2026, 3, 8, 5, 0, tzinfo=UTC)
-    )
+    scheduled = next_email_digest_time(profile, datetime(2026, 3, 8, 5, 0, tzinfo=UTC))
 
     assert scheduled == datetime(2026, 3, 8, 7, 30, tzinfo=UTC)
 
@@ -160,11 +158,13 @@ def test_telegram_new_match_bypasses_quiet_hours(db_session: Session) -> None:
     assert delivery.cadence == NotificationCadence.INSTANT
     assert delivery.next_attempt_at == now
     assert delivery.queued_reason is None
-    assert build_message([delivery]).text == (
-        "🎯 New match: Software Intern\n"
-        "🏢 Notification Controls\n"
+    message = build_message([delivery])
+    assert message.telegram_parse_mode == "HTML"
+    assert message.text == (
+        "🎯 <b>New match:</b> Software Intern\n"
+        "🏢 <b>Notification Controls</b>\n"
         "📍 Toronto, Canada · Term not specified\n\n"
-        "https://employer.example/apply"
+        '<a href="https://employer.example/apply">Apply now</a>'
     )
 
 
