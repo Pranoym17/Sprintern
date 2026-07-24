@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from enum import StrEnum
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session, joinedload
 
 from api.ingestion.normalization import NormalizedJob
@@ -44,6 +44,7 @@ class JobPersister:
         else:
             next_occurrence = 1
 
+        self._lock_canonical_identity(session, candidate.canonical_fingerprint)
         cutoff = seen_at - self.repost_threshold
         canonical_job = session.scalar(
             select(Job)
@@ -96,6 +97,14 @@ class JobPersister:
         job.sources.append(self._source_record(candidate, seen_at, occurrence=next_occurrence))
         session.add(job)
         return PersistenceOutcome.CREATED
+
+    @staticmethod
+    def _lock_canonical_identity(session: Session, fingerprint: str) -> None:
+        """Serialize first creation across sources without forbidding legitimate later reposts."""
+        if session.get_bind().dialect.name != "postgresql":
+            return
+        key = int.from_bytes(bytes.fromhex(fingerprint[:16]), byteorder="big", signed=True)
+        session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
 
     @staticmethod
     def _source_record(

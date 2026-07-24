@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from api.models import (
@@ -95,6 +95,17 @@ def apply_delivery_window(profile: Profile, scheduled: datetime) -> tuple[dateti
 
 
 class NotificationPlanner:
+    @staticmethod
+    def _lock_delivery_key(session: Session, key: str) -> None:
+        """Make check-and-create atomic across planners while retaining readable ORM writes."""
+        if session.get_bind().dialect.name != "postgresql":
+            return
+        value = uuid.uuid5(uuid.NAMESPACE_URL, f"sprintern:delivery:{key}").int
+        lock_key = value & ((1 << 64) - 1)
+        if lock_key >= 1 << 63:
+            lock_key -= 1 << 64
+        session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+
     @staticmethod
     def _filter_overrides(session: Session, match: JobMatch) -> list[FilterNotificationOverride]:
         filter_ids: list[uuid.UUID] = []
@@ -207,7 +218,11 @@ class NotificationPlanner:
                 delivery.next_attempt_at = None
                 delivery.last_error = "Notification channel disabled"
         for channel, recipient in destinations:
-            existing_delivery = existing.get(channel)
+            key = f"{match.id}:{channel.value}"
+            self._lock_delivery_key(session, key)
+            existing_delivery = session.scalar(
+                select(NotificationDelivery).where(NotificationDelivery.idempotency_key == key)
+            )
             if channel == NotificationChannel.TELEGRAM:
                 # Telegram is the urgent channel: every new match is immediately actionable.
                 cadence = NotificationCadence.INSTANT
@@ -234,7 +249,7 @@ class NotificationPlanner:
                     cadence=cadence,
                     priority=priority,
                     recipient=recipient,
-                    idempotency_key=f"{match.id}:{channel.value}",
+                    idempotency_key=key,
                     notification_type=notification_type,
                     next_attempt_at=scheduled,
                     queued_reason=queued_reason,
@@ -263,6 +278,7 @@ class NotificationPlanner:
                 session, profile, notification_type=reminder.kind.value
             ):
                 key = f"reminder:{reminder.id}:{channel.value}"
+                self._lock_delivery_key(session, key)
                 if session.scalar(
                     select(NotificationDelivery.id).where(
                         NotificationDelivery.idempotency_key == key
@@ -310,6 +326,7 @@ class NotificationPlanner:
                     session, profile, notification_type=kind
                 ):
                     key = f"job-change:{change.id}:{profile.id}:{channel.value}"
+                    self._lock_delivery_key(session, key)
                     if session.scalar(
                         select(NotificationDelivery.id).where(
                             NotificationDelivery.idempotency_key == key
@@ -373,6 +390,7 @@ class NotificationPlanner:
                 )
             )
             key = f"empty-digest:{profile.id}:{local_now.date().isoformat()}"
+            self._lock_delivery_key(session, key)
             exists = session.scalar(
                 select(NotificationDelivery.id).where(NotificationDelivery.idempotency_key == key)
             )
@@ -459,6 +477,7 @@ class NotificationPlanner:
                     session, profile, notification_type=kind
                 ):
                     key = f"{event_key}:{profile.id}:{channel.value}"
+                    self._lock_delivery_key(session, key)
                     if session.scalar(
                         select(NotificationDelivery.id).where(
                             NotificationDelivery.idempotency_key == key

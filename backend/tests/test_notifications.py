@@ -1,5 +1,7 @@
 import json
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -8,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.auth import AuthenticatedUser
+from api.database import SessionLocal
 from api.models import (
     DeliveryStatus,
     EmailSuppression,
@@ -99,6 +102,43 @@ def test_planner_creates_idempotent_daily_email_delivery(db_session: Session) ->
     assert delivery.idempotency_key == f"{match.id}:email"
 
 
+def test_concurrent_planners_create_one_delivery() -> None:
+    with SessionLocal.begin() as session:
+        profile, match = create_match(session)
+        profile_id, match_id, job_id = profile.id, match.id, match.job_id
+    barrier = threading.Barrier(2)
+
+    def plan() -> int:
+        with SessionLocal.begin() as session:
+            profile = session.get_one(Profile, profile_id)
+            match = session.get_one(JobMatch, match_id)
+            barrier.wait(timeout=5)
+            return NotificationPlanner().plan_match(session, match, profile)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            created = list(executor.map(lambda _: plan(), range(2)))
+        with SessionLocal() as session:
+            deliveries = list(
+                session.scalars(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.match_id == match_id,
+                        NotificationDelivery.channel == NotificationChannel.EMAIL,
+                    )
+                )
+            )
+        assert sum(created) == 1
+        assert len(deliveries) == 1
+    finally:
+        with SessionLocal.begin() as session:
+            profile = session.get(Profile, profile_id)
+            if profile is not None:
+                session.delete(profile)
+            job = session.get(Job, job_id)
+            if job is not None:
+                session.delete(job)
+
+
 async def test_telegram_provider_handles_success_and_rate_limit() -> None:
     responses = [
         httpx.Response(200, json={"ok": True, "result": {"message_id": 42}}),
@@ -159,9 +199,7 @@ async def test_user_can_send_labelled_test_digest_without_delivery_rows(
     db_session.commit()
     messages: list[NotificationMessage] = []
 
-    async def record(
-        _provider: ResendProvider, message: NotificationMessage
-    ) -> ProviderResult:
+    async def record(_provider: ResendProvider, message: NotificationMessage) -> ProviderResult:
         messages.append(message)
         return ProviderResult(DeliveryOutcome.SENT, provider_message_id="test-email")
 
@@ -413,12 +451,7 @@ async def test_dispatcher_curates_digest_to_user_limit(db_session: Session) -> N
             profile=profile,
             job=job,
             reasons=[
-                {
-                    "dimensions": {
-                        key: key
-                        for key in ["role", "location", "term"][: index + 1]
-                    }
-                }
+                {"dimensions": {key: key for key in ["role", "location", "term"][: index + 1]}}
             ],
         )
         db_session.add(match)

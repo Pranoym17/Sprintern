@@ -1,4 +1,7 @@
 import asyncio
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -9,12 +12,18 @@ from pydantic import AnyHttpUrl
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from api.database import SessionLocal
 from api.ingestion import PollBatch, RawSourceJob
 from api.ingestion.adapters import GreenhouseAdapter, LeverAdapter
 from api.ingestion.adapters.utils import parse_datetime
 from api.ingestion.factory import build_adapter
 from api.ingestion.http import RetryingHTTPClient, SourceHTTPError
-from api.ingestion.normalization import canonicalize_url, normalize_job, normalize_text
+from api.ingestion.normalization import (
+    NormalizedJob,
+    canonicalize_url,
+    normalize_job,
+    normalize_text,
+)
 from api.ingestion.persistence import JobPersister, PersistenceOutcome
 from api.ingestion.service import IngestionService
 from api.models import (
@@ -184,6 +193,48 @@ def test_different_locations_remain_distinct_jobs(db_session: Session) -> None:
         db_session.scalars(select(Job).where(Job.normalized_company == toronto.normalized_company))
     )
     assert {job.location for job in jobs} == {"Toronto, ON", "Vancouver, BC"}
+
+
+def test_concurrent_sources_share_one_canonical_job() -> None:
+    company = f"Concurrency {uuid.uuid4().hex}"
+    first = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/first:README.md",
+        raw_job("first-row", company).model_copy(update={"term": "Summer 2027"}),
+    )
+    second = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/second:README.md",
+        raw_job("second-row", company).model_copy(update={"term": "Summer 2027"}),
+    )
+    barrier = threading.Barrier(2)
+
+    def persist(candidate: NormalizedJob) -> PersistenceOutcome:
+        with SessionLocal.begin() as session:
+            barrier.wait(timeout=5)
+            return JobPersister().persist(session, candidate, datetime.now(UTC))
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = list(executor.map(persist, [first, second]))
+        with SessionLocal() as session:
+            jobs = list(
+                session.scalars(
+                    select(Job).where(Job.normalized_company == first.normalized_company)
+                )
+            )
+            assert len(jobs) == 1
+            assert len(jobs[0].sources) == 2
+        assert sorted(outcomes) == [
+            PersistenceOutcome.CREATED,
+            PersistenceOutcome.DUPLICATE,
+        ]
+    finally:
+        with SessionLocal.begin() as session:
+            for job in session.scalars(
+                select(Job).where(Job.normalized_company == first.normalized_company)
+            ):
+                session.delete(job)
 
 
 def test_parses_full_human_readable_source_date() -> None:
