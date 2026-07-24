@@ -1666,15 +1666,6 @@
         "title": "CSVImportRow",
         "type": "object"
       },
-      "DeadlineSource": {
-        "enum": [
-          "source",
-          "inferred",
-          "user"
-        ],
-        "title": "DeadlineSource",
-        "type": "string"
-      },
       "DeliveryQueueSummary": {
         "additionalProperties": false,
         "properties": {
@@ -2975,6 +2966,10 @@
       "JobResponse": {
         "additionalProperties": false,
         "properties": {
+          "application_url": {
+            "title": "Application Url",
+            "type": "string"
+          },
           "company": {
             "title": "Company",
             "type": "string"
@@ -2991,15 +2986,9 @@
             ],
             "title": "Deadline At"
           },
-          "deadline_source": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DeadlineSource"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "deadline_is_estimated": {
+            "title": "Deadline Is Estimated",
+            "type": "boolean"
           },
           "description": {
             "anyOf": [
@@ -3084,13 +3073,6 @@
             ],
             "title": "Reopened At"
           },
-          "sources": {
-            "items": {
-              "$ref": "#/components/schemas/JobSourceResponse"
-            },
-            "title": "Sources",
-            "type": "array"
-          },
           "status": {
             "$ref": "#/components/schemas/JobStatus"
           },
@@ -3131,11 +3113,11 @@
           "last_seen_at",
           "reopened_at",
           "deadline_at",
-          "deadline_source",
+          "deadline_is_estimated",
           "title_incomplete",
           "latitude",
           "longitude",
-          "sources"
+          "application_url"
         ],
         "title": "JobResponse",
         "type": "object"
@@ -3151,41 +3133,6 @@
         ],
         "title": "JobSourceName",
         "type": "string"
-      },
-      "JobSourceResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "apply_url": {
-            "title": "Apply Url",
-            "type": "string"
-          },
-          "external_id": {
-            "title": "External Id",
-            "type": "string"
-          },
-          "source": {
-            "$ref": "#/components/schemas/JobSourceName"
-          },
-          "source_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Url"
-          }
-        },
-        "required": [
-          "source",
-          "external_id",
-          "source_url",
-          "apply_url"
-        ],
-        "title": "JobSourceResponse",
-        "type": "object"
       },
       "JobStatus": {
         "enum": [

@@ -4,7 +4,6 @@ from api.ingestion.adapters import (
     GitHubRepositoryAdapter,
     GreenhouseAdapter,
     LeverAdapter,
-    RemoteOKAdapter,
     SourceAdapter,
 )
 from api.ingestion.http import RetryingHTTPClient
@@ -25,7 +24,10 @@ def build_adapter(request: IngestionRunRequest, client: httpx.AsyncClient) -> So
             region=request.region,
         )
     if request.source == JobSourceName.REMOTEOK:
-        return RemoteOKAdapter(http, settings.source_user_agent)
+        raise ValueError(
+            "RemoteOK ingestion is disabled because its required attribution "
+            "conflicts with Sprintern's origin-neutral user experience"
+        )
     if request.source == JobSourceName.GITHUB_REPO:
         return GitHubRepositoryAdapter(
             request.owner or "",

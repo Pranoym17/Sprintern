@@ -5,7 +5,7 @@ import {
   Check,
   ExternalLink,
   Filter,
-  GitBranch,
+  Layers3,
   MapPin,
   Radio,
   Sparkles,
@@ -15,7 +15,7 @@ import { Brand } from "@/components/brand";
 import { SiteFooter } from "@/components/site-footer";
 
 const steps = [
-  { number: "01", title: "We watch the sources", copy: "Sprintern checks community-maintained GitHub repositories throughout the day." },
+  { number: "01", title: "We watch for openings", copy: "Sprintern checks for new internships throughout the day." },
   { number: "02", title: "Your rules cut the noise", copy: "Role, location, term, and work-mode filters create a short list you can actually act on." },
   { number: "03", title: "You hear about matches", copy: "Get an email or Telegram alert with the original application link." },
 ];
@@ -30,7 +30,7 @@ export default function Home() {
           <nav className="site-nav" aria-label="Primary navigation">
             <a href="#how-it-works">How it works</a>
             <a href="#features">Features</a>
-            <a href="#source">Data sources</a>
+            <a href="#coverage">Job coverage</a>
           </nav>
           <div className="header-actions">
             <Link className="text-link" href="/sign-in">Sign in</Link>
@@ -55,7 +55,7 @@ export default function Home() {
           <div className="orbit orbit--outer" />
           <div className="orbit orbit--middle" />
           <div className="orbit orbit--inner" />
-          <div className="source-node source-node--github"><GitBranch size={18} /><span>GitHub repositories</span></div>
+          <div className="source-node source-node--github"><Layers3 size={18} /><span>New internships</span></div>
           <div className="source-node source-node--role"><Sparkles size={18} /><span>Software</span></div>
           <div className="source-node source-node--place"><MapPin size={18} /><span>Toronto</span></div>
           <div className="signal-core">
@@ -72,7 +72,7 @@ export default function Home() {
       </section>
 
       <section className="proof-strip" aria-label="Current capabilities">
-        <span><GitBranch size={18} /> GitHub repositories</span>
+        <span><Layers3 size={18} /> Continuously updated jobs</span>
         <span><Radio size={18} /> Scheduled monitoring</span>
         <span><BellRing size={18} /> Email and Telegram alerts</span>
         <span><ExternalLink size={18} /> Direct apply links</span>
@@ -90,13 +90,13 @@ export default function Home() {
         <div className="bento-grid">
           <article className="bento bento--wide"><span className="feature-icon"><Filter /></span><div><h3>Filters that read like your search</h3><p>Combine role, location, term, and work mode. Multiple choices within a field broaden your search; populated fields work together.</p></div><div className="filter-preview"><span>software</span><span>backend</span><span>Toronto</span><span>Summer 2027</span></div></article>
           <article className="bento"><span className="feature-icon feature-icon--teal"><BellRing /></span><h3>Alerts with the next action</h3><p>Telegram messages include the original application link, so the alert is useful the moment it arrives.</p></article>
-          <article className="bento bento--ink"><span className="feature-icon"><GitBranch /></span><h3>One posting, not five copies</h3><p>Source-aware normalization and deduplication keep repeated imports from rebuilding your job list.</p></article>
+          <article className="bento bento--ink"><span className="feature-icon"><Layers3 /></span><h3>One posting, not five copies</h3><p>Normalization and deduplication keep repeated listings from rebuilding your job list.</p></article>
         </div>
       </section>
 
-      <section className="section source-section" id="source">
-        <div><span className="section-kicker">Honest by design</span><h2>Community data, clearly sourced.</h2></div>
-        <div><p>Sprintern monitors curated, community-maintained GitHub repositories and keeps the original source and employer application links attached.</p><p className="source-footnote">Community tables can change format or become stale. Sprintern monitors source health and fails visibly instead of silently dropping jobs.</p><Link className="inline-link" href="/data-sources">How sources and attribution work</Link></div>
+      <section className="section source-section" id="coverage">
+        <div><span className="section-kicker">One useful feed</span><h2>Consistent listings, direct applications.</h2></div>
+        <div><p>Sprintern normalizes public job information into one clean feed and preserves the employer application link whenever it is available.</p><p className="source-footnote">Postings can change or expire. Sprintern monitors freshness and makes uncertainty visible instead of silently dropping jobs.</p><Link className="inline-link" href="/data-sources">How job data and accuracy work</Link></div>
       </section>
 
       <section className="final-cta"><span className="section-kicker">Your next application could arrive first</span><h2>Set the signal once.<br />Let Sprintern keep watch.</h2><Link className="button button--paper" href="/sign-up">Create a free alert <ArrowRight size={18} /></Link></section>

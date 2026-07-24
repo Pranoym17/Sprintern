@@ -1,15 +1,8 @@
 import uuid
 from datetime import datetime
 
-from api.models.enums import DeadlineSource, JobSourceName, JobStatus, WorkMode
+from api.models.enums import JobStatus, WorkMode
 from api.schemas.common import APIModel
-
-
-class JobSourceResponse(APIModel):
-    source: JobSourceName
-    external_id: str
-    source_url: str | None
-    apply_url: str
 
 
 class JobResponse(APIModel):
@@ -26,11 +19,11 @@ class JobResponse(APIModel):
     last_seen_at: datetime
     reopened_at: datetime | None
     deadline_at: datetime | None
-    deadline_source: DeadlineSource | None
+    deadline_is_estimated: bool
     title_incomplete: bool
     latitude: float | None
     longitude: float | None
-    sources: list[JobSourceResponse]
+    application_url: str
 
 
 class JobPage(APIModel):

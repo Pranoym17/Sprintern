@@ -4,7 +4,7 @@ import { Brand } from "@/components/brand";
 const links = [
   { href: "/privacy", label: "Privacy" },
   { href: "/terms", label: "Terms" },
-  { href: "/data-sources", label: "Data sources" },
+  { href: "/data-sources", label: "Job data & accuracy" },
   { href: "/contact", label: "Contact" },
 ];
 

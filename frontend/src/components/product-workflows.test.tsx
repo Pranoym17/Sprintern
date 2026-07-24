@@ -11,7 +11,7 @@ let api: Record<string, ReturnType<typeof vi.fn>>;
 vi.mock("./app-provider", () => ({ useApp: () => ({ api, notify, signOut }) }));
 
 const profile = { id:"profile",email:"student@example.com",timezone:"America/Toronto",notification_cadence:"instant",telegram_chat_id:"123",email_notifications_enabled:false,email_notifications_consent_at:null,email_suppressed_at:null,email_suppression_reason:null,telegram_notifications_enabled:true,quiet_hours_start:null,quiet_hours_end:null,weekend_pause:false,max_alerts_per_day:25,priority_only_instant:false,notification_consents:{},created_at:"2026-01-01",updated_at:"2026-01-01" };
-const match = { id:"match-1",profile_id:"profile",reasons:[{dimensions:{role:"software"}}],status:"matched",applied_at:null,created_at:"2026-07-01",updated_at:"2026-07-01",job:{id:"job-1",company:"Acme",title:"Software Intern",location:"Toronto",term:"Summer 2027",description:null,work_mode:"hybrid",status:"active",posted_at:"2026-07-01",first_seen_at:"2026-07-01",last_seen_at:"2026-07-01",sources:[{source:"github_repo",external_id:"1",source_url:null,apply_url:"https://example.com/apply"}]}};
+const match = { id:"match-1",profile_id:"profile",reasons:[{dimensions:{role:"software"}}],status:"matched",applied_at:null,created_at:"2026-07-01",updated_at:"2026-07-01",job:{id:"job-1",company:"Acme",title:"Software Intern",location:"Toronto",term:"Summer 2027",description:null,work_mode:"hybrid",status:"active",posted_at:"2026-07-01",first_seen_at:"2026-07-01",last_seen_at:"2026-07-01",reopened_at:null,deadline_at:null,deadline_is_estimated:false,title_incomplete:false,latitude:null,longitude:null,application_url:"https://example.com/apply"}};
 
 beforeEach(() => {
   notify.mockReset();

@@ -1,8 +1,7 @@
 import { TrustPage, TrustSection } from "@/components/trust-page";
-export const metadata = { title: "Data sources" };
-export default function DataSourcesPage() { return <TrustPage eyebrow="Transparent sourcing" title="Where postings come from" intro="Sprintern monitors community-maintained GitHub repositories and preserves the original application destination for each posting.">
-  <TrustSection title="Community repositories"><p>Repository maintainers collect and update public internship listings. Sprintern is not affiliated with those maintainers and does not claim ownership of their work. Source links remain attached for traceability and attribution.</p></TrustSection>
-  <TrustSection title="Normalization"><p>Sprintern normalizes company, title, location, term, and work mode, then merges overlapping listings while retaining each source record.</p></TrustSection>
+export const metadata = { title: "Job data and accuracy" };
+export default function DataSourcesPage() { return <TrustPage eyebrow="Job data & accuracy" title="How Sprintern handles postings" intro="Sprintern turns public internship information into one consistent feed and preserves the original employer application destination.">
+  <TrustSection title="Normalization"><p>Sprintern normalizes company, title, location, term, and work mode, then merges overlapping listings before they reach your feed.</p></TrustSection>
   <TrustSection title="Direct applications"><p>Sprintern prefers the original employer or applicant-tracking-system link. Always inspect the destination before providing personal information.</p></TrustSection>
-  <TrustSection title="Limitations"><p>Public tables can change format or become stale. Postings may close before a source is updated, and inferred terms may be unknown. Sprintern surfaces freshness and fails visibly when a source cannot be processed.</p></TrustSection>
+  <TrustSection title="Limitations"><p>Public job information can change or become stale. Postings may close before Sprintern detects the change, and inferred terms may be unknown. Freshness checks fail visibly instead of silently dropping updates.</p></TrustSection>
 </TrustPage>; }

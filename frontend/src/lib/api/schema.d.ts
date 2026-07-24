@@ -1468,11 +1468,6 @@ export interface components {
             /** Status */
             status: string;
         };
-        /**
-         * DeadlineSource
-         * @enum {string}
-         */
-        DeadlineSource: "source" | "inferred" | "user";
         /** DeliveryQueueSummary */
         DeliveryQueueSummary: {
             /** Delayed By Daily Cap */
@@ -1850,11 +1845,14 @@ export interface components {
         };
         /** JobResponse */
         JobResponse: {
+            /** Application Url */
+            application_url: string;
             /** Company */
             company: string;
             /** Deadline At */
             deadline_at: string | null;
-            deadline_source: components["schemas"]["DeadlineSource"] | null;
+            /** Deadline Is Estimated */
+            deadline_is_estimated: boolean;
             /** Description */
             description: string | null;
             /**
@@ -1882,8 +1880,6 @@ export interface components {
             posted_at: string | null;
             /** Reopened At */
             reopened_at: string | null;
-            /** Sources */
-            sources: components["schemas"]["JobSourceResponse"][];
             status: components["schemas"]["JobStatus"];
             /** Term */
             term: string | null;
@@ -1898,16 +1894,6 @@ export interface components {
          * @enum {string}
          */
         JobSourceName: "greenhouse" | "lever" | "remoteok" | "github_repo" | "ashby" | "wwr";
-        /** JobSourceResponse */
-        JobSourceResponse: {
-            /** Apply Url */
-            apply_url: string;
-            /** External Id */
-            external_id: string;
-            source: components["schemas"]["JobSourceName"];
-            /** Source Url */
-            source_url: string | null;
-        };
         /**
          * JobStatus
          * @enum {string}

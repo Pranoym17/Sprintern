@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 from sqlalchemy import (
     Boolean,
@@ -99,6 +100,25 @@ class Job(TimestampMixin, Base):
     sources = relationship("JobSource", back_populates="job", cascade="all, delete-orphan")
     matches = relationship("JobMatch", back_populates="job")
     changes = relationship("JobChangeEvent", back_populates="job", cascade="all, delete-orphan")
+
+    @property
+    def application_url(self) -> str:
+        """Expose one destination without leaking the internal ingestion origin."""
+        if not self.sources:
+            return ""
+        preferred = min(
+            self.sources,
+            key=lambda item: (
+                not item.active,
+                urlparse(item.apply_url).hostname in {"github.com", "www.github.com"},
+                item.source == JobSourceName.GITHUB_REPO,
+            ),
+        )
+        return preferred.apply_url
+
+    @property
+    def deadline_is_estimated(self) -> bool:
+        return self.deadline_source == DeadlineSource.INFERRED
 
 
 class JobSource(TimestampMixin, Base):

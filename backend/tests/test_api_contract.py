@@ -29,6 +29,15 @@ def test_every_json_operation_documents_a_response_contract() -> None:
             ), f"{method.upper()} {path} has no success response"
 
 
+def test_public_job_contract_does_not_expose_ingestion_origin() -> None:
+    properties = app.openapi()["components"]["schemas"]["JobResponse"]["properties"]
+
+    assert "source" not in properties
+    assert "sources" not in properties
+    assert "deadline_source" not in properties
+    assert "application_url" in properties
+
+
 async def test_unversioned_product_route_is_not_available() -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"

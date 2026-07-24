@@ -115,12 +115,11 @@ async def test_authenticated_mvp_workflow_is_idempotent(
 
     matches_response = await api_client.get("/matches")
     matches = matches_response.json()["items"]
-    assert len(matches) == 1
-    match = matches[0]
+    match = next(item for item in matches if item["job"]["company"] == "Example Robotics")
     assert match["job"]["company"] == "Example Robotics"
-    assert match["job"]["sources"][0]["apply_url"] == (
-        "https://careers.example.com/jobs/phase10-job-1"
-    )
+    assert match["job"]["application_url"] == "https://careers.example.com/jobs/phase10-job-1"
+    assert "sources" not in match["job"]
+    assert "source" not in match["job"]
 
     email = RecordingProvider("email-provider-id")
     telegram = RecordingProvider("telegram-provider-id")

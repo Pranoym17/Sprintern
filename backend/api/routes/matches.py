@@ -120,7 +120,7 @@ def update_match(
                     application_id=application.id,
                     profile_id=user.id,
                     event_type="application_submitted",
-                    data={"source": "match_action"},
+                    data={"trigger": "match_action"},
                 )
             )
         elif application.stage in {ApplicationStage.SAVED, ApplicationStage.PREPARING}:

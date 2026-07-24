@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.ingestion import PollBatch, RawSourceJob
-from api.ingestion.adapters import GreenhouseAdapter, LeverAdapter, RemoteOKAdapter
+from api.ingestion.adapters import GreenhouseAdapter, LeverAdapter
 from api.ingestion.adapters.utils import parse_datetime
 from api.ingestion.factory import build_adapter
 from api.ingestion.http import RetryingHTTPClient, SourceHTTPError
@@ -428,9 +428,9 @@ async def test_manual_ingestion_factory_builds_configured_adapters() -> None:
             ),
             client,
         )
-        remoteok = build_adapter(IngestionRunRequest(source=JobSourceName.REMOTEOK), client)
+        with pytest.raises(ValueError, match="required attribution"):
+            build_adapter(IngestionRunRequest(source=JobSourceName.REMOTEOK), client)
 
     assert isinstance(greenhouse, GreenhouseAdapter)
     assert isinstance(lever, LeverAdapter)
     assert lever.base_url == "https://api.eu.lever.co"
-    assert isinstance(remoteok, RemoteOKAdapter)

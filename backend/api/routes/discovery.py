@@ -106,7 +106,7 @@ def update_interaction(
                         application_id=application.id,
                         profile_id=user.id,
                         event_type="saved",
-                        data={"source": "bookmark"},
+                        data={"trigger": "bookmark"},
                     )
                 )
     if payload.hidden is not None:

@@ -122,7 +122,7 @@ export function MatchesView() {
   }
 
   async function copyApplication(item: JobMatch) {
-    const url = item.job.sources.find((source) => source.apply_url)?.apply_url;
+    const url = item.job.application_url;
     if (!url) return;
     await navigator.clipboard.writeText(url); notify("Application link copied.");
   }
@@ -178,14 +178,14 @@ type CardProps = {
 };
 
 function JobCard({ item, isNew, interaction, pending, compared, compareFull, onChange, onInteract, onCopy, onShare, onSimilar, onCompare, onView, onFlag }: CardProps) {
-  const applyUrl = item.job.sources.find((source) => source.apply_url)?.apply_url;
+  const applyUrl = item.job.application_url;
   const deadline = interaction?.deadline_override_at ?? item.job.deadline_at;
   const rawDimensions = item.reasons[0]?.dimensions;
   const dimensions = rawDimensions && typeof rawDimensions === "object" && !Array.isArray(rawDimensions)
     ? Object.values(rawDimensions as Record<string, unknown>).map(String)
     : [];
   return <article className={`job-card ${isNew ? "job-card--new" : ""} ${item.status === "applied" ? "job-card--applied" : ""}`} id={item.id}>
-    <div className="job-card__top"><span className="company-avatar company-avatar--large">{item.job.company.slice(0, 2).toUpperCase()}</span><div className="job-card__identity"><div className="company-line"><p>{item.job.company}</p>{isNew && <span className="new-badge"><i />New</span>}</div><h2>{item.job.title}</h2>{item.job.title_incomplete && <small className="quality-warning">Title incomplete at source</small>}<div className="job-meta"><span><MapPin size={15} />{item.job.location ?? "Location not listed"}</span><span><BriefcaseBusiness size={15} />{item.job.term ?? "Term unknown"}</span><span><Clock3 size={15} />{relativeTime(item.job.posted_at ?? item.job.first_seen_at)}</span>{deadline && <span className={`deadline-badge ${deadlineUrgency(deadline)}`}><Clock3 size={15} />{deadlineLabel(deadline)}{interaction?.deadline_override_at ? " · your date" : item.job.deadline_source ? ` · ${item.job.deadline_source}` : ""}</span>}</div></div><span className={`status-pill status-pill--${item.status}`}>{item.status}</span></div>
+    <div className="job-card__top"><span className="company-avatar company-avatar--large">{item.job.company.slice(0, 2).toUpperCase()}</span><div className="job-card__identity"><div className="company-line"><p>{item.job.company}</p>{isNew && <span className="new-badge"><i />New</span>}</div><h2>{item.job.title}</h2>{item.job.title_incomplete && <small className="quality-warning">Title information may be incomplete</small>}<div className="job-meta"><span><MapPin size={15} />{item.job.location ?? "Location not listed"}</span><span><BriefcaseBusiness size={15} />{item.job.term ?? "Term unknown"}</span><span><Clock3 size={15} />{relativeTime(item.job.posted_at ?? item.job.first_seen_at)}</span>{deadline && <span className={`deadline-badge ${deadlineUrgency(deadline)}`}><Clock3 size={15} />{deadlineLabel(deadline)}{interaction?.deadline_override_at ? " · your date" : item.job.deadline_is_estimated ? " · estimated" : ""}</span>}</div></div><span className={`status-pill status-pill--${item.status}`}>{item.status}</span></div>
     {dimensions.length > 0 && <div className="reason-row"><span>Matched on</span>{dimensions.map((value) => <em key={value}>{value}</em>)}</div>}
     <div className="job-card__actions">{applyUrl ? <a className="button button--primary button--small" href={applyUrl} target="_blank" rel="noopener noreferrer" onClick={onView}>Apply now <ArrowUpRight size={16} /></a> : <span className="apply-unavailable">Application link unavailable</span>}{item.status !== "applied" && <button className="button apply-button button--small" disabled={pending} onClick={() => void onChange(item, "applied", true)}><Check size={16} />Mark applied</button>}{item.status === "matched" ? <button className="icon-text-button" disabled={pending} onClick={() => void onChange(item, "dismissed")}><X size={16} />Dismiss</button> : item.status === "dismissed" && <button className="icon-text-button" disabled={pending} onClick={() => void onChange(item, "matched")}><RotateCcw size={16} />Restore</button>}<button className={`icon-text-button ${interaction?.bookmarked_at ? "active" : ""}`} onClick={() => void onInteract(item, { bookmarked: !interaction?.bookmarked_at })}><Bookmark size={16} fill={interaction?.bookmarked_at ? "currentColor" : "none"} />Save</button><button className="icon-text-button" onClick={() => void onInteract(item, { hidden: true })}><EyeOff size={16} />Hide</button><button className="icon-text-button" onClick={() => void onCopy(item)}><Copy size={16} />Copy</button><button className="icon-text-button" onClick={() => void onShare(item)}><Share2 size={16} />Share</button><label className="compact-select"><select aria-label="Not interested reason" defaultValue="" onChange={(event) => { if (event.target.value) void onInteract(item, { not_interested_reason: event.target.value }); }}><option value="">Not interested…</option><option value="wrong_role">Wrong role</option><option value="wrong_location">Wrong location</option><option value="wrong_term">Wrong term</option><option value="authorization">Authorization</option><option value="unpaid">Unpaid</option><option value="not_internship">Not an internship</option><option value="company_preference">Company preference</option><option value="other">Other</option></select></label><label className="compact-select"><Flag size={15} /><select aria-label="Flag posting" defaultValue="" onChange={(event) => { if (event.target.value) onFlag(event.target.value); }}><option value="">Flag…</option><option value="closed">Closed</option><option value="duplicate">Duplicate</option><option value="suspicious">Suspicious</option><option value="inaccurate">Inaccurate data</option></select></label><label className="compare-check"><input type="checkbox" checked={compared} onChange={() => onCompare(item.id)} disabled={!compared && compareFull} />Compare</label></div>
     <div className="discovery-secondary"><label>Your deadline <input type="date" value={interaction?.deadline_override_at?.slice(0, 10) ?? ""} onChange={(event) => void onInteract(item, { deadline_override_at: event.target.value ? new Date(`${event.target.value}T23:59:59`).toISOString() : null })} /></label><button onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/jobs/${item.job.id}`); }}><Share2 size={15} />Copy public link</button><button onClick={() => void onSimilar(item)}>Show similar jobs</button></div>
@@ -197,13 +197,13 @@ function ComparePanel({ ids, items, clear }: { ids: string[]; items: JobMatch[];
     <div><strong>Compare {ids.length} jobs</strong><button onClick={clear}>Clear</button></div>
     <div className="compare-grid">{ids.map((id) => {
       const match = items.find((item) => item.id === id);
-      const applyUrl = match?.job.sources.find((source) => source.apply_url)?.apply_url;
+      const applyUrl = match?.job.application_url;
       return match ? <article key={id}>
         <p>{match.job.company}</p><h3>{match.job.title}</h3>
         <span>{match.job.location ?? "Unknown location"} · {match.job.work_mode}</span>
         <span>{match.job.term ?? "Unknown term"}</span>
         <span>Deadline: {match.job.deadline_at ? new Date(match.job.deadline_at).toLocaleDateString() : "Not listed"}</span>
-        <span>Source refreshed {relativeTime(match.job.last_seen_at)}</span>
+        <span>Posting checked {relativeTime(match.job.last_seen_at)}</span>
         <span>Match: {Object.values(match.reasons[0]?.dimensions ?? {}).join(", ") || "General fit"}</span>
         <span>Application: {match.status}</span>
         <span>Notes: none yet</span>
