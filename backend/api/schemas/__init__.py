@@ -1,6 +1,6 @@
 from api.schemas.filter import FilterCreate, FilterResponse, FilterUpdate
 from api.schemas.ingestion import IngestionRunRequest, IngestionRunResponse, SourceStatusResponse
-from api.schemas.job import JobPage, JobResponse
+from api.schemas.job import JobPage, PublicJobResponse
 from api.schemas.match import AnalyticsSummary, MatchPage, MatchResponse, MatchUpdate
 from api.schemas.profile import ProfileResponse, ProfileUpdate
 from api.schemas.scheduler import SchedulerJobStatus, SchedulerStatusResponse
@@ -12,7 +12,7 @@ __all__ = [
     "FilterResponse",
     "FilterUpdate",
     "JobPage",
-    "JobResponse",
+    "PublicJobResponse",
     "IngestionRunRequest",
     "IngestionRunResponse",
     "MatchPage",

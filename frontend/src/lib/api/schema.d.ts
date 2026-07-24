@@ -1393,7 +1393,7 @@ export interface components {
             id: string;
             /** Interview At */
             interview_at: string | null;
-            job: components["schemas"]["JobResponse"];
+            job: components["schemas"]["PublicJobResponse"];
             /** Notes */
             notes: string | null;
             /** Outcome */
@@ -1819,7 +1819,7 @@ export interface components {
         /** JobPage */
         JobPage: {
             /** Items */
-            items: components["schemas"]["JobResponse"][];
+            items: components["schemas"]["PublicJobResponse"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -1849,52 +1849,6 @@ export interface components {
              */
             job_id: string;
             reason: components["schemas"]["ReportReason"];
-        };
-        /** JobResponse */
-        JobResponse: {
-            /** Application Url */
-            application_url: string;
-            /** Company */
-            company: string;
-            /** Deadline At */
-            deadline_at: string | null;
-            /** Deadline Is Estimated */
-            deadline_is_estimated: boolean;
-            /** Description */
-            description: string | null;
-            /**
-             * First Seen At
-             * Format: date-time
-             */
-            first_seen_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Last Seen At
-             * Format: date-time
-             */
-            last_seen_at: string;
-            /** Latitude */
-            latitude: number | null;
-            /** Location */
-            location: string | null;
-            /** Longitude */
-            longitude: number | null;
-            /** Posted At */
-            posted_at: string | null;
-            /** Reopened At */
-            reopened_at: string | null;
-            status: components["schemas"]["JobStatus"];
-            /** Term */
-            term: string | null;
-            /** Title */
-            title: string;
-            /** Title Incomplete */
-            title_incomplete: boolean;
-            work_mode: components["schemas"]["WorkMode"];
         };
         /**
          * JobSourceName
@@ -1962,7 +1916,7 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            job: components["schemas"]["JobResponse"];
+            job: components["schemas"]["PublicJobResponse"];
             /**
              * Profile Id
              * Format: uuid
@@ -2140,9 +2094,49 @@ export interface components {
         };
         /** PublicJobResponse */
         PublicJobResponse: {
-            job: components["schemas"]["JobResponse"];
-            /** Shared Until */
-            shared_until?: string | null;
+            /** Application Url */
+            application_url: string;
+            /** Company */
+            company: string;
+            /** Deadline At */
+            deadline_at: string | null;
+            /** Deadline Is Estimated */
+            deadline_is_estimated: boolean;
+            /** Description */
+            description: string | null;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Latitude */
+            latitude: number | null;
+            /** Location */
+            location: string | null;
+            /** Longitude */
+            longitude: number | null;
+            /** Posted At */
+            posted_at: string | null;
+            /** Reopened At */
+            reopened_at: string | null;
+            status: components["schemas"]["JobStatus"];
+            /** Term */
+            term: string | null;
+            /** Title */
+            title: string;
+            /** Title Incomplete */
+            title_incomplete: boolean;
+            work_mode: components["schemas"]["WorkMode"];
         };
         /** PublicSourceStatus */
         PublicSourceStatus: {
@@ -2212,6 +2206,12 @@ export interface components {
             id: string;
             /** Url */
             url: string;
+        };
+        /** SharedJobResponse */
+        SharedJobResponse: {
+            job: components["schemas"]["PublicJobResponse"];
+            /** Shared Until */
+            shared_until?: string | null;
         };
         /** SourceAuditResponse */
         SourceAuditResponse: {
@@ -2355,7 +2355,7 @@ export interface components {
         /** WatchlistJobs */
         WatchlistJobs: {
             /** Items */
-            items: components["schemas"]["JobResponse"][];
+            items: components["schemas"]["PublicJobResponse"][];
         };
         /** WatchlistResponse */
         WatchlistResponse: {
@@ -5131,7 +5131,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobResponse"];
+                    "application/json": components["schemas"]["PublicJobResponse"];
                 };
             };
             /** @description Unauthorized */
@@ -5447,7 +5447,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobResponse"][];
+                    "application/json": components["schemas"]["PublicJobResponse"][];
                 };
             };
             /** @description Unauthorized */
@@ -5990,7 +5990,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PublicJobResponse"];
+                    "application/json": components["schemas"]["SharedJobResponse"];
                 };
             };
             /** @description Unauthorized */
@@ -6066,7 +6066,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PublicJobResponse"];
+                    "application/json": components["schemas"]["SharedJobResponse"];
                 };
             };
             /** @description Unauthorized */

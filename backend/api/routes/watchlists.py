@@ -13,7 +13,7 @@ from api.matching import matching_service
 from api.models import CompanyWatchlist, Job
 from api.rate_limiting import user_rate_limit
 from api.repositories.profiles import get_or_create_profile
-from api.schemas.job import JobResponse
+from api.schemas.job import PublicJobResponse
 from api.schemas.targeting import (
     WatchlistCreate,
     WatchlistJobs,
@@ -123,4 +123,4 @@ def watchlist_jobs(watchlist_id: uuid.UUID, user: CurrentUser, session: Database
         .limit(100)
     )
     jobs = list(session.scalars(statement))
-    return WatchlistJobs(items=[JobResponse.model_validate(job) for job in jobs])
+    return WatchlistJobs(items=[PublicJobResponse.model_validate(job) for job in jobs])

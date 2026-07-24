@@ -6,7 +6,7 @@ from pydantic import Field, model_validator
 
 from api.models.enums import ReportReason
 from api.schemas.common import APIModel
-from api.schemas.job import JobResponse
+from api.schemas.job import PublicJobResponse
 
 
 class InteractionUpdate(APIModel):
@@ -68,6 +68,6 @@ class ShareResponse(APIModel):
     expires_at: datetime
 
 
-class PublicJobResponse(APIModel):
-    job: JobResponse
+class SharedJobResponse(APIModel):
+    job: PublicJobResponse
     shared_until: datetime | None = None

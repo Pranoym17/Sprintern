@@ -9,7 +9,7 @@ from api.database import get_user_db
 from api.errors import AppError
 from api.repositories.jobs import get_job, list_jobs
 from api.repositories.pagination import decode_cursor, encode_cursor
-from api.schemas import JobPage, JobResponse
+from api.schemas import JobPage, PublicJobResponse
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 Database = Annotated[Session, Depends(get_user_db)]
@@ -27,11 +27,11 @@ def read_jobs(
     items = jobs[:limit]
     next_cursor = encode_cursor(items[-1].created_at, items[-1].id) if has_more else None
     return JobPage(
-        items=[JobResponse.model_validate(job) for job in items], next_cursor=next_cursor
+        items=[PublicJobResponse.model_validate(job) for job in items], next_cursor=next_cursor
     )
 
 
-@router.get("/{job_id}", response_model=JobResponse)
+@router.get("/{job_id}", response_model=PublicJobResponse)
 def read_job(job_id: uuid.UUID, _user: CurrentUser, session: Database) -> object:
     job = get_job(session, job_id)
     if job is None:

@@ -1375,7 +1375,7 @@
             "title": "Interview At"
           },
           "job": {
-            "$ref": "#/components/schemas/JobResponse"
+            "$ref": "#/components/schemas/PublicJobResponse"
           },
           "notes": {
             "anyOf": [
@@ -2867,7 +2867,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/JobResponse"
+              "$ref": "#/components/schemas/PublicJobResponse"
             },
             "title": "Items",
             "type": "array"
@@ -2957,165 +2957,6 @@
           "created_at"
         ],
         "title": "JobReportResponse",
-        "type": "object"
-      },
-      "JobResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "application_url": {
-            "title": "Application Url",
-            "type": "string"
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "deadline_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deadline At"
-          },
-          "deadline_is_estimated": {
-            "title": "Deadline Is Estimated",
-            "type": "boolean"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "first_seen_at": {
-            "format": "date-time",
-            "title": "First Seen At",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "last_seen_at": {
-            "format": "date-time",
-            "title": "Last Seen At",
-            "type": "string"
-          },
-          "latitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latitude"
-          },
-          "location": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location"
-          },
-          "longitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Longitude"
-          },
-          "posted_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Posted At"
-          },
-          "reopened_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reopened At"
-          },
-          "status": {
-            "$ref": "#/components/schemas/JobStatus"
-          },
-          "term": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Term"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          },
-          "title_incomplete": {
-            "title": "Title Incomplete",
-            "type": "boolean"
-          },
-          "work_mode": {
-            "$ref": "#/components/schemas/WorkMode"
-          }
-        },
-        "required": [
-          "id",
-          "company",
-          "title",
-          "location",
-          "term",
-          "description",
-          "work_mode",
-          "status",
-          "posted_at",
-          "first_seen_at",
-          "last_seen_at",
-          "reopened_at",
-          "deadline_at",
-          "deadline_is_estimated",
-          "title_incomplete",
-          "latitude",
-          "longitude",
-          "application_url"
-        ],
-        "title": "JobResponse",
         "type": "object"
       },
       "JobSourceName": {
@@ -3285,7 +3126,7 @@
             "type": "string"
           },
           "job": {
-            "$ref": "#/components/schemas/JobResponse"
+            "$ref": "#/components/schemas/PublicJobResponse"
           },
           "profile_id": {
             "format": "uuid",
@@ -3844,10 +3685,15 @@
       "PublicJobResponse": {
         "additionalProperties": false,
         "properties": {
-          "job": {
-            "$ref": "#/components/schemas/JobResponse"
+          "application_url": {
+            "title": "Application Url",
+            "type": "string"
           },
-          "shared_until": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "deadline_at": {
             "anyOf": [
               {
                 "format": "date-time",
@@ -3857,11 +3703,140 @@
                 "type": "null"
               }
             ],
-            "title": "Shared Until"
+            "title": "Deadline At"
+          },
+          "deadline_is_estimated": {
+            "title": "Deadline Is Estimated",
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "reopened_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reopened At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "term": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "title_incomplete": {
+            "title": "Title Incomplete",
+            "type": "boolean"
+          },
+          "work_mode": {
+            "$ref": "#/components/schemas/WorkMode"
           }
         },
         "required": [
-          "job"
+          "id",
+          "company",
+          "title",
+          "location",
+          "term",
+          "description",
+          "work_mode",
+          "status",
+          "posted_at",
+          "first_seen_at",
+          "last_seen_at",
+          "reopened_at",
+          "deadline_at",
+          "deadline_is_estimated",
+          "title_incomplete",
+          "latitude",
+          "longitude",
+          "application_url"
         ],
         "title": "PublicJobResponse",
         "type": "object"
@@ -4082,6 +4057,31 @@
           "expires_at"
         ],
         "title": "ShareResponse",
+        "type": "object"
+      },
+      "SharedJobResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/PublicJobResponse"
+          },
+          "shared_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared Until"
+          }
+        },
+        "required": [
+          "job"
+        ],
+        "title": "SharedJobResponse",
         "type": "object"
       },
       "SourceAuditResponse": {
@@ -4498,7 +4498,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/JobResponse"
+              "$ref": "#/components/schemas/PublicJobResponse"
             },
             "title": "Items",
             "type": "array"
@@ -8082,7 +8082,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JobResponse"
+                  "$ref": "#/components/schemas/PublicJobResponse"
                 }
               }
             },
@@ -8505,7 +8505,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/JobResponse"
+                    "$ref": "#/components/schemas/PublicJobResponse"
                   },
                   "title": "Response Similar Jobs Api V1 Jobs  Job Id  Similar Get",
                   "type": "array"
@@ -9298,7 +9298,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublicJobResponse"
+                  "$ref": "#/components/schemas/SharedJobResponse"
                 }
               }
             },
@@ -9390,7 +9390,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublicJobResponse"
+                  "$ref": "#/components/schemas/SharedJobResponse"
                 }
               }
             },

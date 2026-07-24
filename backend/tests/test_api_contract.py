@@ -31,7 +31,7 @@ def test_every_json_operation_documents_a_response_contract() -> None:
 
 
 def test_public_job_contract_does_not_expose_ingestion_origin() -> None:
-    properties = app.openapi()["components"]["schemas"]["JobResponse"]["properties"]
+    properties = app.openapi()["components"]["schemas"]["PublicJobResponse"]["properties"]
 
     assert "source" not in properties
     assert "sources" not in properties

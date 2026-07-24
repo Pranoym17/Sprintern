@@ -6,7 +6,7 @@ from pydantic import Field, field_validator
 
 from api.models.enums import ApplicationStage
 from api.schemas.common import APIModel, strip_internal_origin
-from api.schemas.job import JobResponse
+from api.schemas.job import PublicJobResponse
 
 
 class ApplicationCreate(APIModel):
@@ -65,7 +65,7 @@ class ApplicationResponse(APIModel):
     outcome: str | None
     created_at: datetime
     updated_at: datetime
-    job: JobResponse
+    job: PublicJobResponse
     events: list[ApplicationEventResponse]
 
 

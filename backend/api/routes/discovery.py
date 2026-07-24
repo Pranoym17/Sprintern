@@ -27,11 +27,11 @@ from api.schemas.discovery import (
     InteractionUpdate,
     JobReportCreate,
     JobReportResponse,
-    PublicJobResponse,
     ShareCreate,
+    SharedJobResponse,
     ShareResponse,
 )
-from api.schemas.job import JobResponse
+from api.schemas.job import PublicJobResponse
 from api.settings import settings
 
 router = APIRouter(tags=["discovery"])
@@ -215,16 +215,16 @@ def revoke_share(share_id: uuid.UUID, user: CurrentUser, session: UserDatabase) 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/public/jobs/{job_id}", response_model=PublicJobResponse)
-def public_job(job_id: uuid.UUID, session: SystemDatabase) -> PublicJobResponse:
+@router.get("/public/jobs/{job_id}", response_model=SharedJobResponse)
+def public_job(job_id: uuid.UUID, session: SystemDatabase) -> SharedJobResponse:
     job = session.scalar(select(Job).options(selectinload(Job.sources)).where(Job.id == job_id))
     if job is None:
         raise AppError(404, "not_found", "Job not found")
-    return PublicJobResponse(job=JobResponse.model_validate(job))
+    return SharedJobResponse(job=PublicJobResponse.model_validate(job))
 
 
-@router.get("/shared/jobs/{token}", response_model=PublicJobResponse)
-def private_shared_job(token: str, session: SystemDatabase) -> PublicJobResponse:
+@router.get("/shared/jobs/{token}", response_model=SharedJobResponse)
+def private_shared_job(token: str, session: SystemDatabase) -> SharedJobResponse:
     share = session.scalar(
         select(ShareLink).where(
             ShareLink.token_hash == hashlib.sha256(token.encode()).hexdigest(),
@@ -239,13 +239,15 @@ def private_shared_job(token: str, session: SystemDatabase) -> PublicJobResponse
     )
     if job is None:
         raise AppError(404, "not_found", "Job not found")
-    return PublicJobResponse(job=JobResponse.model_validate(job), shared_until=share.expires_at)
+    return SharedJobResponse(
+        job=PublicJobResponse.model_validate(job), shared_until=share.expires_at
+    )
 
 
-@router.get("/jobs/{job_id}/similar", response_model=list[JobResponse])
+@router.get("/jobs/{job_id}/similar", response_model=list[PublicJobResponse])
 def similar_jobs(
     job_id: uuid.UUID, user: CurrentUser, session: UserDatabase
-) -> list[JobResponse]:
+) -> list[PublicJobResponse]:
     job = _owned_job(session, user.id, job_id)
     similarity = (
         func.similarity(Job.normalized_title, job.normalized_title) * 3
@@ -269,4 +271,4 @@ def similar_jobs(
             .limit(6)
         )
     )
-    return [JobResponse.model_validate(item) for item in jobs]
+    return [PublicJobResponse.model_validate(item) for item in jobs]

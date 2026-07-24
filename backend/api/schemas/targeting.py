@@ -5,7 +5,7 @@ from pydantic import Field, field_validator
 
 from api.schemas.common import APIModel
 from api.schemas.filter import clean_terms, clean_values
-from api.schemas.job import JobResponse
+from api.schemas.job import PublicJobResponse
 
 
 class WatchlistCreate(APIModel):
@@ -40,4 +40,4 @@ class WatchlistResponse(APIModel):
 
 
 class WatchlistJobs(APIModel):
-    items: list[JobResponse]
+    items: list[PublicJobResponse]

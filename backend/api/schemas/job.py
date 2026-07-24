@@ -5,7 +5,7 @@ from api.models.enums import JobStatus, WorkMode
 from api.schemas.common import APIModel
 
 
-class JobResponse(APIModel):
+class PublicJobResponse(APIModel):
     id: uuid.UUID
     company: str
     title: str
@@ -27,5 +27,5 @@ class JobResponse(APIModel):
 
 
 class JobPage(APIModel):
-    items: list[JobResponse]
+    items: list[PublicJobResponse]
     next_cursor: str | None

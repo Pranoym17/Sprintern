@@ -12,7 +12,7 @@ from api.models.enums import (
     NotificationPriority,
 )
 from api.schemas.common import APIModel, strip_internal_origin
-from api.schemas.job import JobResponse
+from api.schemas.job import PublicJobResponse
 
 
 class MatchUpdate(APIModel):
@@ -36,7 +36,7 @@ class MatchResponse(APIModel):
     applied_at: datetime | None
     created_at: datetime
     updated_at: datetime
-    job: JobResponse
+    job: PublicJobResponse
     deliveries: list[DeliverySummary]
 
     _strip_origin = field_validator("reasons", mode="before")(strip_internal_origin)
