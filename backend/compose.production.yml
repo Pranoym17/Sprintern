@@ -1,0 +1,55 @@
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file: ${SPRINTERN_ENV_FILE:-.env.production}
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file: ${SPRINTERN_ENV_FILE:-.env.production}
+    command:
+      - python
+      - -m
+      - uvicorn
+      - api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8010"
+      - --workers
+      - "1"
+      - --no-proxy-headers
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports: ["8010:8010"]
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file: ${SPRINTERN_ENV_FILE:-.env.production}
+    command: ["python", "-m", "api.scheduler"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 1
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file: ${SPRINTERN_ENV_FILE:-.env.production}
+    command: ["python", "-m", "api.worker"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

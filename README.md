@@ -1,369 +1,281 @@
 # Sprintern
 
-Internship alert aggregator. The foundation uses Next.js for the web app, FastAPI for the API and background work, and PostgreSQL for application data. Docker PostgreSQL is used locally; Supabase PostgreSQL and Auth are intended for production.
-
-## Problem and MVP
-
-Internship listings can receive a large number of applications within hours. Sprintern polls structured job sources, normalizes and deduplicates listings, matches them to a student's saved preferences, and delivers Telegram or email alerts.
-
-The current product ingests GitHub-hosted internship repositories, performs deterministic matching,
-supports a full application tracker, and sends controllable Telegram and email alerts. AI
-classification, embeddings, SMS, and auto-apply remain deliberately deferred.
+Sprintern monitors internship listings, deduplicates them, matches them to student filters, and
+sends controllable Telegram and email alerts. The current product uses GitHub-hosted internship
+repositories, deterministic matching, an application tracker, source administration, and a
+responsive Next.js workspace.
 
 ## Architecture
 
+The frontend and backend are independent deployable projects:
+
 ```text
-Next.js ── bearer token ──> FastAPI ── SQLAlchemy ──> PostgreSQL
-   │                            │                       local: Docker
-   └── Supabase Auth            ├── ingestion          prod: Supabase
-                                ├── matching
-APScheduler ── workflows ───────└── notifications ──> Telegram / Resend
+frontend/ (Next.js on Vercel)
+    |
+    | HTTPS REST + Supabase bearer token
+    v
+backend/ (FastAPI on Render)
+    |
+    +--> Supabase PostgreSQL
+    +--> Resend / Telegram / GitHub
+
+singleton scheduler --> PostgreSQL background_jobs --> worker(s)
+                                               |
+                                               +--> ingestion --> matching --> notification outbox
 ```
 
-Backend responsibilities are intentionally separated:
+- `frontend/` has no database client and never imports backend code. Supabase is used only for
+  authentication; all product data crosses the versioned REST API.
+- `backend/api/routes` owns HTTP translation and typed Pydantic contracts.
+- `backend/api/ingestion` validates, normalizes, deduplicates, and records source data.
+- `backend/api/matching` creates explainable deterministic matches.
+- `backend/api/notifications` plans idempotent deliveries and sends the PostgreSQL outbox.
+- `backend/api/scheduler` only enqueues due work.
+- `backend/api/worker` claims leased jobs with `FOR UPDATE SKIP LOCKED`, retries failures with
+  exponential backoff, and dead-letters exhausted work.
 
-FastAPI and APScheduler run as separate processes. FastAPI serves HTTP and Telegram webhooks;
-the scheduler owns polling and due-delivery dispatch. Both reuse the same application services
-and PostgreSQL state.
+The public contract is `/api/v1/...`; internal operations use `/internal/v1/...` and an independent
+internal key. Health endpoints remain unversioned for hosting platforms.
 
-- `routes` translates HTTP requests and responses; it does not contain business logic.
-- `schemas` validates API and ingestion boundaries with Pydantic.
-- `repositories` owns database queries and user-ownership filtering.
-- `services` coordinates application workflows and transaction boundaries.
-- `ingestion/adapters` only fetches and maps one external source.
-- `ingestion/normalization` produces a shared source-neutral representation.
-- `ingestion/deduplication` resolves source records to canonical jobs.
-- `matching` explains why a job matches a filter.
-- `notifications` creates and delivers idempotent channel-specific messages.
-- `scheduler` triggers workflows without containing their implementation.
+### Important tradeoffs
 
-The ingestion path is `fetch → validate → normalize → deduplicate → persist → match → notify`. Adapters never write to the database or send notifications, which keeps source-specific changes isolated and independently testable.
+- SQLAlchemy/Alembic is the only application database layer; Prisma would duplicate models and
+  migrations.
+- Supabase owns identity while FastAPI validates every JWT and authorizes every request.
+- API requests use a restricted PostgreSQL login plus transaction-local user claims, so RLS
+  independently enforces ownership. Background processes use a separate worker login.
+- PostgreSQL is both the source of truth and durable job queue at this scale. Redis is used only for
+  distributed rate-limit state. Application/response caching is deliberately deferred.
+- Keyword matching ships before paid or nondeterministic AI classification.
+- Community Markdown sources can drift, so unsupported tables fail visibly and create parser alerts.
 
-### Architectural decisions and tradeoffs
+## Project layout
 
-- FastAPI and SQLAlchemy own application data. Using Prisma as a second database layer would create competing models and migrations.
-- Supabase owns identity and sessions; the application owns a linked profile. FastAPI validates tokens and remains the authorization boundary.
-- Canonical jobs and source occurrences are separate records. This preserves provenance while allowing cross-source deduplication.
-- PostgreSQL arrays and JSONB keep MVP preference and source metadata modeling compact. More normalized child tables may be justified if analytics become complex.
-- Notification deliveries are durable database records rather than a Boolean flag, enabling idempotency, retries, and provider diagnostics.
-- APScheduler is sufficient for one small worker. It is not a distributed queue and would be replaced by Celery/Redis if horizontal worker scaling becomes necessary.
-- PostgreSQL advisory locks permit exactly one scheduler process and prevent manual ingestion from
-  overlapping scheduled ingestion for the same source.
-- Keyword matching ships before AI so the end-to-end system is measurable before adding cost and nondeterminism.
-- pgvector will live in PostgreSQL rather than a separate vector database because expected data volume does not justify another service.
+```text
+frontend/                 Next.js app, tests, frontend Dockerfile and env example
+backend/                  FastAPI app, migrations, worker, scheduler and backend env example
+.github/workflows/        independent frontend and backend CI pipelines
+render.yaml               three independent backend services
+```
 
-### Frontend decisions
+## Local setup
 
-- Marketing content stays server-rendered while authentication and mutations use narrow client
-  component boundaries. This keeps the landing page fast without making the interactive workspace
-  harder to follow.
-- Supabase manages browser sessions and refresh cookies. Next.js performs optimistic route gating,
-  but FastAPI still validates every bearer token and remains the authorization boundary.
-- One typed API client owns bearer headers, cursor encoding, empty responses, and error
-  normalization. Pages do not duplicate raw fetch behavior.
-- The UI exposes only backend-supported match states: matched, applied, and dismissed. Saved and
-  unread states are intentionally not implied before their data model exists.
-- The interface uses a small custom component system instead of a large UI library. At this MVP
-  size, accessible native controls and shared CSS tokens are easier to audit and explain.
-
-## Development workflow
-
-Each major component starts with a short design explanation and tradeoff review, followed by implementation, edge-case tests, and a README update. MVP milestones are completed and reviewed before post-MVP AI work begins.
-
-## Requirements
-
-- Node.js 24+
-- Python 3.12+
-- Docker Desktop
-
-## First-time setup (Windows PowerShell)
+Requirements: Node.js 24+, Python 3.12+, Docker Desktop.
 
 ```powershell
-Copy-Item .env.example .env
-npm.cmd install
+git clone YOUR_REPOSITORY_URL
+cd Sprintern
+
+Copy-Item frontend\.env.example frontend\.env.local
+Copy-Item backend\.env.example backend\.env
+
 python -m venv .venv
 & .\.venv\Scripts\python.exe -m pip install --upgrade pip
-& .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-docker compose up -d
+& .\.venv\Scripts\python.exe -m pip install -e ".\backend[dev]"
+npm.cmd --prefix frontend ci
+
+docker compose -f backend\docker-compose.yml up -d postgres
+Set-Location backend
+& ..\.venv\Scripts\alembic.exe upgrade head
+Set-Location ..
 ```
 
-Keep the local `DATABASE_URL` from `.env.example`. Add real Supabase and integration credentials only when those services are enabled. Never commit `.env`.
+Configure real local credentials only in ignored env files. The browser may contain only
+`NEXT_PUBLIC_SUPABASE_URL` and the public anon/publishable key. Never put the service-role key,
+database URLs, provider keys, or internal key in `frontend/`.
 
-For Supabase Auth, create a project with asymmetric JWT signing keys, then set `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and the publishable/anon keys. FastAPI downloads the project's JWKS, caches it for at most ten minutes, and validates token signature, issuer, audience, expiry, and subject. Secret and service-role keys must never be exposed to the browser.
+Backend configuration precedence is:
 
-The browser also needs the public API address:
+1. process environment;
+2. `.env.<APP_ENV>.local`;
+3. `.env.<APP_ENV>`;
+4. `.env`.
 
-```dotenv
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8010
-```
+Env files are loaded only for local, development, and test. Staging and production accept process
+environment variables only. Production startup rejects debug/docs mode, wildcard or HTTP CORS,
+owner database credentials, missing Redis rate limiting, and weak operational secrets.
 
-For deployment, set `APP_ENV=production` and use an HTTPS `NEXT_PUBLIC_API_URL`. Production startup
-fails when the public API URL is missing, malformed, or insecure, preventing a successful build that
-would accidentally call each user's localhost. The Next.js layer also sends CSP, anti-framing,
-content-type, referrer, permissions, and HSTS headers.
-
-In Supabase Authentication URL Configuration, use `http://localhost:3000` as the local site URL
-and allow `http://localhost:3000/auth/callback` as a redirect URL. Only the anon/publishable key is
-safe in a `NEXT_PUBLIC_` variable; never use a service-role key in the frontend.
-
-The auth screen offers Google as the fastest path. To enable it, configure the Google provider in
-Supabase Authentication, add the Supabase callback URL shown there to the Google OAuth client, and
-keep `http://localhost:3000/auth/callback` in the Supabase redirect allowlist. Email/password remains
-available when Google is not configured. Password recovery uses the same callback allowlist and
-exchanges a short-lived Supabase recovery session before accepting a new password.
+Next.js follows its standard environment precedence. `NEXT_PUBLIC_*` values are embedded at build
+time, so Vercel must have the correct environment-specific API and Supabase public values before
+building.
 
 ## Run locally
 
-Use three terminals for the full application:
+Use four terminals:
 
 ```powershell
+Set-Location frontend
 npm.cmd run dev
 ```
 
 ```powershell
-npm.cmd run dev:api
+Set-Location backend
+& ..\.venv\Scripts\python.exe -m uvicorn api.main:app --reload --port 8010
 ```
 
 ```powershell
-& .\.venv\Scripts\python.exe -m api.scheduler
+Set-Location backend
+& ..\.venv\Scripts\python.exe -m api.scheduler
 ```
 
-- Web: http://localhost:3000
-- API: http://localhost:8010
-- API docs: http://localhost:8010/docs
-- Health: http://localhost:8010/health
+```powershell
+Set-Location backend
+& ..\.venv\Scripts\python.exe -m api.worker
+```
 
-The frontend includes:
+- Web: `http://localhost:3000`
+- API docs: `http://localhost:8010/docs`
+- Liveness: `http://localhost:8010/health/live`
+- Readiness: `http://localhost:8010/health/ready`
 
-- An accessible, responsive product landing page
-- Supabase sign-up, sign-in, confirmation callback, session refresh, and protected routes
-- Overview analytics and recent matches
-- Cursor-paginated match review with applied, dismissed, and restore actions
-- Filter creation, editing, activation, pausing, and deletion
-- Profile cadence, timezone, email preference, and Telegram link management
-- A warm-neutral and signal-coral visual system with Urbanist headings and Inter body text
-- Chip-based filter setup, browser-local new-match cues, relative posting times, skeleton feeds,
-  optimistic applied status, and one-click undo
-- Guided first-run filter/channel setup and password recovery
-- Desktop sidebar and mobile bottom navigation with reduced-motion support
+The scheduler does not perform provider work. It creates idempotent jobs; the worker must be running
+for ingestion, matching, and automatic dispatch.
+
+## Database roles and RLS
+
+Alembic creates the `sprintern_api` and `sprintern_worker` NOLOGIN roles and grants their minimum
+table privileges. Create independent login roles as the database owner, using passwords generated
+by your secret manager:
+
+```sql
+CREATE ROLE sprintern_api_login LOGIN PASSWORD 'GENERATE_A_UNIQUE_PASSWORD';
+CREATE ROLE sprintern_worker_login LOGIN PASSWORD 'GENERATE_A_DIFFERENT_PASSWORD';
+GRANT sprintern_api TO sprintern_api_login;
+GRANT sprintern_worker TO sprintern_worker_login;
+```
+
+Set:
+
+- `DATABASE_URL` to the migration-owner URL, used only by Alembic/pre-deploy migration.
+- `DATABASE_API_URL` to `sprintern_api_login`.
+- `DATABASE_WORKER_URL` to `sprintern_worker_login`.
+
+Do not grant `BYPASSRLS`, superuser, or table-owner privileges to either runtime login. User sessions
+set `request.jwt.claim.sub` transaction-locally on every transaction; RLS policies then restrict
+profiles, filters, matches, applications, and notification data to that UUID.
+
+## API behavior and reliability
+
+- Every JSON endpoint has typed request/response schemas.
+- Errors use `{"error":{"code","message","request_id","details"}}`.
+- All responses include `X-Request-ID`; valid incoming IDs are preserved.
+- CORS uses explicit origins and methods. Trusted proxy headers are honored only from configured
+  networks.
+- Public API traffic has an IP safety limit. Sensitive mutations also have per-user limits.
+- Production uses Redis for rate-limit coordination across API instances; it is not a product cache.
+- Provider calls have bounded timeouts. Source GETs retry transient failures and honor
+  `Retry-After`; notification retries are persisted in the outbox.
+- Source records are validated with strict Pydantic models, length-bounded, cleaned of control
+  characters, and URL-validated before persistence.
+- Stable job, source, match, delivery, and background-job keys prevent duplicate work.
 
 ## Quality checks
 
 ```powershell
-npm.cmd run lint
-npm.cmd run typecheck
-npm.cmd test
-npm.cmd run test:e2e
-npm.cmd run build
-npm.cmd run lint:api
-npm.cmd run typecheck:api
-npm.cmd run test:api
+Set-Location backend
+& ..\.venv\Scripts\ruff.exe check api tests migrations scripts
+& ..\.venv\Scripts\mypy.exe api scripts
+& ..\.venv\Scripts\pytest.exe -q
+Set-Location ..
+
+npm.cmd --prefix frontend run lint
+npm.cmd --prefix frontend run typecheck
+npm.cmd --prefix frontend test
+npm.cmd --prefix frontend run build
 ```
 
-Backend HTTP and scheduler logs are structured JSON. Every API response receives an
-`X-Request-ID`; a valid caller-provided ID is preserved for cross-service tracing. Logs intentionally
-exclude request bodies and query strings and redact configured credentials and common secret fields.
-Unexpected failures return a stable generic response while retaining only safe operational context.
-
-### Why Playwright installs Chromium separately
-
-`@playwright/test` provides the test runner and browser-control code, but it does not assume that a
-compatible browser binary already exists. Chrome installed on the computer may be a different
-version, have user extensions, or update independently and make tests inconsistent. On each new
-computer or fresh clone, install dependencies and then download Playwright's pinned Chromium build:
+Install Playwright's pinned browser once on each computer:
 
 ```powershell
-npm.cmd install
+Set-Location frontend
 $env:PLAYWRIGHT_BROWSERS_PATH="0"
 npx.cmd playwright install chromium
+npm.cmd run test:e2e
 ```
 
-`PLAYWRIGHT_BROWSERS_PATH=0` stores that browser under this project's `node_modules` tree instead of
-the user's shared Playwright cache. The committed `test:e2e` script uses the same location, making
-the selected browser deterministic. The binary is ignored by Git. Run the installation once per
-fresh dependency installation, and again only when a Playwright upgrade requests a newer browser.
-It is not required before every test run.
+CI runs frontend and backend workflows independently and builds each Docker image from only its own
+project directory.
 
-## Database migrations
+## Deployment
 
-After adding or changing SQLAlchemy models:
+### Frontend — Vercel
 
-```powershell
-& .\.venv\Scripts\alembic.exe revision --autogenerate -m "describe change"
-& .\.venv\Scripts\alembic.exe upgrade head
+1. Import the repository and set the Root Directory to `frontend`.
+2. Keep the detected Next.js build settings.
+3. Configure `NEXT_PUBLIC_API_URL=https://YOUR_API_HOST/api/v1`,
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `PUBLIC_API_URL`, and the public
+   support email.
+4. Add production and preview URLs to Supabase Auth redirect allowlists.
+5. Deploy only after the backend readiness endpoint is healthy.
+
+The frontend builds without a running backend. Unit tests mock HTTP at the client boundary.
+
+### Backend — Render
+
+`render.yaml` defines:
+
+- one API web service with `/health/ready`;
+- exactly one scheduler worker;
+- one or more durable background workers.
+
+Create the `sprintern-backend` environment group values marked `sync: false`. Use one migration-owner
+URL and separate restricted runtime URLs. Configure Redis for rate limiting, explicit production
+CORS/hosts/proxy CIDRs, Supabase, GitHub, Telegram, Resend, Sentry, admin IDs, and strong independent
+internal/unsubscribe/webhook secrets. The API pre-deploy command applies migrations.
+
+Register Telegram's webhook as:
+
+```text
+https://YOUR_API_HOST/api/v1/webhooks/telegram
 ```
 
-SQLAlchemy/Alembic is the only application database layer. Prisma is intentionally not used. Supabase Auth users will later be linked to application profile records by UUID.
+Register Resend's send-event webhook as:
 
-## Implemented API foundation
-
-- Supabase bearer-token verification through asymmetric JWKS
-- Idempotent application-profile bootstrap
-- Profile and filter resources with ownership enforcement
-- Active job feed and stable cursor pagination
-- Match status and basic analytics resources
-- Status-filtered match pagination with authoritative matched/applied/dismissed totals
-- Standard validation and application error bodies
-- Service-key-protected source status endpoint
-
-The shared ingestion framework defines typed adapter contracts, normalized job candidates, URL/text canonicalization, cross-source deduplication, 30-day repost handling, retry/backoff behavior, per-source non-overlap locks, durable run counters, and transactional cursor updates.
-
-## MVP ingestion, matching, and notifications
-
-Implemented source adapters:
-
-- Greenhouse complete board snapshots with HTML cleanup
-- Lever global and EU tenants with safe pagination
-- RemoteOK with required source attribution metadata
-- GitHub internship repositories with commit-SHA cursors and defensive Markdown-table parsing
-
-Complete snapshots drive job lifecycle conservatively. A source occurrence is stale after two successful snapshots omit it and expired after three. Partial, incremental, failed, and suspiciously empty snapshots never advance absence counters. A canonical job stays active while any attached source remains active. Reuse of an expired external ID after 30 days creates a new occurrence rather than silently reviving an old application cycle.
-
-Keyword matching first classifies whether a listing is clearly an internship. Confirmed jobs use AND semantics across role, location, term, and work mode, with OR semantics inside each keyword list and across a user's filters. Empty dimensions are unrestricted. Ambiguous listings remain in the general feed but do not create matches or notifications. Match reasons include the filter, matched dimensions, and matcher version.
-
-Notifications use a PostgreSQL outbox. Email and Telegram delivery rows are created transactionally with matches, claimed using `FOR UPDATE SKIP LOCKED`, and retried with bounded backoff. Hourly and daily deliveries are grouped into digests. Resend receives a stable idempotency key; Telegram uses plain text plus an apply button. Telegram accounts are linked through short-lived, single-use tokens stored only as hashes.
-
-Notification dispatch can also be exercised manually for operations and troubleshooting:
-
-```http
-POST /internal/notifications/dispatch
-X-Internal-API-Key: your-internal-key
+```text
+https://YOUR_API_HOST/api/v1/webhooks/resend
 ```
 
-## Source administration and scheduling
+Sprintern sends email only; it never receives mailbox messages. Resend webhook events are delivery,
+bounce, and complaint telemetry.
 
-The database is the runtime source registry. An allowlisted Supabase administrator can add, edit,
-preview, enable, disable, test, and ingest GitHub repositories at `/admin/sources`; every change is
-audited. Preview is read-only and must succeed before a source can be enabled. The scheduler
-reconciles database changes without a restart.
+## Observability and operations
 
-`config/sources.toml` remains a non-secret first-run seed and disaster-recovery fallback. It is
-loaded only when the source registry is empty or unavailable. Provider tokens remain in `.env`.
+API, scheduler, and worker logs are structured JSON with request/job/correlation IDs. Secret-like
+fields and configured credentials are redacted; request bodies are never logged. Sentry is optional
+through `ERROR_TRACKING_DSN`, with PII and request bodies disabled.
 
-```toml
-[[github]]
-enabled = true
-owner = "vanshb03"
-repository = "Summer2027-Internships"
-path = "README.md"
-branch = "dev"
-term = "Summer 2027"
-poll_minutes = 15
-jitter_seconds = 30
-```
+Monitor:
 
-Configuration is strict: unknown fields, duplicate source identities, missing required values, and
-invalid intervals are rejected. Source identity is owner, repository, and path; two branches for
-that same identity are rejected because their cursors would collide.
+- `/health/live` for process uptime and `/health/ready` for DB/migration readiness;
+- `/internal/v1/monitoring/status` for scheduler freshness, source/parser failures, database
+  capacity, Resend events, and GitHub limit warnings;
+- dead `background_jobs` and failed notification deliveries;
+- scheduler heartbeat age and source freshness;
+- Resend bounces/complaints and PostgreSQL capacity/backups.
 
-Scheduler environment settings have conservative defaults:
+Alert if readiness fails, the scheduler heartbeat is stale, dead jobs appear, a parser produces zero
+accepted rows, or a source becomes stale. A provider outage degrades that provider's job and retries;
+it does not stop other sources or the API.
 
-```dotenv
-SCHEDULER_SOURCE_CONFIG=config/sources.toml
-SCHEDULER_NOTIFICATION_INTERVAL_SECONDS=30
-SCHEDULER_HEARTBEAT_INTERVAL_SECONDS=30
-SCHEDULER_TIMEZONE=UTC
-SCHEDULER_MISFIRE_GRACE_SECONDS=60
-SCHEDULER_SHUTDOWN_TIMEOUT_SECONDS=30
-SCHEDULER_SOURCE_SYNC_SECONDS=60
-```
+## Security launch checklist
 
-Run the scheduler from the repository root so the relative configuration path resolves:
-
-```powershell
-& .\.venv\Scripts\python.exe -m api.scheduler
-```
-
-Each enabled GitHub repository receives one interval job with a stable ID, jitter, coalescing, and
-`max_instances=1`. Unchanged commit SHAs are no-ops. Failed sources receive persisted exponential
-backoff capped at one hour. Notification dispatch runs independently every 30 seconds, so a source
-failure does not prevent already-due alerts from being delivered.
-
-The process handles Ctrl+C and termination signals, pauses new jobs, gives active workflows a
-bounded time to finish, records a clean stop, and closes its HTTP client. Starting FastAPI never
-starts APScheduler as an import side effect.
-
-Scheduler health is protected by the internal service key:
-
-```http
-GET /internal/scheduler/status
-X-Internal-API-Key: your-internal-key
-```
-
-The response is `unknown` before the first run, `healthy` while heartbeats are recent, `stale`
-after heartbeats stop unexpectedly, and `stopped` after clean shutdown. It exposes only non-secret
-job IDs and next-run timestamps. Source results remain at `GET /internal/sources/status`.
-
-### Scheduler troubleshooting
-
-| Symptom | Check |
-| --- | --- |
-| Scheduler exits immediately | Validate `config/sources.toml`, database connectivity, and migrations. |
-| Another scheduler is running | Stop it; exactly one scheduler process is supported. |
-| Source is skipped | Inspect `backoff_until` and `last_error` in `/internal/sources/status`. |
-| Poll succeeds with zero jobs | An unchanged GitHub commit is an expected no-op. |
-| No Telegram alert | Confirm a match and pending delivery exist, the profile is linked/enabled, and the token is current. |
-| Status is stale | Restart the scheduler and inspect its logs; FastAPI remains independent. |
-
-## Notification controls
-
-Profile settings provide email, Telegram, cadence, timezone, quiet hours, weekend pause, daily
-caps, and consent defaults. Individual filters can override channel, cadence, and priority.
-Supported cadences are instant, hourly, daily, and weekly. When multiple filters match one job,
-Sprintern creates at most one delivery per channel, merges match reasons, selects the highest
-priority and earliest permitted cadence, and still applies quiet-time and cap rules.
-
-Test sends are rate-limited, clearly labelled, and do not require or modify a real match. Telegram
-supports `/pause`, `/resume`, `/status`, `/filters`, and `/help` only for linked chats. Resend is a
-send-only integration: `/webhooks/resend` accepts signed delivery, bounce, complaint, and
-suppression events; Sprintern does not receive mailbox email.
-
-## Launch hardening
-
-The production Compose topology defines one API process, exactly one scheduler, and one standalone
-Next.js frontend. PostgreSQL row-level security policies provide a second boundary for user-owned
-data; FastAPI ownership checks remain authoritative. Sentry can collect API and scheduler errors
-without request bodies or default PII.
-
-Protected operational endpoints:
-
-- `GET /internal/launch/readiness` lists incomplete external launch controls without exposing values.
-- `GET /internal/monitoring/status` reports scheduler, source, parser, Resend event, database
-  capacity, and GitHub API-limit signals.
-
-Build and inspect the production containers locally:
-
-```powershell
-docker compose --env-file .env.production -f compose.production.yml build
-docker compose --env-file .env.production -f compose.production.yml up -d
-```
-
-Run the reversible two-user staging smoke test after deployment:
-
-```powershell
-& .\.venv\Scripts\python.exe scripts/staging_acceptance.py
-```
-
-The script checks health, auth, filter creation, cross-user denial, matches, export, optional test
-notifications, monitoring, and cleanup. Receipt, application links, reminders, and destructive
-account deletion remain explicit manual acceptance steps.
+- Rotate all development credentials ever pasted into terminals, chat, screenshots, or logs.
+- Search the full Git history with GitHub secret scanning and a local scanner such as Gitleaks.
+- Keep all `.env*` files ignored except the two dummy `.env.example` files.
+- Enable GitHub secret scanning, push protection, and Dependabot.
+- Restrict GitHub tokens to read-only repository contents and Resend keys to the sending domain.
+- Keep Supabase service-role credentials backend-only; verify RLS with two real users.
+- Configure SPF, DKIM, DMARC, custom SMTP/OAuth redirects, backups, uptime alerts, and support email.
+- Run the staging acceptance script and manually verify signup, filter, match, email, Telegram,
+  application tracking, export, deletion, cross-user denial, and duplicate suppression.
 
 ## Known limitations
 
-- APScheduler must run as a single scheduler process and does not provide distributed work queues.
-- The scheduler is intentionally a singleton; PostgreSQL advisory locking rejects a second owner.
-- Synchronous SQLAlchemy work is acceptable at current polling volume but would move behind a
-  queue or async worker boundary at substantially higher concurrency.
-- GitHub ingestion depends on community-maintained Markdown table formats and must fail visibly when schemas change.
-- MVP keyword matching can miss nonstandard titles such as “Early Career Program”; ambiguous records remain visible rather than being silently discarded.
-- LinkedIn and Indeed are excluded because scraping them creates terms-of-service and reliability risk.
-- Source timestamps and completeness vary, so Sprintern records both source time and first-seen time.
-- Notification delivery is at-least-once. A provider may accept a message immediately before a database failure; Resend idempotency reduces this duplicate window, while Telegram offers no equivalent general key.
-
-## Current scope
-
-The codebase now includes the product data foundation, discovery and tracker workflows, advanced
-filters, per-filter notification controls, database-backed source administration, RLS, deployment
-containers, operational readiness and monitoring endpoints, and automated staging support.
-Production domains, DNS records, OAuth credentials, hosted monitors, backup configuration,
-credential rotation, and the actual deployment remain owner-operated external actions.
+- Community GitHub tables can change without notice; parser alerts require an operator response.
+- Matching is deterministic keyword-based and can miss unusual role titles.
+- Telegram cannot provide a general provider idempotency key, leaving a very small at-least-once
+  duplicate window if Telegram accepts a message immediately before a database failure.
+- PostgreSQL queue polling is appropriate for current scale; a dedicated broker can replace it when
+  throughput or scheduling complexity proves the need.
+- Application caching, AI semantic search, embeddings, and recommendations remain intentionally
+  deferred.

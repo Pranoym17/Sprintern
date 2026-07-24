@@ -1,0 +1,88 @@
+services:
+  - type: web
+    name: sprintern-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile.api
+    dockerContext: ./backend
+    preDeployCommand: alembic upgrade head
+    healthCheckPath: /health/ready
+    envVars:
+      - fromGroup: sprintern-backend
+
+  - type: worker
+    name: sprintern-scheduler
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile.api
+    dockerContext: ./backend
+    dockerCommand: python -m api.scheduler
+    envVars:
+      - fromGroup: sprintern-backend
+
+  - type: worker
+    name: sprintern-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile.api
+    dockerContext: ./backend
+    dockerCommand: python -m api.worker
+    envVars:
+      - fromGroup: sprintern-backend
+
+envVarGroups:
+  - name: sprintern-backend
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: API_DEBUG
+        value: "false"
+      - key: API_DOCS_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_API_URL
+        sync: false
+      - key: DATABASE_WORKER_URL
+        sync: false
+      - key: RATE_LIMIT_BACKEND
+        value: redis
+      - key: RATE_LIMIT_REDIS_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: TRUSTED_PROXY_CIDRS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: INTERNAL_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      - key: UNSUBSCRIBE_SIGNING_SECRET
+        sync: false
+      - key: SUPPORT_EMAIL
+        sync: false
+      - key: ADMIN_USER_IDS
+        sync: false
+      - key: ERROR_TRACKING_DSN
+        sync: false
