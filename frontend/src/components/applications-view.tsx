@@ -41,7 +41,7 @@ export function ApplicationsView() {
     <PageHeader eyebrow="Application tracker" title="Turn searching into progress" copy="Keep the current stage simple while preserving every change in the timeline." action={<button className="button button--ghost" onClick={() => setShowImport((value) => !value)}><FileUp size={17} />Import CSV</button>} />
     {goal && <GoalCard value={goal} save={async (value) => { const updated = await api.updateWeeklyGoal(value); setGoal(updated); notify("Weekly goal updated."); }} />}
     {showImport && <ImportPanel close={() => setShowImport(false)} complete={() => { setShowImport(false); void load(); }} />}
-    <div className="tracker-toolbar"><strong>{items.length} tracked application{items.length === 1 ? "" : "s"}</strong><div><button onClick={() => void api.download("/exports/applications.csv", "sprintern-applications.csv")}><Download size={15} />Applications</button><button onClick={() => void api.download("/exports/timeline.csv", "sprintern-timeline.csv")}><Download size={15} />Timeline</button></div></div>
+    <div className="tracker-toolbar"><strong>{items.length} tracked application{items.length === 1 ? "" : "s"}</strong><div><button onClick={() => void api.download("/exports/applications.csv", "sprintern-applications.csv")}><Download size={15} />Applications CSV</button><button onClick={() => void api.download("/exports/timeline.csv", "sprintern-timeline.csv")}><Download size={15} />Timeline CSV</button><button onClick={() => downloadApplicationsJson(items)}><Download size={15} />Tracker JSON</button></div></div>
     {items.length ? <div className="application-list">{items.map((item) => <article key={item.id} className={`application-card stage-${item.stage}`}><div className="application-summary"><span className="company-avatar">{item.job.company.slice(0, 2).toUpperCase()}</span><div><small>{item.job.company}</small><h2>{item.job.title}</h2><span>{item.job.location ?? "Location not listed"}</span></div><select aria-label={`Stage for ${item.job.title}`} value={item.stage} onChange={(event) => void update(item, { stage: event.target.value })}>{stages.map((stage) => <option key={stage} value={stage}>{stageLabel(stage)}</option>)}</select><button aria-label={`Details for ${item.job.title}`} onClick={() => setExpanded(expanded === item.id ? null : item.id)}><ChevronDown className={expanded === item.id ? "open" : ""} /></button></div>{expanded === item.id && <ApplicationDetails item={item} update={(values) => update(item, values)} remove={async () => { if (!window.confirm("Remove this application and its timeline?")) return; await api.deleteApplication(item.id); setItems((current) => current.filter((value) => value.id !== item.id)); }} />}</article>)}</div> : <EmptyState icon={<CalendarClock />} title="Your tracker is ready" copy="Save a match or mark it applied and it will appear here automatically." action="/matches" actionLabel="Browse matches" />}
   </div>;
 }
@@ -69,3 +69,15 @@ function ImportPanel({ close, complete }: { close: () => void; complete: () => v
 }
 
 function stageLabel(stage: ApplicationStage) { return stage === "oa" ? "Online assessment" : stage[0].toUpperCase() + stage.slice(1); }
+
+export function downloadApplicationsJson(items: Application[]) {
+  const url = URL.createObjectURL(new Blob(
+    [JSON.stringify({ exported_at: new Date().toISOString(), applications: items }, null, 2)],
+    { type: "application/json" },
+  ));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `sprintern-tracker-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}

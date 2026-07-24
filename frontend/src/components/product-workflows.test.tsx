@@ -20,7 +20,7 @@ beforeEach(() => {
     matches: vi.fn(async (_cursor, status) => ({ items: status === "applied" ? [{...match,id:"applied-1",status:"applied"}] : [match], next_cursor:null, counts:{all:2,matched:1,applied:1,dismissed:0} })),
     updateMatch: vi.fn(async (_id, status) => ({...match,status})),
     interactions: vi.fn(async () => []),
-    updateInteraction: vi.fn(), recordView: vi.fn(), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
+    updateInteraction: vi.fn(), recordView: vi.fn(async () => undefined), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
     filters: vi.fn(async () => []), createFilter:vi.fn(async (value) => ({...value,id:"filter",profile_id:"profile",created_at:"",updated_at:""})), updateFilter:vi.fn(), deleteFilter:vi.fn(),
     previewFilter:vi.fn(async () => ({estimated_count:1,examples:[],warnings:[],aliases:{},exclusions:{}})), watchlists:vi.fn(async () => []), createWatchlist:vi.fn(), updateWatchlist:vi.fn(), deleteWatchlist:vi.fn(),
     profile:vi.fn(async () => profile), updateProfile:vi.fn(async (value) => ({...profile,...value})), notificationQueue:vi.fn(async () => ({pending:0,delayed_by_quiet_hours:0,delayed_by_weekend:0,delayed_by_daily_cap:0,failed:0,suppressed:0})), adminAccess:vi.fn(async () => { throw new Error("not admin"); }), testNotification:vi.fn(), createTelegramLink:vi.fn(), unlinkTelegram:vi.fn(), exportAccount:vi.fn(), deleteAccount:vi.fn(async () => undefined), sourceHealth:vi.fn(async () => ({state:"healthy",last_updated_at:"2026-07-01"})),
@@ -35,7 +35,29 @@ describe("authenticated product workflows", () => {
     await user.click(screen.getByRole("button", { name:/mark applied/i }));
     expect(api.updateMatch).toHaveBeenCalledWith("match-1", "applied");
     await user.click(screen.getByRole("button", { name:/applied/i }));
-    await waitFor(() => expect(api.matches).toHaveBeenCalledWith(undefined, "applied", "", "newest", undefined));
+    await waitFor(() => expect(api.matches).toHaveBeenCalledWith(undefined, "applied", "", "newest", undefined, false));
+  });
+
+  it("records deliberate job views and lets hidden jobs be recovered", async () => {
+    const user = userEvent.setup();
+    api.interactions = vi.fn(async () => [{
+      id:"interaction", profile_id:"profile", job_id:"job-1", bookmarked_at:null,
+      hidden_at:"2026-07-01", not_interested_reason:null, deadline_override_at:null,
+      last_viewed_at:null, view_count:0, created_at:"", updated_at:"",
+    }]);
+    api.updateInteraction = vi.fn(async () => ({
+      id:"interaction", profile_id:"profile", job_id:"job-1", bookmarked_at:null,
+      hidden_at:null, not_interested_reason:null, deadline_override_at:null,
+      last_viewed_at:null, view_count:0, created_at:"", updated_at:"",
+    }));
+    render(<MatchesView />);
+    await screen.findByText("Software Intern");
+    fireEvent.click(screen.getByRole("link", { name:"Software Intern" }));
+    expect(api.recordView).toHaveBeenCalledWith("job-1");
+    await user.click(screen.getByRole("button", { name:/hidden jobs/i }));
+    await waitFor(() => expect(api.matches).toHaveBeenCalledWith(undefined, undefined, "", "newest", undefined, true));
+    await user.click(await screen.findByRole("button", { name:/restore to feed/i }));
+    expect(api.updateInteraction).toHaveBeenCalledWith("job-1", { hidden:false });
   });
 
   it("creates a guided chip filter", async () => {
@@ -50,6 +72,7 @@ describe("authenticated product workflows", () => {
   it("persists channel and daily digest preferences", async () => {
     const user = userEvent.setup(); render(<SettingsView />);
     await screen.findByText("Choose your channels");
+    expect(screen.getByText(/enable email alerts to schedule a digest/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/top matches per email/i), { target: { value: "10" } });
     await user.click(screen.getByRole("button", { name:/save preferences/i }));
     await waitFor(() => expect(api.updateProfile).toHaveBeenCalledWith(expect.objectContaining({email_digest_job_limit:10,preferred_email_time:"08:00"})));

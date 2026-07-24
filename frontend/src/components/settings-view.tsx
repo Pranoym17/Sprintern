@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Check, Download, Link2, LoaderCircle, Mail, RefreshCw, Send, ShieldCheck, Trash2, Unlink,
+  CalendarClock, Check, Download, Link2, LoaderCircle, Mail, RefreshCw, Send, ShieldCheck, Trash2, Unlink,
 } from "lucide-react";
 
 import { useApp } from "./app-provider";
@@ -210,6 +210,7 @@ export function SettingsView() {
           <label>Daily delivery time<input name="email_time" type="time" required defaultValue={profile.preferred_email_time.slice(0, 5)} /></label>
           <label>Top matches per email<input name="digest_limit" type="number" min="1" max="10" required defaultValue={profile.email_digest_job_limit} /></label>
         </div>
+        <p className="next-digest" role="status"><CalendarClock size={17} /><span><strong>Next expected digest</strong><small>{nextDigestText(profile)}</small></span></p>
         <label className="switch-row"><input type="checkbox" name="empty_digest" defaultChecked={profile.email_empty_digest_enabled} /><span><strong>Email me when there are no matches</strong><small>Off by default. When off, Sprintern skips empty days.</small></span></label>
       </section>
 
@@ -244,4 +245,25 @@ export function SettingsView() {
 
 function PreferenceHeading({ number, title, copy }: { number: string; title: string; copy: string }) {
   return <div className="preference-heading"><span>{number}</span><div><h2>{title}</h2><p>{copy}</p></div></div>;
+}
+
+export function nextDigestText(profile: Pick<Profile, "email_notifications_enabled" | "preferred_email_time" | "timezone">, now = new Date()) {
+  if (!profile.email_notifications_enabled) return "Enable email alerts to schedule a digest.";
+  const [hour = 8, minute = 0] = profile.preferred_email_time.split(":").map(Number);
+  let localHour: number;
+  let localMinute: number;
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: profile.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(now);
+    localHour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+    localMinute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  } catch {
+    return `Daily at ${profile.preferred_email_time.slice(0, 5)} (${profile.timezone})`;
+  }
+  const day = localHour * 60 + localMinute < hour * 60 + minute ? "Today" : "Tomorrow";
+  const displayTime = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC",
+  }).format(new Date(Date.UTC(2000, 0, 1, hour, minute)));
+  return `${day} at ${displayTime} (${profile.timezone}). If there are no new matches, Sprintern skips it.`;
 }
