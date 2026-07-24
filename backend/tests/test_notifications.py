@@ -147,6 +147,7 @@ async def test_telegram_provider_handles_success_and_rate_limit() -> None:
 
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/sendMessage")
+        assert "parse_mode" not in json.loads(request.content)
         return responses.pop(0)
 
     message = NotificationMessage(
@@ -418,7 +419,7 @@ async def test_dispatcher_sends_one_telegram_message_per_match(
 
     assert sent == 2
     assert len(provider.messages) == 2
-    assert all(message.text.count("🎯 New match:") == 1 for message in provider.messages)
+    assert all(message.text.count("🎯 <b>New match:</b>") == 1 for message in provider.messages)
     assert all("source" not in message.text.casefold() for message in provider.messages)
 
 
@@ -521,6 +522,29 @@ def test_telegram_message_has_no_email_unsubscribe_link(db_session: Session) -> 
 
     assert message.unsubscribe_url is None
     assert "Unsubscribe" not in message.text
+
+
+def test_telegram_match_uses_escaped_html_and_apply_link(db_session: Session) -> None:
+    profile, match = create_match(db_session)
+    profile.email_notifications_enabled = False
+    profile.email_notifications_consent_at = None
+    profile.telegram_chat_id = "12345"
+    profile.telegram_notifications_enabled = True
+    NotificationPlanner().plan_match(db_session, match, profile)
+    db_session.flush()
+    delivery = db_session.scalar(
+        select(NotificationDelivery).where(
+            NotificationDelivery.channel == NotificationChannel.TELEGRAM
+        )
+    )
+    assert delivery is not None
+
+    message = build_message([delivery])
+
+    assert message.telegram_parse_mode == "HTML"
+    assert "🎯 <b>New match:</b> Software Intern &amp; Builder" in message.text
+    assert "🏢 <b>Example &lt;Corp&gt;</b>" in message.text
+    assert '<a href="https://example.com/apply?a=1&amp;b=2">Apply now</a>' in message.text
 
 
 def test_telegram_link_token_is_single_use_and_not_stored_raw(db_session: Session) -> None:

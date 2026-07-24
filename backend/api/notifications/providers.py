@@ -29,6 +29,11 @@ class TelegramProvider:
                 json={
                     "chat_id": message.recipient,
                     "text": message.text[:4096],
+                    **(
+                        {"parse_mode": message.telegram_parse_mode}
+                        if message.telegram_parse_mode
+                        else {}
+                    ),
                     "link_preview_options": {"is_disabled": True},
                     "reply_markup": {
                         "inline_keyboard": [[{"text": "Apply", "url": message.apply_url}]]

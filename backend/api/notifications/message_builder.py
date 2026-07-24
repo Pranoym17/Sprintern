@@ -1,5 +1,6 @@
 import hashlib
 import uuid
+from html import escape
 from typing import cast
 
 from api.models import JobMatch, NotificationChannel, NotificationDelivery
@@ -28,10 +29,10 @@ def _telegram_match_message(delivery: NotificationDelivery) -> NotificationMessa
     job = _public_job(match)
     term = job.term or "Term not specified"
     text = (
-        f"🎯 New match: {job.title}\n"
-        f"🏢 {job.company}\n"
-        f"📍 {job.location} · {term}\n\n"
-        f"{job.application_url}"
+        f"🎯 <b>New match:</b> {escape(job.title)}\n"
+        f"🏢 <b>{escape(job.company)}</b>\n"
+        f"📍 {escape(job.location)} · {escape(term)}\n\n"
+        f'<a href="{escape(job.application_url, quote=True)}">Apply now</a>'
     )
     return NotificationMessage(
         recipient=delivery.recipient,
@@ -40,6 +41,7 @@ def _telegram_match_message(delivery: NotificationDelivery) -> NotificationMessa
         html="",
         apply_url=job.application_url,
         idempotency_key=delivery.idempotency_key,
+        telegram_parse_mode="HTML",
     )
 
 
@@ -126,13 +128,14 @@ def build_test_message(
         recipient=recipient,
         subject="[Test] New match",
         text=(
-            f"🧪 Test notification\n\n"
-            f"🎯 New match: {job.title}\n"
-            f"🏢 {job.company}\n"
-            f"📍 {job.location} · {job.term}\n\n"
-            f"{job.application_url}"
+            "🧪 <b>Test notification</b>\n\n"
+            f"🎯 <b>New match:</b> {escape(job.title)}\n"
+            f"🏢 <b>{escape(job.company)}</b>\n"
+            f"📍 {escape(job.location)} · {escape(job.term or 'Term not specified')}\n\n"
+            f'<a href="{escape(job.application_url, quote=True)}">Apply now</a>'
         ),
         html="",
         apply_url=job.application_url,
         idempotency_key=f"test:{profile_id}:telegram:{nonce}",
+        telegram_parse_mode="HTML",
     )

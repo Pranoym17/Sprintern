@@ -18,6 +18,7 @@ class NotificationMessage:
     apply_url: str
     idempotency_key: str
     unsubscribe_url: str | None = None
+    telegram_parse_mode: str | None = None
 
 
 @dataclass(frozen=True)
