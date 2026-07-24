@@ -5,6 +5,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+import sentry_sdk
+
 request_id_context: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 _SENSITIVE_KEY = re.compile(r"(authorization|api.?key|secret|token|password|cookie)", re.I)
 _BEARER_VALUE = re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+")
@@ -62,3 +64,18 @@ def configure_logging(*, secrets: list[str] | None = None, level: int = logging.
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level)
+
+
+def configure_error_tracking(
+    dsn: str, *, environment: str, traces_sample_rate: float = 0.0
+) -> None:
+    """Enable server-side error tracking without sending request bodies or user data."""
+    if not dsn:
+        return
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=environment,
+        send_default_pii=False,
+        max_request_body_size="never",
+        traces_sample_rate=traces_sample_rate,
+    )

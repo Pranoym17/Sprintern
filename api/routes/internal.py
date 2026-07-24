@@ -11,6 +11,7 @@ from api.errors import AppError
 from api.ingestion.factory import build_adapter
 from api.ingestion.http import SourceHTTPError
 from api.ingestion.service import IngestionService
+from api.launch import launch_readiness, operational_status
 from api.models import SourceState
 from api.notifications.planning import notification_planner
 from api.notifications.runtime import build_dispatcher
@@ -21,6 +22,7 @@ from api.schemas import (
     SchedulerStatusResponse,
     SourceStatusResponse,
 )
+from api.schemas.monitoring import LaunchReadinessResponse, OperationalStatusResponse
 from api.settings import settings
 
 router = APIRouter(
@@ -41,6 +43,17 @@ def read_source_status(session: Database) -> object:
 @router.get("/scheduler/status", response_model=SchedulerStatusResponse)
 def read_scheduler_status(session: Database) -> SchedulerStatusResponse:
     return scheduler_status(session, settings.scheduler_heartbeat_interval_seconds)
+
+
+@router.get("/launch/readiness", response_model=LaunchReadinessResponse)
+def read_launch_readiness(session: Database) -> LaunchReadinessResponse:
+    return launch_readiness(session=session)
+
+
+@router.get("/monitoring/status", response_model=OperationalStatusResponse)
+async def read_operational_status(session: Database) -> OperationalStatusResponse:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        return await operational_status(session, client)
 
 
 @router.post("/ingestion-runs", response_model=IngestionRunResponse, status_code=201)

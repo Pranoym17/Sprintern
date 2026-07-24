@@ -1,6 +1,6 @@
 import asyncio
 
-from api.observability import configure_logging
+from api.observability import configure_error_tracking, configure_logging
 from api.scheduler.runtime import run_scheduler
 from api.settings import settings
 
@@ -14,6 +14,11 @@ def main() -> None:
             settings.telegram_webhook_secret,
             settings.resend_api_key,
         ]
+    )
+    configure_error_tracking(
+        settings.error_tracking_dsn,
+        environment=settings.app_env,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
     )
     asyncio.run(run_scheduler())
 

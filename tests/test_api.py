@@ -166,6 +166,8 @@ async def test_every_internal_route_requires_service_key(api_client: AsyncClient
     requests = [
         ("GET", "/internal/sources/status", None),
         ("GET", "/internal/scheduler/status", None),
+        ("GET", "/internal/launch/readiness", None),
+        ("GET", "/internal/monitoring/status", None),
         ("POST", "/internal/notifications/dispatch", None),
         ("POST", "/internal/ingestion-runs", {}),
     ]

@@ -6,7 +6,9 @@ Internship alert aggregator. The foundation uses Next.js for the web app, FastAP
 
 Internship listings can receive a large number of applications within hours. Sprintern polls structured job sources, normalizes and deduplicates listings, matches them to a student's saved preferences, and delivers Telegram or email alerts.
 
-The MVP includes Greenhouse, Lever, RemoteOK, and one GitHub-hosted internship repository; deterministic keyword matching; Supabase authentication; filters; a matched-job feed; applied status; and instant or batched notifications. AI classification, embeddings, recommendations, Ashby, We Work Remotely, Workable, SMS, and auto-apply are deliberately deferred.
+The current product ingests GitHub-hosted internship repositories, performs deterministic matching,
+supports a full application tracker, and sends controllable Telegram and email alerts. AI
+classification, embeddings, SMS, and auto-apply remain deliberately deferred.
 
 ## Architecture
 
@@ -228,10 +230,15 @@ POST /internal/notifications/dispatch
 X-Internal-API-Key: your-internal-key
 ```
 
-## Automatic scheduling
+## Source administration and scheduling
 
-Scheduled sources are declared in `config/sources.toml`. This file contains only non-secret
-operational data and is safe to commit. Provider tokens remain in `.env`.
+The database is the runtime source registry. An allowlisted Supabase administrator can add, edit,
+preview, enable, disable, test, and ingest GitHub repositories at `/admin/sources`; every change is
+audited. Preview is read-only and must succeed before a source can be enabled. The scheduler
+reconciles database changes without a restart.
+
+`config/sources.toml` remains a non-secret first-run seed and disaster-recovery fallback. It is
+loaded only when the source registry is empty or unavailable. Provider tokens remain in `.env`.
 
 ```toml
 [[github]]
@@ -245,10 +252,9 @@ poll_minutes = 15
 jitter_seconds = 30
 ```
 
-Configuration is strict: unknown fields, duplicate source identities, missing required values,
-invalid intervals, and a configuration with no enabled sources stop startup. Source identity is
-owner, repository, and path; two branches for that same identity are rejected because their
-cursors would collide.
+Configuration is strict: unknown fields, duplicate source identities, missing required values, and
+invalid intervals are rejected. Source identity is owner, repository, and path; two branches for
+that same identity are rejected because their cursors would collide.
 
 Scheduler environment settings have conservative defaults:
 
@@ -259,6 +265,7 @@ SCHEDULER_HEARTBEAT_INTERVAL_SECONDS=30
 SCHEDULER_TIMEZONE=UTC
 SCHEDULER_MISFIRE_GRACE_SECONDS=60
 SCHEDULER_SHUTDOWN_TIMEOUT_SECONDS=30
+SCHEDULER_SOURCE_SYNC_SECONDS=60
 ```
 
 Run the scheduler from the repository root so the relative configuration path resolves:
@@ -267,7 +274,7 @@ Run the scheduler from the repository root so the relative configuration path re
 & .\.venv\Scripts\python.exe -m api.scheduler
 ```
 
-Each GitHub source receives one interval job with a stable ID, jitter, coalescing, and
+Each enabled GitHub repository receives one interval job with a stable ID, jitter, coalescing, and
 `max_instances=1`. Unchanged commit SHAs are no-ops. Failed sources receive persisted exponential
 backoff capped at one hour. Notification dispatch runs independently every 30 seconds, so a source
 failure does not prevent already-due alerts from being delivered.
@@ -298,10 +305,53 @@ job IDs and next-run timestamps. Source results remain at `GET /internal/sources
 | No Telegram alert | Confirm a match and pending delivery exist, the profile is linked/enabled, and the token is current. |
 | Status is stale | Restart the scheduler and inspect its logs; FastAPI remains independent. |
 
+## Notification controls
+
+Profile settings provide email, Telegram, cadence, timezone, quiet hours, weekend pause, daily
+caps, and consent defaults. Individual filters can override channel, cadence, and priority.
+Supported cadences are instant, hourly, daily, and weekly. When multiple filters match one job,
+Sprintern creates at most one delivery per channel, merges match reasons, selects the highest
+priority and earliest permitted cadence, and still applies quiet-time and cap rules.
+
+Test sends are rate-limited, clearly labelled, and do not require or modify a real match. Telegram
+supports `/pause`, `/resume`, `/status`, `/filters`, and `/help` only for linked chats. Resend is a
+send-only integration: `/webhooks/resend` accepts signed delivery, bounce, complaint, and
+suppression events; Sprintern does not receive mailbox email.
+
+## Launch hardening
+
+The production Compose topology defines one API process, exactly one scheduler, and one standalone
+Next.js frontend. PostgreSQL row-level security policies provide a second boundary for user-owned
+data; FastAPI ownership checks remain authoritative. Sentry can collect API and scheduler errors
+without request bodies or default PII.
+
+Protected operational endpoints:
+
+- `GET /internal/launch/readiness` lists incomplete external launch controls without exposing values.
+- `GET /internal/monitoring/status` reports scheduler, source, parser, Resend event, database
+  capacity, and GitHub API-limit signals.
+
+Build and inspect the production containers locally:
+
+```powershell
+docker compose --env-file .env.production -f compose.production.yml build
+docker compose --env-file .env.production -f compose.production.yml up -d
+```
+
+Run the reversible two-user staging smoke test after deployment:
+
+```powershell
+& .\.venv\Scripts\python.exe scripts/staging_acceptance.py
+```
+
+The script checks health, auth, filter creation, cross-user denial, matches, export, optional test
+notifications, monitoring, and cleanup. Receipt, application links, reminders, and destructive
+account deletion remain explicit manual acceptance steps.
+
 ## Known limitations
 
 - APScheduler must run as a single scheduler process and does not provide distributed work queues.
-- Scheduler jobs are rebuilt from committed configuration at startup; changes require a restart.
+- The scheduler is intentionally a singleton; PostgreSQL advisory locking rejects a second owner.
 - Synchronous SQLAlchemy work is acceptable at current polling volume but would move behind a
   queue or async worker boundary at substantially higher concurrency.
 - GitHub ingestion depends on community-maintained Markdown table formats and must fail visibly when schemas change.
@@ -312,10 +362,8 @@ job IDs and next-run timestamps. Source results remain at `GET /internal/sources
 
 ## Current scope
 
-Phases 0-10 are complete: architecture boundaries, core schema, authenticated REST resources,
-ingestion framework and MVP adapters, source-aware lifecycle handling, deterministic matching,
-Telegram/Resend notification delivery, automatic GitHub polling and delivery dispatch, Supabase
-frontend authentication, the responsive product dashboard, full workflow integration evidence,
-request correlation, structured redacted logging, deploy-time security validation, and CI security
-automation. Production deployment, credential rotation, and the Resend account/domain configuration
-remain owner-operated follow-up work.
+The codebase now includes the product data foundation, discovery and tracker workflows, advanced
+filters, per-filter notification controls, database-backed source administration, RLS, deployment
+containers, operational readiness and monitoring endpoints, and automated staging support.
+Production domains, DNS records, OAuth credentials, hosted monitors, backup configuration,
+credential rotation, and the actual deployment remain owner-operated external actions.

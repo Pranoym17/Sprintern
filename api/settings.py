@@ -40,6 +40,17 @@ class Settings(BaseSettings):
     scheduler_shutdown_timeout_seconds: int = Field(30, ge=1)
     scheduler_source_sync_seconds: int = Field(60, ge=15, le=3600)
     source_stale_after_hours: int = Field(24, ge=1, le=168)
+    database_capacity_warning_bytes: int = Field(8_000_000_000, ge=1_000_000)
+    github_rate_limit_warning_remaining: int = Field(500, ge=0)
+    error_tracking_dsn: str = ""
+    sentry_traces_sample_rate: float = Field(0.0, ge=0.0, le=1.0)
+    dmarc_configured: bool = False
+    supabase_custom_smtp_configured: bool = False
+    google_oauth_configured: bool = False
+    database_backups_configured: bool = False
+    rls_verified: bool = False
+    uptime_monitor_configured: bool = False
+    scheduler_monitor_configured: bool = False
     rate_limit_enabled: bool = True
     rate_limit_max_identities: int = Field(10_000, ge=100, le=1_000_000)
     admin_user_ids_value: str = Field("", alias="ADMIN_USER_IDS")

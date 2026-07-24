@@ -52,3 +52,15 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  production-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: docker build -f Dockerfile.api -t sprintern-api:ci .
+      - run: >-
+          docker build -f Dockerfile.web
+          --build-arg NEXT_PUBLIC_API_URL=https://api.example.test
+          --build-arg NEXT_PUBLIC_SUPABASE_URL=https://project.supabase.co
+          --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=test-public-key
+          -t sprintern-web:ci .

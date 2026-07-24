@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from api.database import get_db
 from api.errors import register_exception_handlers
 from api.health import assert_ready
-from api.observability import configure_logging, request_id_context
+from api.observability import configure_error_tracking, configure_logging, request_id_context
 from api.rate_limiting import ip_rate_limit
 from api.routes import api_router
 from api.settings import settings
@@ -30,6 +30,11 @@ configure_logging(
         settings.unsubscribe_signing_secret,
         settings.resend_webhook_secret,
     ]
+)
+configure_error_tracking(
+    settings.error_tracking_dsn,
+    environment=settings.app_env,
+    traces_sample_rate=settings.sentry_traces_sample_rate,
 )
 logger = logging.getLogger(__name__)
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
