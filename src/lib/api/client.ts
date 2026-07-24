@@ -1,5 +1,5 @@
 import { apiUrl } from "@/lib/env";
-import type { AccountExport, Analytics, Application, ApplicationStage, Collection, CompanyWatchlist, CSVImportResult, DeliveryChannel, DeliveryQueue, FilterInput, FilterNotification, FilterPreview, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceHealth, TelegramLink, WeeklyProgress } from "./types";
+import type { AccountExport, AdminSource, AdminSourceInput, AdminSourceRun, Analytics, Application, ApplicationStage, Collection, CompanyWatchlist, CSVImportResult, DeliveryChannel, DeliveryQueue, FilterInput, FilterNotification, FilterPreview, Job, JobFilter, JobInteraction, JobMatch, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceAudit, SourceHealth, SourcePreview, TelegramLink, WeeklyProgress } from "./types";
 
 export class ApiError extends Error {
   constructor(public status:number, public code:string, message:string, public details?:unknown) { super(message); this.name = "ApiError"; }
@@ -82,4 +82,14 @@ export class ApiClient {
   weeklyGoal = () => this.request<WeeklyProgress>("/goals/weekly");
   updateWeeklyGoal = (value:{target:number;reminders_enabled:boolean;streaks_enabled:boolean}) => this.request<WeeklyProgress>("/goals/weekly", {method:"PUT", body:JSON.stringify(value)});
   analytics = () => this.request<Analytics>("/analytics/summary");
+  adminAccess = () => this.request<{administrator:true}>("/admin/me");
+  adminSources = () => this.request<AdminSource[]>("/admin/sources");
+  createAdminSource = (value:AdminSourceInput) => this.request<AdminSource>("/admin/sources", {method:"POST",body:JSON.stringify(value)});
+  updateAdminSource = (id:string,value:Partial<AdminSourceInput>) => this.request<AdminSource>(`/admin/sources/${id}`, {method:"PATCH",body:JSON.stringify(value)});
+  changeAdminSourceState = (id:string,enabled:boolean) => this.request<AdminSource>(`/admin/sources/${id}/state`, {method:"POST",body:JSON.stringify({enabled,confirmation:enabled?"ENABLE":"DISABLE"})});
+  deleteAdminSource = (id:string,confirmation:string) => this.request<void>(`/admin/sources/${id}`, {method:"DELETE",body:JSON.stringify({confirmation})});
+  previewAdminSource = (id:string) => this.request<SourcePreview>(`/admin/sources/${id}/preview`, {method:"POST"});
+  ingestAdminSource = (id:string) => this.request<Record<string,unknown>>(`/admin/sources/${id}/ingest`, {method:"POST"});
+  adminSourceRuns = (id:string) => this.request<AdminSourceRun[]>(`/admin/sources/${id}/runs`);
+  sourceAudit = () => this.request<SourceAudit[]>("/admin/source-audit");
 }

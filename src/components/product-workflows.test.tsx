@@ -23,7 +23,7 @@ beforeEach(() => {
     updateInteraction: vi.fn(), recordView: vi.fn(), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
     filters: vi.fn(async () => []), createFilter:vi.fn(async (value) => ({...value,id:"filter",profile_id:"profile",created_at:"",updated_at:""})), updateFilter:vi.fn(), deleteFilter:vi.fn(),
     previewFilter:vi.fn(async () => ({estimated_count:1,examples:[],warnings:[],aliases:{},exclusions:{}})), watchlists:vi.fn(async () => []), createWatchlist:vi.fn(), updateWatchlist:vi.fn(), deleteWatchlist:vi.fn(),
-    profile:vi.fn(async () => profile), updateProfile:vi.fn(async (value) => ({...profile,...value})), notificationQueue:vi.fn(async () => ({pending:0,delayed_by_quiet_hours:0,delayed_by_weekend:0,delayed_by_daily_cap:0,failed:0})), testNotification:vi.fn(), createTelegramLink:vi.fn(), unlinkTelegram:vi.fn(), exportAccount:vi.fn(), deleteAccount:vi.fn(async () => undefined), sourceHealth:vi.fn(async () => ({state:"healthy",last_updated_at:"2026-07-01"})),
+    profile:vi.fn(async () => profile), updateProfile:vi.fn(async (value) => ({...profile,...value})), notificationQueue:vi.fn(async () => ({pending:0,delayed_by_quiet_hours:0,delayed_by_weekend:0,delayed_by_daily_cap:0,failed:0,suppressed:0})), adminAccess:vi.fn(async () => { throw new Error("not admin"); }), testNotification:vi.fn(), createTelegramLink:vi.fn(), unlinkTelegram:vi.fn(), exportAccount:vi.fn(), deleteAccount:vi.fn(async () => undefined), sourceHealth:vi.fn(async () => ({state:"healthy",last_updated_at:"2026-07-01"})),
   };
 });
 afterEach(cleanup);

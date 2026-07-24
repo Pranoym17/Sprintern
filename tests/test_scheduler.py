@@ -51,6 +51,7 @@ def test_registers_stable_non_overlapping_jobs() -> None:
     assert set(jobs) == {
         "ingest:github:scheduler-test-owner/Scheduler-Test-Internships:README.md",
         "notifications:dispatch",
+        "sources:sync",
     }
     assert all(job.max_instances == 1 for job in jobs.values())
     assert all(job.coalesce is True for job in jobs.values())

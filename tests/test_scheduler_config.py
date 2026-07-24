@@ -58,7 +58,6 @@ def test_ignores_disabled_source_when_checking_uniqueness() -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        {"github": []},
         {"github": [{"owner": "", "repository": "repo"}]},
         {"github": [{"owner": "owner", "repository": "repo", "poll_minutes": 0}]},
         {"github": [{"owner": "owner", "repository": "repo", "unexpected": True}]},

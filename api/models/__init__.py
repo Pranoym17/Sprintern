@@ -32,6 +32,7 @@ from api.models.product import (
     ParserAlert,
     ReminderEvent,
     ShareLink,
+    SourceAuditLog,
     SourceConfiguration,
     WeeklyGoal,
 )
@@ -78,6 +79,7 @@ __all__ = [
     "SchedulerRuntime",
     "ShareLink",
     "SourceConfiguration",
+    "SourceAuditLog",
     "SourceState",
     "TelegramLinkToken",
     "WeeklyGoal",

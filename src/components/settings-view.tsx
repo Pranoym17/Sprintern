@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
-  Check, Download, Link2, LoaderCircle, Mail, RefreshCw, Send, Trash2, Unlink,
+  Check, Download, Link2, LoaderCircle, Mail, RefreshCw, Send, ShieldCheck, Trash2, Unlink,
 } from "lucide-react";
 
 import { useApp } from "./app-provider";
@@ -13,7 +14,7 @@ import type {
 } from "@/lib/api/types";
 
 const consentTypes = [
-  "deadline", "saved", "follow_up", "interview", "posting_updated", "posting_reopened",
+  "new_match", "weekly_digest", "deadline", "saved", "follow_up", "interview", "posting_updated", "posting_reopened",
   "weekly_progress", "source_stale", "parser_broken",
 ];
 
@@ -27,11 +28,14 @@ export function SettingsView() {
   const [link, setLink] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [accountPending, setAccountPending] = useState(false);
+  const [administrator, setAdministrator] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [next, deliveryQueue] = await Promise.all([api.profile(), api.notificationQueue()]);
-      setProfile(next); setQueue(deliveryQueue); setError(""); return next;
+      const [next, deliveryQueue, admin] = await Promise.all([
+        api.profile(), api.notificationQueue(), api.adminAccess().then(() => true).catch(() => false),
+      ]);
+      setProfile(next); setQueue(deliveryQueue); setAdministrator(admin); setError(""); return next;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not load settings.");
       return null;
@@ -209,10 +213,12 @@ export function SettingsView() {
       <section className="preference-section">
         <PreferenceHeading number="04" title="Notification types" copy="Control lifecycle reminders separately from new-match alerts." />
         <div className="consent-grid">{consentTypes.map((kind) => <label className="switch-row" key={kind}><input type="checkbox" name={`consent_${kind}`} defaultChecked={profile.notification_consents[kind] !== false} /><span><strong>{kind.replaceAll("_", " ")}</strong></span></label>)}</div>
-        {queue && <p className="delivery-queue-status">{queue.pending} queued · {queue.delayed_by_quiet_hours + queue.delayed_by_weekend + queue.delayed_by_daily_cap} delayed by guardrails · {queue.failed} retrying</p>}
+        {queue && <p className="delivery-queue-status">{queue.pending} queued · {queue.delayed_by_quiet_hours + queue.delayed_by_weekend + queue.delayed_by_daily_cap} delayed by guardrails · {queue.failed} retrying · {queue.suppressed} suppressed</p>}
       </section>
       <div className="settings-save"><p>Changes affect future delivery attempts.</p><button className="button button--primary" disabled={pending}>{pending && <LoaderCircle className="spin" size={18} />}Save preferences</button></div>
     </form>
+
+    {administrator && <section className="account-controls"><div><span className="page-eyebrow">Administrator</span><h2>Source control room</h2><p>Add, validate, schedule and monitor repository parsers without exposing the internal API key.</p></div><Link className="button button--dark button--small" href="/admin/sources"><ShieldCheck size={17} />Manage sources</Link></section>}
 
     <section className="account-controls" aria-labelledby="account-controls-title">
       <div><span className="page-eyebrow">Account controls</span><h2 id="account-controls-title">Your data, your choice</h2><p>Download your data or permanently remove your account.</p></div>

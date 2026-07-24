@@ -14,7 +14,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.database import SessionLocal
-from api.scheduler.config import SchedulerSourceConfig, load_source_config
+from api.scheduler.config import SchedulerSourceConfig
+from api.scheduler.source_registry import load_runtime_source_config
 from api.scheduler.status import SchedulerRuntimeStore
 from api.scheduler.workflows import SchedulerWorkflows
 from api.settings import Settings, settings
@@ -39,20 +40,22 @@ def build_scheduler(
 ) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=app_settings.scheduler_timezone)
     startup_time = datetime.now(UTC)
-    for source in source_config.enabled_github:
-        scheduler.add_job(
-            workflows.ingest_github,
-            "interval",
-            args=[source],
-            minutes=source.poll_minutes,
-            jitter=source.jitter_seconds or None,
-            id=source.job_id,
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-            misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
-            next_run_time=startup_time,
-        )
+    reconcile_source_jobs(scheduler, workflows, source_config, app_settings)
+    scheduler.add_job(
+        lambda: reconcile_source_jobs(
+            scheduler,
+            workflows,
+            load_runtime_source_config(SessionLocal, app_settings.scheduler_source_config),
+            app_settings,
+        ),
+        "interval",
+        seconds=app_settings.scheduler_source_sync_seconds,
+        id="sources:sync",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+    )
     scheduler.add_job(
         workflows.dispatch_notifications,
         "interval",
@@ -67,8 +70,37 @@ def build_scheduler(
     return scheduler
 
 
+def reconcile_source_jobs(
+    scheduler: AsyncIOScheduler,
+    workflows: SchedulerWorkflows,
+    source_config: SchedulerSourceConfig,
+    app_settings: Settings = settings,
+) -> None:
+    desired = {source.job_id: source for source in source_config.enabled_github}
+    existing_ids = {job.id for job in scheduler.get_jobs() if job.id.startswith("ingest:github:")}
+    for job_id in existing_ids - desired.keys():
+        scheduler.remove_job(job_id)
+    for job_id, source in desired.items():
+        existing = scheduler.get_job(job_id)
+        if existing is not None and existing.args and existing.args[0] == source:
+            continue
+        scheduler.add_job(
+            workflows.ingest_github,
+            "interval",
+            args=[source],
+            minutes=source.poll_minutes,
+            jitter=source.jitter_seconds or None,
+            id=job_id,
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+            next_run_time=datetime.now(UTC),
+        )
+
+
 async def run_scheduler(app_settings: Settings = settings) -> None:
-    source_config = load_source_config(app_settings.scheduler_source_config)
+    source_config = load_runtime_source_config(SessionLocal, app_settings.scheduler_source_config)
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 

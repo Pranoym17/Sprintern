@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from api.auth import CurrentUser
 from api.database import get_db
-from api.models import JobSourceName, SourceState
+from api.models import JobSourceName, SourceConfiguration, SourceState
 from api.scheduler.config import load_source_config
 from api.schemas.source import PublicSourceStatus
 from api.settings import settings
@@ -19,13 +19,19 @@ Database = Annotated[Session, Depends(get_db)]
 @router.get("/status", response_model=PublicSourceStatus)
 def read_public_source_status(_user: CurrentUser, session: Database) -> PublicSourceStatus:
     """Expose aggregate freshness without operational source details."""
-    try:
-        configured_keys = {
-            source.source_key
-            for source in load_source_config(settings.scheduler_source_config).enabled_github
-        }
-    except ValueError:
-        return PublicSourceStatus(state="unknown", last_updated_at=None)
+    configured_keys = set(
+        session.scalars(
+            select(SourceConfiguration.source_key).where(SourceConfiguration.enabled.is_(True))
+        )
+    )
+    if not configured_keys:
+        try:
+            configured_keys = {
+                source.source_key
+                for source in load_source_config(settings.scheduler_source_config).enabled_github
+            }
+        except ValueError:
+            return PublicSourceStatus(state="unknown", last_updated_at=None)
     rows = session.scalars(
         select(SourceState).where(
             SourceState.source == JobSourceName.GITHUB_REPO,

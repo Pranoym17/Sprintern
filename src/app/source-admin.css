@@ -1,0 +1,42 @@
+.admin-source-list { display: grid; gap: 16px; }
+.admin-source-card { padding: 22px; border: 1px solid var(--line); border-left: 4px solid #a8a096; border-radius: 18px; background: var(--surface); }
+.admin-source-card.active { border-left-color: var(--teal); }
+.admin-source-card > header { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 13px; }
+.admin-source-card > header > span { width: 48px; height: 48px; border-radius: 13px; display: grid; place-items: center; color: var(--violet-dark); background: var(--violet-soft); }
+.admin-source-card h2, .admin-source-card header small { margin: 0; }
+.admin-source-card header code { color: var(--muted); font-size: .72rem; }
+.admin-source-card header em { padding: 6px 9px; border-radius: 99px; color: var(--teal); background: var(--teal-soft); font-size: .68rem; font-style: normal; font-weight: 800; text-transform: uppercase; }
+.admin-source-card > dl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 18px 0; }
+.admin-source-card dl div { padding: 11px; border-radius: 10px; background: var(--paper); }
+.admin-source-card dt { color: var(--muted); font-size: .68rem; font-weight: 750; text-transform: uppercase; }
+.admin-source-card dd { margin: 3px 0 0; font-size: .82rem; font-weight: 700; }
+.source-error { padding: 10px; border-radius: 9px; color: var(--danger); background: #fff1ef; font-size: .78rem; }
+.admin-source-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-source-actions button { min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); background: var(--paper); cursor: pointer; }
+.admin-source-actions button.danger { color: var(--danger); }
+.source-editor { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.source-editor label { display: grid; gap: 5px; color: var(--muted); font-size: .72rem; font-weight: 750; }
+.source-editor input { min-height: 42px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.source-editor .close-button { position: absolute; top: 8px; right: 8px; }
+.source-editor > .button { align-self: end; }
+.source-preview { margin-top: 16px; padding: 18px; border-radius: 14px; color: #f7f2ea; background: var(--ink); }
+.source-preview > header { display: flex; justify-content: space-between; }
+.source-preview h3 { margin: 3px 0; }
+.source-preview header button { border: 0; color: white; background: transparent; cursor: pointer; }
+.preview-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
+.preview-metrics span { padding: 12px; border-radius: 9px; display: grid; background: #302d29; font-size: 1.25rem; font-weight: 800; }
+.preview-metrics small { color: #beb6aa; font-size: .65rem; text-transform: uppercase; }
+.preview-table { display: grid; gap: 6px; margin-top: 12px; }
+.preview-table p { margin: 0; padding: 10px; border-radius: 9px; display: grid; grid-template-columns: 160px 1fr 1fr 160px; gap: 8px; background: #302d29; font-size: .76rem; }
+.preview-table small { color: #beb6aa; }
+.preview-table a { color: #ff9d87; overflow: hidden; text-overflow: ellipsis; }
+.source-preview details code { display: block; padding: 6px; color: #ffc1b3; }
+.source-runs { margin-top: 15px; }
+.source-runs p { margin: 5px 0; padding: 9px; border-radius: 8px; display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; background: var(--paper); font-size: .75rem; }
+.admin-audit { margin-top: 24px; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.admin-audit > div { display: flex; align-items: center; gap: 10px; }
+.admin-audit h2 { margin: 0; }
+.admin-audit p { display: grid; grid-template-columns: 1fr 180px 240px; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: .75rem; }
+.admin-audit code { overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+@media (max-width: 800px) { .admin-source-card > dl, .source-editor { grid-template-columns: 1fr 1fr; } .preview-table p { grid-template-columns: 1fr; } .admin-audit p { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .admin-source-card > header { grid-template-columns: 42px 1fr; } .admin-source-card > header em { grid-column: 2; width: fit-content; } .admin-source-card > dl, .source-editor { grid-template-columns: 1fr; } }

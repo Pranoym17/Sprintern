@@ -36,8 +36,6 @@ class SchedulerSourceConfig(BaseModel):
     @model_validator(mode="after")
     def validate_enabled_sources(self) -> "SchedulerSourceConfig":
         enabled = [source for source in self.github if source.enabled]
-        if not enabled:
-            raise ValueError("at least one scheduled source must be enabled")
         source_keys = [source.source_key.casefold() for source in enabled]
         if len(source_keys) != len(set(source_keys)):
             raise ValueError("enabled scheduled sources must be unique")

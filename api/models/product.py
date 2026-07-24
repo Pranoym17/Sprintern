@@ -336,7 +336,37 @@ class SourceConfiguration(TimestampMixin, Base):
         JSONB, default=dict, server_default=text("'{}'::jsonb")
     )
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    owner: Mapped[str] = mapped_column(String(100))
+    repository: Mapped[str] = mapped_column(String(100))
+    branch: Mapped[str | None] = mapped_column(String(255))
+    path: Mapped[str] = mapped_column(String(500), default="README.md", server_default="README.md")
+    poll_minutes: Mapped[int] = mapped_column(Integer, default=15, server_default="15")
+    jitter_seconds: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
+    default_term: Mapped[str | None] = mapped_column(String(100))
+    parser_schema: Mapped[str] = mapped_column(
+        String(64), default="github_markdown_table", server_default="github_markdown_table"
+    )
+    parser_version: Mapped[str] = mapped_column(String(32), default="1", server_default="1")
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SourceAuditLog(Base):
+    __tablename__ = "source_audit_logs"
+    __table_args__ = (Index("ix_source_audit_created", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_configuration_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("source_configurations.id", ondelete="SET NULL")
+    )
+    administrator_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    action: Mapped[str] = mapped_column(String(40))
+    details: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
 
 
 class ParserAlert(TimestampMixin, Base):

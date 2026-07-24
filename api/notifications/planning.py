@@ -139,6 +139,13 @@ class NotificationPlanner:
         return cadence, priority
 
     @staticmethod
+    def _deterministic_priority(match: JobMatch) -> NotificationPriority:
+        dimensions = {
+            key for reason in match.reasons for key in (reason.get("dimensions") or {}).keys()
+        }
+        return NotificationPriority.HIGH if len(dimensions) >= 3 else NotificationPriority.NORMAL
+
+    @staticmethod
     def _daily_cap_time(
         session: Session, profile: Profile, now: datetime, scheduled: datetime
     ) -> tuple[datetime, str | None]:
@@ -195,6 +202,11 @@ class NotificationPlanner:
         now = now or datetime.now(UTC)
         overrides = self._filter_overrides(session, match)
         cadence, priority = self._delivery_policy(profile, overrides)
+        if priority == NotificationPriority.NORMAL:
+            priority = self._deterministic_priority(match)
+        notification_type = (
+            "weekly_digest" if cadence == NotificationCadence.WEEKLY else "new_match"
+        )
         existing = {
             item.channel: item
             for item in session.scalars(
@@ -203,7 +215,7 @@ class NotificationPlanner:
         }
         created = 0
         destinations = self._destinations(
-            session, profile, overrides, notification_type="new_match"
+            session, profile, overrides, notification_type=notification_type
         )
         destination_channels = {channel for channel, _ in destinations}
         for channel, delivery in existing.items():
@@ -237,6 +249,7 @@ class NotificationPlanner:
                     priority=priority,
                     recipient=recipient,
                     idempotency_key=f"{match.id}:{channel.value}",
+                    notification_type=notification_type,
                     next_attempt_at=scheduled,
                     queued_reason=queued_reason,
                 )
@@ -358,24 +371,25 @@ class NotificationPlanner:
         week_key = now.astimezone(UTC).strftime("%G-W%V")
         for profile in profiles:
             generic_events: list[tuple[str, str, str, str]] = []
-            generic_events.extend(
-                (
-                    "source_stale",
-                    f"source-stale:{source.id}:{source.last_succeeded_at or source.updated_at}",
-                    "A job source needs attention",
-                    f"{source.source_key} has not updated recently.",
+            if str(profile.id).casefold() in settings.admin_user_ids:
+                generic_events.extend(
+                    (
+                        "source_stale",
+                        f"source-stale:{source.id}:{source.last_succeeded_at or source.updated_at}",
+                        "A job source needs attention",
+                        f"{source.source_key} has not updated recently.",
+                    )
+                    for source in stale_sources
                 )
-                for source in stale_sources
-            )
-            generic_events.extend(
-                (
-                    "parser_broken",
-                    f"parser-broken:{alert.id}:{alert.occurrences}",
-                    "A source parser needs attention",
-                    f"Sprintern could not read {alert.source_key} reliably.",
+                generic_events.extend(
+                    (
+                        "parser_broken",
+                        f"parser-broken:{alert.id}:{alert.occurrences}",
+                        "A source parser needs attention",
+                        f"Sprintern could not read {alert.source_key} reliably.",
+                    )
+                    for alert in parser_alerts
                 )
-                for alert in parser_alerts
-            )
             goal = session.scalar(select(WeeklyGoal).where(WeeklyGoal.profile_id == profile.id))
             local = now.astimezone(_zone(profile.timezone))
             if goal and goal.reminders_enabled and local.weekday() == 0 and local.hour >= 8:

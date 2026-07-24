@@ -46,12 +46,22 @@ def queue_summary(user: CurrentUser, session: Database) -> DeliveryQueueSummary:
         )
         or 0
     )
+    suppressed = (
+        session.scalar(
+            select(func.count(NotificationDelivery.id)).where(
+                NotificationDelivery.profile_id == user.id,
+                NotificationDelivery.status == DeliveryStatus.CANCELLED,
+            )
+        )
+        or 0
+    )
     return DeliveryQueueSummary(
         pending=sum(rows.values()),
         delayed_by_quiet_hours=rows.get("quiet_hours", 0),
         delayed_by_weekend=rows.get("weekend_pause", 0),
         delayed_by_daily_cap=rows.get("daily_cap", 0),
         failed=failed,
+        suppressed=suppressed,
     )
 
 

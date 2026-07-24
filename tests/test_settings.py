@@ -17,6 +17,7 @@ def production_settings(**overrides: str) -> Settings:
         "internal_api_key": "a" * 64,
         "CORS_ORIGINS": "https://app.sprintern.example",
         "ALLOWED_HOSTS": "app.sprintern.example,api.sprintern.example",
+        "ADMIN_USER_IDS": "11111111-1111-4111-8111-111111111111",
     }
     aliases = {
         "APP_ENV": "app_env",

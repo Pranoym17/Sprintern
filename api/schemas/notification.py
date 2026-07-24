@@ -21,3 +21,4 @@ class DeliveryQueueSummary(APIModel):
     delayed_by_weekend: int = Field(ge=0)
     delayed_by_daily_cap: int = Field(ge=0)
     failed: int = Field(ge=0)
+    suppressed: int = Field(ge=0)

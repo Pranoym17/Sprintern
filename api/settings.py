@@ -38,9 +38,17 @@ class Settings(BaseSettings):
     scheduler_timezone: str = "UTC"
     scheduler_misfire_grace_seconds: int = Field(60, ge=1)
     scheduler_shutdown_timeout_seconds: int = Field(30, ge=1)
+    scheduler_source_sync_seconds: int = Field(60, ge=15, le=3600)
     source_stale_after_hours: int = Field(24, ge=1, le=168)
     rate_limit_enabled: bool = True
     rate_limit_max_identities: int = Field(10_000, ge=100, le=1_000_000)
+    admin_user_ids_value: str = Field("", alias="ADMIN_USER_IDS")
+
+    @property
+    def admin_user_ids(self) -> set[str]:
+        return {
+            item.strip().casefold() for item in self.admin_user_ids_value.split(",") if item.strip()
+        }
 
     @property
     def supabase_issuer(self) -> str:
@@ -104,6 +112,8 @@ class Settings(BaseSettings):
         api_host = urlparse(self.public_api_url).hostname
         if api_host and api_host not in self.allowed_hosts:
             errors.append("ALLOWED_HOSTS must include the production API host")
+        if not self.admin_user_ids:
+            errors.append("ADMIN_USER_IDS must contain at least one Supabase user UUID")
         if errors:
             raise ValueError("; ".join(errors))
         return self

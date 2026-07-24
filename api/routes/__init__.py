@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from api.routes import (
+    admin_sources,
     analytics,
     applications,
     discovery,
@@ -17,6 +18,7 @@ from api.routes import (
 )
 
 api_router = APIRouter()
+api_router.include_router(admin_sources.router)
 api_router.include_router(profiles.router)
 api_router.include_router(filters.router)
 api_router.include_router(jobs.router)

@@ -113,6 +113,36 @@ def test_delivery_window_moves_weekend_to_monday() -> None:
     assert reason == "weekend_pause"
 
 
+def test_weekly_match_uses_separate_consent_and_deterministic_priority(
+    db_session: Session,
+) -> None:
+    profile = Profile(
+        id=uuid.uuid4(),
+        email="digest@example.com",
+        email_notifications_enabled=True,
+        email_notifications_consent_at=datetime.now(UTC),
+        notification_cadence=NotificationCadence.WEEKLY,
+        notification_consents={"weekly_digest": True},
+        max_alerts_per_day=25,
+    )
+    job_filter = JobFilter(profile=profile, name="Strong match")
+    match = notification_match(db_session, profile, job_filter)
+    match.reasons = [
+        {
+            "filter_id": str(job_filter.id),
+            "dimensions": {"role": "software", "location": "Toronto", "term": "Summer 2027"},
+        }
+    ]
+    NotificationPlanner().plan_match(db_session, match, profile, datetime.now(UTC))
+    db_session.flush()
+    delivery = db_session.scalar(
+        select(NotificationDelivery).where(NotificationDelivery.match_id == match.id)
+    )
+    assert delivery is not None
+    assert delivery.notification_type == "weekly_digest"
+    assert delivery.priority == NotificationPriority.HIGH
+
+
 async def test_filter_notification_preferences_are_owned(
     api_client: httpx.AsyncClient,
     authenticated_user: AuthenticatedUser,
