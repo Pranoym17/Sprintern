@@ -6,7 +6,6 @@ from pydantic import Field, field_validator, model_validator
 
 from api.models.enums import (
     ExclusionType,
-    NotificationCadence,
     NotificationPriority,
     WorkMode,
 )
@@ -143,7 +142,6 @@ class FilterPreviewResponse(APIModel):
 class FilterNotificationUpdate(APIModel):
     email_enabled: bool | None = None
     telegram_enabled: bool | None = None
-    cadence: NotificationCadence | None = None
     priority: NotificationPriority = NotificationPriority.NORMAL
 
 

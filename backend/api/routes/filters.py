@@ -203,7 +203,6 @@ def read_filter_notifications(
         filter_id=filter_id,
         email_enabled=override.email_enabled if override else None,
         telegram_enabled=override.telegram_enabled if override else None,
-        cadence=override.cadence if override else None,
         priority=override.priority if override else "normal",
         uses_profile_defaults=override is None,
     )
@@ -222,6 +221,7 @@ def update_filter_notifications(
     if override is None:
         override = FilterNotificationOverride(filter_id=filter_id, profile_id=user.id)
         session.add(override)
+    override.cadence = None
     for field, value in payload.model_dump().items():
         setattr(override, field, value)
     session.flush()

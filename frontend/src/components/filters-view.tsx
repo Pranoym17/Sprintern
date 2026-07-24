@@ -10,7 +10,7 @@ import { EmptyState, PageHeader } from "./dashboard-view";
 import { PageError, PageLoading } from "./page-state";
 import type {
   CompanyWatchlist, FilterInput, FilterNotification, FilterPreview, JobFilter,
-  NotificationCadence, WorkMode,
+  WorkMode,
 } from "@/lib/api/types";
 
 const blank: FilterInput = {
@@ -101,7 +101,6 @@ function FilterRouting({ filterId }: { filterId: string }) {
       setValue(await api.updateFilterNotifications(filterId, {
         email_enabled: next.email_enabled,
         telegram_enabled: next.telegram_enabled,
-        cadence: next.cadence,
         priority: next.priority,
       }));
       notify("Filter alert routing saved.");
@@ -112,8 +111,8 @@ function FilterRouting({ filterId }: { filterId: string }) {
     {open && value && <div>
       <label>Email<select value={String(value.email_enabled)} onChange={(event) => void save({ ...value, email_enabled: event.target.value === "null" ? null : event.target.value === "true" })}><option value="null">Profile default</option><option value="true">On</option><option value="false">Off</option></select></label>
       <label>Telegram<select value={String(value.telegram_enabled)} onChange={(event) => void save({ ...value, telegram_enabled: event.target.value === "null" ? null : event.target.value === "true" })}><option value="null">Profile default</option><option value="true">On</option><option value="false">Off</option></select></label>
-      <label>Cadence<select value={value.cadence ?? ""} onChange={(event) => void save({ ...value, cadence: (event.target.value || null) as NotificationCadence | null })}><option value="">Profile default</option>{["instant", "hourly", "daily", "weekly"].map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>Priority<select value={value.priority} onChange={(event) => void save({ ...value, priority: event.target.value as "normal" | "high" })}><option value="normal">Normal</option><option value="high">High</option></select></label>
+      <p>Telegram is instant; email is included in your daily highlights.</p>
     </div>}
   </div>;
 }

@@ -404,6 +404,14 @@
             ],
             "title": "Email"
           },
+          "email_digest_job_limit": {
+            "title": "Email Digest Job Limit",
+            "type": "integer"
+          },
+          "email_empty_digest_enabled": {
+            "title": "Email Empty Digest Enabled",
+            "type": "boolean"
+          },
           "email_notifications_consent_at": {
             "anyOf": [
               {
@@ -438,6 +446,11 @@
             },
             "title": "Notification Consents",
             "type": "object"
+          },
+          "preferred_email_time": {
+            "format": "time",
+            "title": "Preferred Email Time",
+            "type": "string"
           },
           "priority_only_instant": {
             "title": "Priority Only Instant",
@@ -491,6 +504,9 @@
           "notification_cadence",
           "email_notifications_enabled",
           "email_notifications_consent_at",
+          "preferred_email_time",
+          "email_digest_job_limit",
+          "email_empty_digest_enabled",
           "telegram_connected",
           "telegram_notifications_enabled",
           "quiet_hours_start",
@@ -1968,16 +1984,6 @@
       "FilterNotificationResponse": {
         "additionalProperties": false,
         "properties": {
-          "cadence": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NotificationCadence"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "email_enabled": {
             "anyOf": [
               {
@@ -2024,16 +2030,6 @@
       "FilterNotificationUpdate": {
         "additionalProperties": false,
         "properties": {
-          "cadence": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NotificationCadence"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "email_enabled": {
             "anyOf": [
               {
@@ -3530,6 +3526,14 @@
             ],
             "title": "Email"
           },
+          "email_digest_job_limit": {
+            "title": "Email Digest Job Limit",
+            "type": "integer"
+          },
+          "email_empty_digest_enabled": {
+            "title": "Email Empty Digest Enabled",
+            "type": "boolean"
+          },
           "email_notifications_consent_at": {
             "anyOf": [
               {
@@ -3587,6 +3591,11 @@
             },
             "title": "Notification Consents",
             "type": "object"
+          },
+          "preferred_email_time": {
+            "format": "time",
+            "title": "Preferred Email Time",
+            "type": "string"
           },
           "priority_only_instant": {
             "title": "Priority Only Instant",
@@ -3655,6 +3664,9 @@
           "email_notifications_consent_at",
           "email_suppressed_at",
           "email_suppression_reason",
+          "preferred_email_time",
+          "email_digest_job_limit",
+          "email_empty_digest_enabled",
           "telegram_notifications_enabled",
           "quiet_hours_start",
           "quiet_hours_end",
@@ -3671,6 +3683,30 @@
       "ProfileUpdate": {
         "additionalProperties": false,
         "properties": {
+          "email_digest_job_limit": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Digest Job Limit"
+          },
+          "email_empty_digest_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Empty Digest Enabled"
+          },
           "email_notifications_enabled": {
             "anyOf": [
               {
@@ -3718,6 +3754,18 @@
               }
             ],
             "title": "Notification Consents"
+          },
+          "preferred_email_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Email Time"
           },
           "priority_only_instant": {
             "anyOf": [

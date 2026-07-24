@@ -1,15 +1,16 @@
+import uuid
 from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from api.auth import CurrentUser
 from api.database import get_user_db
 from api.errors import AppError
 from api.models import DeliveryStatus, NotificationChannel, NotificationDelivery
-from api.notifications.domain import NotificationMessage
+from api.notifications.message_builder import build_test_message
 from api.notifications.providers import ResendProvider, TelegramProvider
 from api.rate_limiting import user_rate_limit
 from api.repositories.profiles import get_or_create_profile
@@ -51,6 +52,10 @@ def queue_summary(user: CurrentUser, session: Database) -> DeliveryQueueSummary:
             select(func.count(NotificationDelivery.id)).where(
                 NotificationDelivery.profile_id == user.id,
                 NotificationDelivery.status == DeliveryStatus.CANCELLED,
+                or_(
+                    NotificationDelivery.queued_reason.is_(None),
+                    NotificationDelivery.queued_reason != "digest_not_selected",
+                ),
             )
         )
         or 0
@@ -75,20 +80,23 @@ async def send_test_notification(
 ) -> TestNotificationResponse:
     profile = get_or_create_profile(session, user.id, user.email)
     if payload.channel == NotificationChannel.EMAIL:
-        if not profile.email or not profile.email_notifications_enabled:
+        if (
+            not profile.email
+            or not profile.email_notifications_enabled
+            or profile.email_notifications_consent_at is None
+            or profile.email_suppressed_at is not None
+        ):
             raise AppError(409, "channel_disabled", "Enable email alerts before testing")
         recipient = profile.email
     else:
         if not profile.telegram_chat_id or not profile.telegram_notifications_enabled:
             raise AppError(409, "channel_disabled", "Enable Telegram alerts before testing")
         recipient = profile.telegram_chat_id
-    message = NotificationMessage(
+    message = build_test_message(
+        profile_id=profile.id,
         recipient=recipient,
-        subject="Sprintern test alert",
-        text="Your Sprintern notifications are configured correctly.",
-        html="<h2>Sprintern test alert</h2><p>Your notifications are configured correctly.</p>",
-        apply_url=settings.public_api_url,
-        idempotency_key=f"test:{user.id}:{payload.channel.value}",
+        channel=payload.channel,
+        nonce=uuid.uuid4().hex,
     )
     async with httpx.AsyncClient(timeout=10.0) as client:
         provider = (

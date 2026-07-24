@@ -9,14 +9,25 @@ import {
 import { useApp } from "./app-provider";
 import { PageHeader } from "./dashboard-view";
 import { PageError, PageLoading } from "./page-state";
-import type {
-  DeliveryChannel, DeliveryQueue, NotificationCadence, Profile,
-} from "@/lib/api/types";
+import type { DeliveryChannel, DeliveryQueue, Profile } from "@/lib/api/types";
 
 const consentTypes = [
-  "new_match", "weekly_digest", "deadline", "saved", "follow_up", "interview", "posting_updated", "posting_reopened",
-  "weekly_progress", "source_stale", "parser_broken",
+  "new_match", "deadline", "saved", "follow_up", "interview", "posting_updated",
+  "posting_reopened", "weekly_progress",
 ];
+const administratorConsentTypes = ["source_stale", "parser_broken"];
+const consentLabels: Record<string, string> = {
+  new_match: "New matches",
+  deadline: "Deadline reminders",
+  saved: "Saved-job reminders",
+  follow_up: "Follow-up reminders",
+  interview: "Interview reminders",
+  posting_updated: "Posting updates",
+  posting_reopened: "Reopened postings",
+  weekly_progress: "Weekly application progress",
+  source_stale: "Job data is delayed",
+  parser_broken: "Job import needs attention",
+};
 
 export function SettingsView() {
   const { api, notify, signOut } = useApp();
@@ -55,18 +66,23 @@ export function SettingsView() {
     try {
       const next = await api.updateProfile({
         timezone: String(data.get("timezone")),
-        notification_cadence: String(data.get("cadence")) as NotificationCadence,
         email_notifications_enabled: data.get("email") === "on",
+        preferred_email_time: String(data.get("email_time")),
+        email_digest_job_limit: Number(data.get("digest_limit")),
+        email_empty_digest_enabled: data.get("empty_digest") === "on",
         telegram_notifications_enabled:
           profile.telegram_chat_id !== null && data.get("telegram") === "on",
         quiet_hours_start: String(data.get("quiet_start") || "") || null,
         quiet_hours_end: String(data.get("quiet_end") || "") || null,
         weekend_pause: data.get("weekend_pause") === "on",
         max_alerts_per_day: Number(data.get("max_alerts")),
-        priority_only_instant: data.get("priority_only") === "on",
-        notification_consents: Object.fromEntries(
-          consentTypes.map((kind) => [kind, data.get(`consent_${kind}`) === "on"]),
-        ),
+        notification_consents: {
+          ...profile.notification_consents,
+          ...Object.fromEntries(
+            [...consentTypes, ...(administrator ? administratorConsentTypes : [])]
+              .map((kind) => [kind, data.get(`consent_${kind}`) === "on"]),
+          ),
+        },
       });
       setProfile(next);
       notify("Notification preferences saved.");
@@ -189,17 +205,16 @@ export function SettingsView() {
       </section>
 
       <section className="preference-section">
-        <PreferenceHeading number="02" title="Set the pace" copy="Priority filters can still cut through a slower default cadence." />
-        <div className="cadence-control" role="group" aria-label="Notification cadence">
-          {(["instant", "hourly", "daily", "weekly"] as NotificationCadence[]).map((cadence) => <label key={cadence}>
-            <input type="radio" name="cadence" value={cadence} defaultChecked={profile.notification_cadence === cadence} />
-            <span><strong>{cadence[0].toUpperCase() + cadence.slice(1)}</strong><small>{cadence === "instant" ? "As soon as it matches" : `One ${cadence} digest`}</small></span>
-          </label>)}
+        <PreferenceHeading number="02" title="Shape your daily email" copy="Telegram sends every new match immediately. Email sends one ranked highlights digest at your chosen local time." />
+        <div className="notification-guardrails">
+          <label>Daily delivery time<input name="email_time" type="time" required defaultValue={profile.preferred_email_time.slice(0, 5)} /></label>
+          <label>Top matches per email<input name="digest_limit" type="number" min="1" max="10" required defaultValue={profile.email_digest_job_limit} /></label>
         </div>
+        <label className="switch-row"><input type="checkbox" name="empty_digest" defaultChecked={profile.email_empty_digest_enabled} /><span><strong>Email me when there are no matches</strong><small>Off by default. When off, Sprintern skips empty days.</small></span></label>
       </section>
 
       <section className="preference-section preference-section--compact">
-        <PreferenceHeading number="03" title="Delivery guardrails" copy="Local-time scheduling handles daylight-saving changes automatically." />
+        <PreferenceHeading number="03" title="Local-time guardrails" copy="Your email time follows this timezone and handles daylight-saving changes automatically. Instant Telegram matches are never delayed." />
         <div className="field timezone-field"><label htmlFor="timezone">Timezone</label><input id="timezone" name="timezone" defaultValue={profile.timezone} required /><span className="field__help">IANA format, for example America/Toronto.</span></div>
         <div className="notification-guardrails">
           <label>Quiet from<input name="quiet_start" type="time" defaultValue={profile.quiet_hours_start?.slice(0, 5) ?? ""} /></label>
@@ -207,12 +222,11 @@ export function SettingsView() {
           <label>Daily maximum<input name="max_alerts" type="number" min="1" max="500" defaultValue={profile.max_alerts_per_day} /></label>
         </div>
         <label className="switch-row"><input type="checkbox" name="weekend_pause" defaultChecked={profile.weekend_pause} /><span><strong>Pause on weekends</strong><small>Queued alerts resume Monday morning.</small></span></label>
-        <label className="switch-row"><input type="checkbox" name="priority_only" defaultChecked={profile.priority_only_instant} /><span><strong>Only priority matches instantly</strong><small>Other matches move to the daily digest.</small></span></label>
       </section>
 
       <section className="preference-section">
         <PreferenceHeading number="04" title="Notification types" copy="Control lifecycle reminders separately from new-match alerts." />
-        <div className="consent-grid">{consentTypes.map((kind) => <label className="switch-row" key={kind}><input type="checkbox" name={`consent_${kind}`} defaultChecked={profile.notification_consents[kind] !== false} /><span><strong>{kind.replaceAll("_", " ")}</strong></span></label>)}</div>
+        <div className="consent-grid">{[...consentTypes, ...(administrator ? administratorConsentTypes : [])].map((kind) => <label className="switch-row" key={kind}><input type="checkbox" name={`consent_${kind}`} defaultChecked={profile.notification_consents[kind] !== false} /><span><strong>{consentLabels[kind]}</strong></span></label>)}</div>
         {queue && <p className="delivery-queue-status">{queue.pending} queued · {queue.delayed_by_quiet_hours + queue.delayed_by_weekend + queue.delayed_by_daily_cap} delayed by guardrails · {queue.failed} retrying · {queue.suppressed} suppressed</p>}
       </section>
       <div className="settings-save"><p>Changes affect future delivery attempts.</p><button className="button button--primary" disabled={pending}>{pending && <LoaderCircle className="spin" size={18} />}Save preferences</button></div>

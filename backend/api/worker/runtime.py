@@ -33,6 +33,12 @@ class BackgroundJobHandler:
         if job.job_type == "matching.all":
             with SessionLocal.begin() as session:
                 matching_service.match_all(session)
+                BackgroundJobQueue.enqueue(
+                    session,
+                    job_type="notifications.dispatch",
+                    idempotency_key=f"notifications:matching:{job.id}",
+                    correlation_id=job.correlation_id,
+                )
             return
         if job.job_type == "notifications.dispatch":
             with SessionLocal.begin() as session:

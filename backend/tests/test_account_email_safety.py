@@ -31,6 +31,29 @@ async def test_email_requires_explicit_consent(
     assert profile is not None and profile.email_notifications_consent_at is not None
 
 
+async def test_user_controls_daily_digest_time_and_size(
+    api_client: httpx.AsyncClient,
+) -> None:
+    response = await api_client.patch(
+        "/users/me",
+        json={
+            "timezone": "America/Toronto",
+            "preferred_email_time": "07:45",
+            "email_digest_job_limit": 10,
+            "email_empty_digest_enabled": True,
+        },
+    )
+    invalid = await api_client.patch(
+        "/users/me", json={"email_digest_job_limit": 11}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["preferred_email_time"] == "07:45:00"
+    assert response.json()["email_digest_job_limit"] == 10
+    assert response.json()["email_empty_digest_enabled"] is True
+    assert invalid.status_code == 422
+
+
 async def test_signed_unsubscribe_link_disables_email_and_rejects_tampering(
     api_client: httpx.AsyncClient, db_session: Session, authenticated_user: AuthenticatedUser
 ) -> None:

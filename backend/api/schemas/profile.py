@@ -20,6 +20,9 @@ class ProfileUpdate(APIModel):
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     notification_cadence: NotificationCadence | None = None
     email_notifications_enabled: bool | None = None
+    preferred_email_time: time | None = None
+    email_digest_job_limit: int | None = Field(default=None, ge=1, le=10)
+    email_empty_digest_enabled: bool | None = None
     telegram_notifications_enabled: bool | None = None
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
@@ -49,6 +52,9 @@ class ProfileResponse(APIModel):
     email_notifications_consent_at: datetime | None
     email_suppressed_at: datetime | None
     email_suppression_reason: str | None
+    preferred_email_time: time
+    email_digest_job_limit: int
+    email_empty_digest_enabled: bool
     telegram_notifications_enabled: bool
     quiet_hours_start: time | None
     quiet_hours_end: time | None
@@ -82,6 +88,9 @@ class AccountExportProfile(APIModel):
     notification_cadence: NotificationCadence
     email_notifications_enabled: bool
     email_notifications_consent_at: datetime | None
+    preferred_email_time: time
+    email_digest_job_limit: int
+    email_empty_digest_enabled: bool
     telegram_connected: bool
     telegram_notifications_enabled: bool
     quiet_hours_start: time | None

@@ -16,6 +16,7 @@ from api.models import (
     JobSource,
     JobSourceName,
     NotificationCadence,
+    NotificationChannel,
     NotificationDelivery,
     NotificationPriority,
     Profile,
@@ -23,7 +24,11 @@ from api.models import (
     ReminderType,
 )
 from api.notifications.message_builder import build_message
-from api.notifications.planning import NotificationPlanner, apply_delivery_window
+from api.notifications.planning import (
+    NotificationPlanner,
+    apply_delivery_window,
+    next_email_digest_time,
+)
 from api.settings import settings
 
 
@@ -60,7 +65,7 @@ def notification_match(db_session: Session, profile: Profile, job_filter: JobFil
     return match
 
 
-def test_filter_override_merges_priority_and_respects_quiet_hours(db_session: Session) -> None:
+def test_filter_override_keeps_priority_while_email_remains_daily(db_session: Session) -> None:
     profile = Profile(
         id=uuid.uuid4(),
         email="alerts@example.com",
@@ -95,9 +100,9 @@ def test_filter_override_merges_priority_and_respects_quiet_hours(db_session: Se
     )
     assert delivery is not None
     assert delivery.priority == NotificationPriority.HIGH
-    assert delivery.cadence == NotificationCadence.INSTANT
-    assert delivery.queued_reason == "quiet_hours"
-    assert delivery.next_attempt_at == datetime(2026, 7, 23, 11, 0, tzinfo=UTC)
+    assert delivery.cadence == NotificationCadence.DAILY
+    assert delivery.queued_reason is None
+    assert delivery.next_attempt_at == datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
 
 
 def test_delivery_window_moves_weekend_to_monday() -> None:
@@ -109,11 +114,61 @@ def test_delivery_window_moves_weekend_to_monday() -> None:
     )
     saturday = datetime(2026, 7, 25, 14, tzinfo=UTC)
     scheduled, reason = apply_delivery_window(profile, saturday)
-    assert scheduled == datetime(2026, 7, 27, 12, tzinfo=UTC)
+    assert scheduled == datetime(2026, 7, 27, 14, tzinfo=UTC)
     assert reason == "weekend_pause"
 
 
-def test_weekly_match_uses_separate_consent_and_deterministic_priority(
+def test_email_digest_time_handles_dst_gap() -> None:
+    profile = Profile(
+        id=uuid.uuid4(),
+        timezone="America/Toronto",
+        preferred_email_time=time(2, 30),
+    )
+
+    scheduled = next_email_digest_time(
+        profile, datetime(2026, 3, 8, 5, 0, tzinfo=UTC)
+    )
+
+    assert scheduled == datetime(2026, 3, 8, 7, 30, tzinfo=UTC)
+
+
+def test_telegram_new_match_bypasses_quiet_hours(db_session: Session) -> None:
+    profile = Profile(
+        id=uuid.uuid4(),
+        email="alerts@example.com",
+        timezone="America/Toronto",
+        telegram_chat_id="instant-chat",
+        telegram_notifications_enabled=True,
+        quiet_hours_start=time(22),
+        quiet_hours_end=time(7),
+        weekend_pause=True,
+    )
+    job_filter = JobFilter(profile=profile, name="Instant Telegram")
+    match = notification_match(db_session, profile, job_filter)
+    now = datetime(2026, 7, 25, 3, 30, tzinfo=UTC)
+
+    NotificationPlanner().plan_match(db_session, match, profile, now)
+    db_session.flush()
+    delivery = db_session.scalar(
+        select(NotificationDelivery).where(
+            NotificationDelivery.match_id == match.id,
+            NotificationDelivery.channel == NotificationChannel.TELEGRAM,
+        )
+    )
+
+    assert delivery is not None
+    assert delivery.cadence == NotificationCadence.INSTANT
+    assert delivery.next_attempt_at == now
+    assert delivery.queued_reason is None
+    assert build_message([delivery]).text == (
+        "🎯 New match: Software Intern\n"
+        "🏢 Notification Controls\n"
+        "📍 Toronto, Canada · Term not specified\n\n"
+        "https://employer.example/apply"
+    )
+
+
+def test_match_uses_new_match_consent_and_deterministic_priority(
     db_session: Session,
 ) -> None:
     profile = Profile(
@@ -122,7 +177,7 @@ def test_weekly_match_uses_separate_consent_and_deterministic_priority(
         email_notifications_enabled=True,
         email_notifications_consent_at=datetime.now(UTC),
         notification_cadence=NotificationCadence.WEEKLY,
-        notification_consents={"weekly_digest": True},
+        notification_consents={"new_match": True},
         max_alerts_per_day=25,
     )
     job_filter = JobFilter(profile=profile, name="Strong match")
@@ -139,7 +194,8 @@ def test_weekly_match_uses_separate_consent_and_deterministic_priority(
         select(NotificationDelivery).where(NotificationDelivery.match_id == match.id)
     )
     assert delivery is not None
-    assert delivery.notification_type == "weekly_digest"
+    assert delivery.notification_type == "new_match"
+    assert delivery.cadence == NotificationCadence.DAILY
     assert delivery.priority == NotificationPriority.HIGH
 
 
@@ -157,7 +213,6 @@ async def test_filter_notification_preferences_are_owned(
         json={
             "email_enabled": True,
             "telegram_enabled": False,
-            "cadence": "hourly",
             "priority": "high",
         },
     )

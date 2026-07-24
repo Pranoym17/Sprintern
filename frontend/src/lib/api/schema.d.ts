@@ -1078,6 +1078,10 @@ export interface components {
             created_at: string;
             /** Email */
             email: string | null;
+            /** Email Digest Job Limit */
+            email_digest_job_limit: number;
+            /** Email Empty Digest Enabled */
+            email_empty_digest_enabled: boolean;
             /** Email Notifications Consent At */
             email_notifications_consent_at: string | null;
             /** Email Notifications Enabled */
@@ -1094,6 +1098,11 @@ export interface components {
             notification_consents: {
                 [key: string]: boolean;
             };
+            /**
+             * Preferred Email Time
+             * Format: time
+             */
+            preferred_email_time: string;
             /** Priority Only Instant */
             priority_only_instant: boolean;
             /** Quiet Hours End */
@@ -1567,7 +1576,6 @@ export interface components {
         };
         /** FilterNotificationResponse */
         FilterNotificationResponse: {
-            cadence?: components["schemas"]["NotificationCadence"] | null;
             /** Email Enabled */
             email_enabled?: boolean | null;
             /**
@@ -1584,7 +1592,6 @@ export interface components {
         };
         /** FilterNotificationUpdate */
         FilterNotificationUpdate: {
-            cadence?: components["schemas"]["NotificationCadence"] | null;
             /** Email Enabled */
             email_enabled?: boolean | null;
             /** @default normal */
@@ -2052,6 +2059,10 @@ export interface components {
             created_at: string;
             /** Email */
             email: string | null;
+            /** Email Digest Job Limit */
+            email_digest_job_limit: number;
+            /** Email Empty Digest Enabled */
+            email_empty_digest_enabled: boolean;
             /** Email Notifications Consent At */
             email_notifications_consent_at: string | null;
             /** Email Notifications Enabled */
@@ -2072,6 +2083,11 @@ export interface components {
             notification_consents: {
                 [key: string]: boolean;
             };
+            /**
+             * Preferred Email Time
+             * Format: time
+             */
+            preferred_email_time: string;
             /** Priority Only Instant */
             priority_only_instant: boolean;
             /** Quiet Hours End */
@@ -2094,6 +2110,10 @@ export interface components {
         };
         /** ProfileUpdate */
         ProfileUpdate: {
+            /** Email Digest Job Limit */
+            email_digest_job_limit?: number | null;
+            /** Email Empty Digest Enabled */
+            email_empty_digest_enabled?: boolean | null;
             /** Email Notifications Enabled */
             email_notifications_enabled?: boolean | null;
             /** Max Alerts Per Day */
@@ -2103,6 +2123,8 @@ export interface components {
             notification_consents?: {
                 [key: string]: boolean;
             } | null;
+            /** Preferred Email Time */
+            preferred_email_time?: string | null;
             /** Priority Only Instant */
             priority_only_instant?: boolean | null;
             /** Quiet Hours End */

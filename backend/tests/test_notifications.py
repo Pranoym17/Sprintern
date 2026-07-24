@@ -79,7 +79,7 @@ def create_match(
     return profile, match
 
 
-def test_planner_creates_idempotent_delivery_and_batches_by_timezone(db_session: Session) -> None:
+def test_planner_creates_idempotent_daily_email_delivery(db_session: Session) -> None:
     profile, match = create_match(db_session, cadence=NotificationCadence.HOURLY)
     now = datetime(2026, 7, 13, 14, 20, tzinfo=UTC)
     planner = NotificationPlanner()
@@ -87,12 +87,15 @@ def test_planner_creates_idempotent_delivery_and_batches_by_timezone(db_session:
     first = planner.plan_match(db_session, match, profile, now)
     db_session.flush()
     second = planner.plan_match(db_session, match, profile, now)
-    delivery = db_session.scalar(select(NotificationDelivery))
+    delivery = db_session.scalar(
+        select(NotificationDelivery).where(NotificationDelivery.match_id == match.id)
+    )
 
     assert first == 1
     assert second == 0
     assert delivery is not None
-    assert delivery.next_attempt_at == datetime(2026, 7, 13, 15, 0, tzinfo=UTC)
+    assert delivery.cadence == NotificationCadence.DAILY
+    assert delivery.next_attempt_at == datetime(2026, 7, 14, 8, 0, tzinfo=UTC)
     assert delivery.idempotency_key == f"{match.id}:email"
 
 
@@ -140,6 +143,38 @@ async def test_resend_provider_uses_stable_idempotency_key() -> None:
     assert result == ProviderResult(DeliveryOutcome.SENT, provider_message_id="email-123")
 
 
+async def test_user_can_send_labelled_test_digest_without_delivery_rows(
+    api_client: httpx.AsyncClient,
+    authenticated_user: AuthenticatedUser,
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profile = Profile(
+        id=authenticated_user.id,
+        email=authenticated_user.email,
+        email_notifications_enabled=True,
+        email_notifications_consent_at=datetime.now(UTC),
+    )
+    db_session.add(profile)
+    db_session.commit()
+    messages: list[NotificationMessage] = []
+
+    async def record(
+        _provider: ResendProvider, message: NotificationMessage
+    ) -> ProviderResult:
+        messages.append(message)
+        return ProviderResult(DeliveryOutcome.SENT, provider_message_id="test-email")
+
+    monkeypatch.setattr(ResendProvider, "send", record)
+    response = await api_client.post("/notifications/test", json={"channel": "email"})
+
+    assert response.status_code == 200
+    assert response.json()["outcome"] == "sent"
+    assert messages[0].subject == "[Test] 3 new internship matches for you today"
+    assert "source" not in messages[0].text.casefold()
+    assert db_session.scalar(select(NotificationDelivery.id)) is None
+
+
 @pytest.mark.parametrize("provider_name", ["telegram", "resend"])
 async def test_notification_provider_timeout_is_retryable(provider_name: str) -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -179,9 +214,11 @@ async def test_dispatcher_claims_once_and_records_success(db_session: Session) -
         notification_factory(db_session), {NotificationChannel.EMAIL: provider}
     )
 
-    first = await dispatcher.dispatch_due(now=datetime.now(UTC) + timedelta(seconds=1))
-    second = await dispatcher.dispatch_due(now=datetime.now(UTC) + timedelta(seconds=2))
-    delivery = db_session.scalar(select(NotificationDelivery))
+    first = await dispatcher.dispatch_due(now=datetime.now(UTC) + timedelta(days=2))
+    second = await dispatcher.dispatch_due(now=datetime.now(UTC) + timedelta(days=2, seconds=1))
+    delivery = db_session.scalar(
+        select(NotificationDelivery).where(NotificationDelivery.match_id == match.id)
+    )
 
     assert first == 1
     assert second == 0
@@ -197,7 +234,7 @@ async def test_dispatcher_retries_transient_failure(db_session: Session) -> None
     provider = RecordingProvider(
         ProviderResult(DeliveryOutcome.RATE_LIMITED, error="slow down", retry_after_seconds=60)
     )
-    now = datetime.now(UTC) + timedelta(seconds=1)
+    now = datetime.now(UTC) + timedelta(days=2)
     dispatcher = NotificationDispatcher(
         notification_factory(db_session), {NotificationChannel.EMAIL: provider}
     )
@@ -250,7 +287,7 @@ async def test_repeated_permanent_email_failures_suppress_recipient(db_session: 
         notification_factory(db_session), {NotificationChannel.EMAIL: provider}
     )
 
-    await dispatcher.dispatch_due(limit=10, now=now + timedelta(seconds=1))
+    await dispatcher.dispatch_due(limit=10, now=now + timedelta(days=2))
     db_session.refresh(profile)
 
     assert profile.email_notifications_enabled is False
@@ -292,11 +329,77 @@ async def test_dispatcher_groups_due_digest_deliveries(db_session: Session) -> N
         notification_factory(db_session), {NotificationChannel.EMAIL: provider}
     )
 
-    sent = await dispatcher.dispatch_due(now=now + timedelta(hours=2))
+    sent = await dispatcher.dispatch_due(now=now + timedelta(days=2))
 
     assert sent == 2
     assert len(provider.messages) == 1
-    assert provider.messages[0].subject == "Sprintern digest: 2 new internships"
+    assert provider.messages[0].subject == "2 new internship matches for you today"
+
+
+async def test_dispatcher_curates_digest_to_user_limit(db_session: Session) -> None:
+    profile, first_match = create_match(db_session)
+    profile.email_digest_job_limit = 2
+    now = datetime.now(UTC)
+    matches = [first_match]
+    for index in range(3):
+        job = Job(
+            company=f"Rank {index}",
+            normalized_company=f"rank {index}",
+            title=f"Software Intern {index}",
+            normalized_title=f"software intern {index}",
+            canonical_fingerprint=uuid.uuid4().hex.ljust(64, "0"),
+            first_seen_at=now + timedelta(minutes=index),
+            last_seen_at=now + timedelta(minutes=index),
+        )
+        job.sources.append(
+            JobSource(
+                source=JobSourceName.GREENHOUSE,
+                source_key=f"rank-{index}",
+                external_id=uuid.uuid4().hex,
+                apply_url=f"https://employer.example/apply/{index}",
+                first_seen_at=now,
+                last_seen_at=now,
+            )
+        )
+        match = JobMatch(
+            profile=profile,
+            job=job,
+            reasons=[
+                {
+                    "dimensions": {
+                        key: key
+                        for key in ["role", "location", "term"][: index + 1]
+                    }
+                }
+            ],
+        )
+        db_session.add(match)
+        matches.append(match)
+    planner = NotificationPlanner()
+    for match in matches:
+        planner.plan_match(db_session, match, profile, now)
+    db_session.commit()
+    provider = RecordingProvider(ProviderResult(DeliveryOutcome.SENT, "digest-curated"))
+    dispatcher = NotificationDispatcher(
+        notification_factory(db_session), {NotificationChannel.EMAIL: provider}
+    )
+
+    sent = await dispatcher.dispatch_due(now=now + timedelta(days=2), limit=100)
+    deliveries = list(
+        db_session.scalars(
+            select(NotificationDelivery).where(
+                NotificationDelivery.profile_id == profile.id,
+                NotificationDelivery.channel == NotificationChannel.EMAIL,
+            )
+        )
+    )
+
+    assert sent == 2
+    assert len(provider.messages) == 1
+    assert provider.messages[0].subject == "2 new internship matches for you today"
+    assert "Software Intern 2" in provider.messages[0].html
+    assert sum(item.status == DeliveryStatus.SENT for item in deliveries) == 2
+    assert sum(item.queued_reason == "digest_not_selected" for item in deliveries) == 2
 
 
 def test_message_builder_escapes_untrusted_html(db_session: Session) -> None:
@@ -314,6 +417,8 @@ def test_message_builder_escapes_untrusted_html(db_session: Session) -> None:
     assert message.unsubscribe_url is not None
     assert "Unsubscribe" in message.html
     assert "Support:" in message.text
+    assert "Source:" not in message.text
+    assert "github" not in message.text.casefold()
 
 
 def test_telegram_message_has_no_email_unsubscribe_link(db_session: Session) -> None:

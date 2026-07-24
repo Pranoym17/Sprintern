@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, time
 
-from sqlalchemy import Boolean, DateTime, Enum, Integer, String, Time, func, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, Integer, String, Time, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +12,12 @@ from api.models.enums import NotificationCadence
 
 class Profile(TimestampMixin, Base):
     __tablename__ = "profiles"
+    __table_args__ = (
+        CheckConstraint(
+            "email_digest_job_limit BETWEEN 1 AND 10",
+            name="ck_profiles_email_digest_job_limit",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     email: Mapped[str | None] = mapped_column(String(320))
@@ -35,6 +41,13 @@ class Profile(TimestampMixin, Base):
     email_notifications_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     email_suppressed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     email_suppression_reason: Mapped[str | None] = mapped_column(String(32))
+    preferred_email_time: Mapped[time] = mapped_column(
+        Time, default=time(8, 0), server_default="08:00:00"
+    )
+    email_digest_job_limit: Mapped[int] = mapped_column(Integer, default=7, server_default="7")
+    email_empty_digest_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
     telegram_notifications_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )

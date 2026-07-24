@@ -13,7 +13,6 @@ from api.errors import AppError
 from api.models import (
     DeliveryStatus,
     EmailSuppression,
-    JobMatch,
     NotificationChannel,
     NotificationDelivery,
     Profile,
@@ -44,7 +43,12 @@ class UnsubscribeTokenService:
 
     def url(self, profile_id: uuid.UUID, email: str) -> str:
         token = quote(self.create(profile_id, email))
-        return f"{self.public_api_url}/email/unsubscribe?token={token}"
+        versioned_base = (
+            self.public_api_url
+            if self.public_api_url.endswith("/api/v1")
+            else f"{self.public_api_url}/api/v1"
+        )
+        return f"{versioned_base}/email/unsubscribe?token={token}"
 
     def verify(self, token: str, now: datetime | None = None) -> tuple[uuid.UUID, str]:
         now = now or datetime.now(UTC)
@@ -77,9 +81,7 @@ def cancel_email_deliveries(session: Session, *, profile_id: uuid.UUID, reason: 
     session.execute(
         update(NotificationDelivery)
         .where(
-            NotificationDelivery.match_id.in_(
-                select(JobMatch.id).where(JobMatch.profile_id == profile_id)
-            ),
+            NotificationDelivery.profile_id == profile_id,
             NotificationDelivery.channel == NotificationChannel.EMAIL,
             NotificationDelivery.status.in_(
                 [DeliveryStatus.PENDING, DeliveryStatus.FAILED, DeliveryStatus.SENDING]

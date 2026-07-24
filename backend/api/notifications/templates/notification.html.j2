@@ -1,0 +1,9 @@
+{% extends "base_email.html.j2" %}
+{% block content %}
+<tr>
+  <td style="padding:18px 28px 28px;">
+    <h1 class="heading" style="margin:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:1.25;color:#171512;">{{ title }}</h1>
+    <p class="body" style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#69645c;">{{ body }}</p>
+  </td>
+</tr>
+{% endblock %}

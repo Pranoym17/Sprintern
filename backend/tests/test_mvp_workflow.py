@@ -128,8 +128,9 @@ async def test_authenticated_mvp_workflow_is_idempotent(
         {NotificationChannel.EMAIL: email, NotificationChannel.TELEGRAM: telegram},
     )
     now = datetime.now(UTC) + timedelta(seconds=1)
-    assert await dispatcher.dispatch_due(now=now, limit=100) == 2
-    assert await dispatcher.dispatch_due(now=now + timedelta(seconds=1), limit=100) == 0
+    assert await dispatcher.dispatch_due(now=now, limit=100) == 1
+    assert await dispatcher.dispatch_due(now=now + timedelta(days=2), limit=100) == 1
+    assert await dispatcher.dispatch_due(now=now + timedelta(days=2, seconds=1), limit=100) == 0
     assert len(email.messages) == 1
     assert len(telegram.messages) == 1
     assert email.messages[0].apply_url == "https://careers.example.com/jobs/phase10-job-1"

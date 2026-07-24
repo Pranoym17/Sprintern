@@ -1,0 +1,13 @@
+Today’s strongest internship matches
+
+{% for job in jobs -%}
+{{ loop.index }}. {{ job.title }}
+   {{ job.company }}
+   {{ job.location }}{% if job.term %} · {{ job.term }}{% endif %}
+   Apply: {{ job.application_url }}
+
+{% endfor -%}
+Manage your filters: {{ filters_url }}
+Notification settings: {{ settings_url }}
+Unsubscribe: {{ unsubscribe_url }}
+Support: {{ support_email }}

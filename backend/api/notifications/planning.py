@@ -24,13 +24,6 @@ from api.models import (
 from api.notifications.email_preferences import is_email_suppressed
 from api.settings import settings
 
-CADENCE_RANK = {
-    NotificationCadence.INSTANT: 0,
-    NotificationCadence.HOURLY: 1,
-    NotificationCadence.DAILY: 2,
-    NotificationCadence.WEEKLY: 3,
-}
-
 
 def _zone(name: str) -> ZoneInfo:
     try:
@@ -55,15 +48,35 @@ def next_delivery_time(cadence: NotificationCadence, timezone: str, now: datetim
     return scheduled.astimezone(UTC)
 
 
+def _local_wall_time(day: object, clock: time, zone: ZoneInfo) -> datetime:
+    """Return a real local instant, advancing through a DST spring-forward gap."""
+    naive = datetime.combine(day, clock)  # type: ignore[arg-type]
+    candidate = naive.replace(tzinfo=zone, fold=0)
+    normalized = candidate.astimezone(UTC).astimezone(zone)
+    if normalized.replace(tzinfo=None) != naive:
+        return normalized
+    return candidate
+
+
+def next_email_digest_time(profile: Profile, now: datetime) -> datetime:
+    """Email is intentionally a considered daily digest; Telegram owns instant alerts."""
+    zone = _zone(profile.timezone)
+    local_now = now.astimezone(zone)
+    scheduled = _local_wall_time(local_now.date(), profile.preferred_email_time, zone)
+    if scheduled < local_now:
+        scheduled = _local_wall_time(
+            local_now.date() + timedelta(days=1), profile.preferred_email_time, zone
+        )
+    return scheduled.astimezone(UTC)
+
+
 def apply_delivery_window(profile: Profile, scheduled: datetime) -> tuple[datetime, str | None]:
     """Move delivery to the next valid local wall-clock time; ZoneInfo handles DST transitions."""
     zone = _zone(profile.timezone)
     local = scheduled.astimezone(zone)
     reason: str | None = None
     if profile.weekend_pause and local.weekday() >= 5:
-        local = (local + timedelta(days=7 - local.weekday())).replace(
-            hour=8, minute=0, second=0, microsecond=0
-        )
+        local = local + timedelta(days=7 - local.weekday())
         reason = "weekend_pause"
     start, end = profile.quiet_hours_start, profile.quiet_hours_end
     if start is not None and end is not None:
@@ -76,9 +89,7 @@ def apply_delivery_window(profile: Profile, scheduled: datetime) -> tuple[dateti
             local = datetime.combine(end_date, end, tzinfo=zone)
             reason = "quiet_hours"
             if profile.weekend_pause and local.weekday() >= 5:
-                local = (local + timedelta(days=7 - local.weekday())).replace(
-                    hour=8, minute=0, second=0, microsecond=0
-                )
+                local = local + timedelta(days=7 - local.weekday())
                 reason = "weekend_pause"
     return local.astimezone(UTC), reason
 
@@ -120,23 +131,15 @@ class NotificationPlanner:
         )
 
     @staticmethod
-    def _delivery_policy(
-        profile: Profile, overrides: list[FilterNotificationOverride]
-    ) -> tuple[NotificationCadence, NotificationPriority]:
-        cadences = [item.cadence for item in overrides if item.cadence is not None]
-        cadence = (
-            min(cadences, key=lambda item: CADENCE_RANK[item])
-            if cadences
-            else profile.notification_cadence
-        )
+    def _delivery_priority(
+        overrides: list[FilterNotificationOverride],
+    ) -> NotificationPriority:
         priority = (
             NotificationPriority.HIGH
             if any(item.priority == NotificationPriority.HIGH for item in overrides)
             else NotificationPriority.NORMAL
         )
-        if profile.priority_only_instant and priority != NotificationPriority.HIGH:
-            cadence = NotificationCadence.DAILY
-        return cadence, priority
+        return priority
 
     @staticmethod
     def _deterministic_priority(match: JobMatch) -> NotificationPriority:
@@ -144,27 +147,6 @@ class NotificationPlanner:
             key for reason in match.reasons for key in (reason.get("dimensions") or {}).keys()
         }
         return NotificationPriority.HIGH if len(dimensions) >= 3 else NotificationPriority.NORMAL
-
-    @staticmethod
-    def _daily_cap_time(
-        session: Session, profile: Profile, now: datetime, scheduled: datetime
-    ) -> tuple[datetime, str | None]:
-        local = now.astimezone(_zone(profile.timezone))
-        local_start = datetime.combine(local.date(), time.min, tzinfo=local.tzinfo).astimezone(UTC)
-        count = (
-            session.scalar(
-                select(func.count(NotificationDelivery.id)).where(
-                    NotificationDelivery.profile_id == profile.id,
-                    NotificationDelivery.created_at >= local_start,
-                    NotificationDelivery.status != DeliveryStatus.CANCELLED,
-                )
-            )
-            or 0
-        )
-        if count < profile.max_alerts_per_day:
-            return scheduled, None
-        tomorrow = (local + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
-        return max(scheduled, tomorrow.astimezone(UTC)), "daily_cap"
 
     def _destinations(
         self,
@@ -201,12 +183,10 @@ class NotificationPlanner:
         session.flush()
         now = now or datetime.now(UTC)
         overrides = self._filter_overrides(session, match)
-        cadence, priority = self._delivery_policy(profile, overrides)
+        priority = self._delivery_priority(overrides)
         if priority == NotificationPriority.NORMAL:
             priority = self._deterministic_priority(match)
-        notification_type = (
-            "weekly_digest" if cadence == NotificationCadence.WEEKLY else "new_match"
-        )
+        notification_type = "new_match"
         existing = {
             item.channel: item
             for item in session.scalars(
@@ -228,10 +208,16 @@ class NotificationPlanner:
                 delivery.last_error = "Notification channel disabled"
         for channel, recipient in destinations:
             existing_delivery = existing.get(channel)
-            scheduled = next_delivery_time(cadence, profile.timezone, now)
-            scheduled, queued_reason = apply_delivery_window(profile, scheduled)
-            scheduled, cap_reason = self._daily_cap_time(session, profile, now, scheduled)
-            queued_reason = cap_reason or queued_reason
+            if channel == NotificationChannel.TELEGRAM:
+                # Telegram is the urgent channel: every new match is immediately actionable.
+                cadence = NotificationCadence.INSTANT
+                scheduled = now
+                queued_reason = None
+            else:
+                # Email is deliberately calmer: one curated digest at the user's local time.
+                cadence = NotificationCadence.DAILY
+                scheduled = next_email_digest_time(profile, now)
+                scheduled, queued_reason = apply_delivery_window(profile, scheduled)
             if existing_delivery:
                 if existing_delivery.status in {DeliveryStatus.PENDING, DeliveryStatus.FAILED}:
                     existing_delivery.cadence = cadence
@@ -351,6 +337,64 @@ class NotificationPlanner:
                     )
                     created += 1
         created += self._plan_system_events(session, now)
+        created += self._plan_empty_digest_events(session, now)
+        return created
+
+    def _plan_empty_digest_events(self, session: Session, now: datetime) -> int:
+        """Users may opt into a daily reassurance email; skipping empty digests is the default."""
+        created = 0
+        profiles = list(
+            session.scalars(
+                select(Profile).where(
+                    Profile.email_notifications_enabled.is_(True),
+                    Profile.email_empty_digest_enabled.is_(True),
+                    Profile.email_notifications_consent_at.is_not(None),
+                    Profile.email.is_not(None),
+                )
+            )
+        )
+        for profile in profiles:
+            zone = _zone(profile.timezone)
+            local_now = now.astimezone(zone)
+            preferred = _local_wall_time(local_now.date(), profile.preferred_email_time, zone)
+            if local_now < preferred:
+                continue
+            day_start = datetime.combine(local_now.date(), time.min, tzinfo=zone).astimezone(UTC)
+            day_end = datetime.combine(
+                local_now.date() + timedelta(days=1), time.min, tzinfo=zone
+            ).astimezone(UTC)
+            has_matches = session.scalar(
+                select(NotificationDelivery.id).where(
+                    NotificationDelivery.profile_id == profile.id,
+                    NotificationDelivery.channel == NotificationChannel.EMAIL,
+                    NotificationDelivery.notification_type == "new_match",
+                    NotificationDelivery.created_at >= day_start,
+                    NotificationDelivery.created_at < day_end,
+                )
+            )
+            key = f"empty-digest:{profile.id}:{local_now.date().isoformat()}"
+            exists = session.scalar(
+                select(NotificationDelivery.id).where(NotificationDelivery.idempotency_key == key)
+            )
+            if has_matches or exists or profile.email is None:
+                continue
+            session.add(
+                NotificationDelivery(
+                    profile_id=profile.id,
+                    channel=NotificationChannel.EMAIL,
+                    cadence=NotificationCadence.DAILY,
+                    recipient=profile.email,
+                    idempotency_key=key,
+                    notification_type="daily_empty_digest",
+                    payload={
+                        "title": "No new internship matches today",
+                        "body": "Sprintern is still watching. Your filters remain active.",
+                        "apply_url": f"{settings.frontend_url.rstrip('/')}/filters",
+                    },
+                    next_attempt_at=now,
+                )
+            )
+            created += 1
         return created
 
     def _plan_system_events(self, session: Session, now: datetime) -> int:

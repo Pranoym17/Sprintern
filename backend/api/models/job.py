@@ -114,7 +114,7 @@ class Job(TimestampMixin, Base):
                 item.source == JobSourceName.GITHUB_REPO,
             ),
         )
-        return preferred.apply_url
+        return str(preferred.apply_url)
 
     @property
     def deadline_is_estimated(self) -> bool:

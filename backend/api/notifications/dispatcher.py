@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload, sessionmaker
+from sqlalchemy.sql.elements import ColumnElement
 
 from api.models import (
     DeliveryStatus,
@@ -15,6 +16,8 @@ from api.models import (
     NotificationCadence,
     NotificationChannel,
     NotificationDelivery,
+    NotificationPriority,
+    Profile,
     ReminderEvent,
 )
 from api.notifications.domain import DeliveryOutcome, ProviderResult
@@ -90,6 +93,21 @@ class NotificationDispatcher:
     def _claim_due(self, limit: int, now: datetime) -> list[NotificationDelivery]:
         lease_expired = now - timedelta(seconds=self.lease_seconds)
         with self.session_factory() as session:
+            due = or_(
+                and_(
+                    NotificationDelivery.status.in_(
+                        [DeliveryStatus.PENDING, DeliveryStatus.FAILED]
+                    ),
+                    or_(
+                        NotificationDelivery.next_attempt_at.is_(None),
+                        NotificationDelivery.next_attempt_at <= now,
+                    ),
+                ),
+                and_(
+                    NotificationDelivery.status == DeliveryStatus.SENDING,
+                    NotificationDelivery.locked_at < lease_expired,
+                ),
+            )
             statement = (
                 select(NotificationDelivery)
                 .options(
@@ -101,20 +119,10 @@ class NotificationDispatcher:
                 )
                 .where(
                     NotificationDelivery.attempt_count < self.max_attempts,
-                    or_(
-                        and_(
-                            NotificationDelivery.status.in_(
-                                [DeliveryStatus.PENDING, DeliveryStatus.FAILED]
-                            ),
-                            or_(
-                                NotificationDelivery.next_attempt_at.is_(None),
-                                NotificationDelivery.next_attempt_at <= now,
-                            ),
-                        ),
-                        and_(
-                            NotificationDelivery.status == DeliveryStatus.SENDING,
-                            NotificationDelivery.locked_at < lease_expired,
-                        ),
+                    due,
+                    ~and_(
+                        NotificationDelivery.channel == NotificationChannel.EMAIL,
+                        NotificationDelivery.notification_type == "new_match",
                     ),
                 )
                 .order_by(NotificationDelivery.next_attempt_at, NotificationDelivery.created_at)
@@ -123,14 +131,103 @@ class NotificationDispatcher:
             )
             claimed = list(session.scalars(statement))
             for delivery in claimed:
-                delivery.status = DeliveryStatus.SENDING
-                delivery.locked_at = now
-                delivery.last_attempt_at = now
-                delivery.attempt_count += 1
+                self._mark_claimed(delivery, now)
+            if len(claimed) < limit:
+                claimed.extend(
+                    self._claim_email_digests(
+                        session,
+                        due,
+                        now,
+                        profile_limit=limit - len(claimed),
+                    )
+                )
             session.commit()
             for delivery in claimed:
                 session.expunge(delivery)
             return claimed
+
+    def _claim_email_digests(
+        self,
+        session: Session,
+        due: ColumnElement[bool],
+        now: datetime,
+        *,
+        profile_limit: int,
+    ) -> list[NotificationDelivery]:
+        """Freeze each due user's top-N rows so retries resend the same curated digest."""
+        profile_ids = list(
+            session.scalars(
+                select(NotificationDelivery.profile_id)
+                .where(
+                    NotificationDelivery.channel == NotificationChannel.EMAIL,
+                    NotificationDelivery.notification_type == "new_match",
+                    NotificationDelivery.attempt_count < self.max_attempts,
+                    due,
+                )
+                .distinct()
+                .limit(profile_limit)
+            )
+        )
+        claimed: list[NotificationDelivery] = []
+        for profile_id in profile_ids:
+            profile = session.scalar(
+                select(Profile).where(Profile.id == profile_id).with_for_update()
+            )
+            if profile is None:
+                continue
+            candidates = list(
+                session.scalars(
+                    select(NotificationDelivery)
+                    .options(
+                        selectinload(NotificationDelivery.match)
+                        .selectinload(JobMatch.job)
+                        .selectinload(Job.sources),
+                        selectinload(NotificationDelivery.match).selectinload(JobMatch.profile),
+                        selectinload(NotificationDelivery.profile),
+                    )
+                    .where(
+                        NotificationDelivery.profile_id == profile_id,
+                        NotificationDelivery.channel == NotificationChannel.EMAIL,
+                        NotificationDelivery.notification_type == "new_match",
+                        NotificationDelivery.attempt_count < self.max_attempts,
+                        due,
+                    )
+                    .with_for_update(skip_locked=True)
+                )
+            )
+            ranked = sorted(candidates, key=self._digest_rank, reverse=True)
+            selected = ranked[: profile.email_digest_job_limit]
+            for delivery in selected:
+                self._mark_claimed(delivery, now)
+            for delivery in ranked[profile.email_digest_job_limit :]:
+                delivery.status = DeliveryStatus.CANCELLED
+                delivery.next_attempt_at = None
+                delivery.queued_reason = "digest_not_selected"
+                delivery.last_error = "Not selected for the curated daily digest"
+            claimed.extend(selected)
+        return claimed
+
+    @staticmethod
+    def _digest_rank(delivery: NotificationDelivery) -> tuple[int, int, float]:
+        match = delivery.match
+        if match is None:
+            return (0, 0, 0.0)
+        dimensions = {
+            key for reason in match.reasons for key in (reason.get("dimensions") or {}).keys()
+        }
+        seen_at = match.job.posted_at or match.job.first_seen_at
+        return (
+            1 if delivery.priority == NotificationPriority.HIGH else 0,
+            len(dimensions),
+            seen_at.timestamp(),
+        )
+
+    @staticmethod
+    def _mark_claimed(delivery: NotificationDelivery, now: datetime) -> None:
+        delivery.status = DeliveryStatus.SENDING
+        delivery.locked_at = now
+        delivery.last_attempt_at = now
+        delivery.attempt_count += 1
 
     @staticmethod
     def _group(deliveries: list[NotificationDelivery]) -> list[list[NotificationDelivery]]:
@@ -152,9 +249,7 @@ class NotificationDispatcher:
             return False
         return all(
             (
-                delivery.profile.notification_consents.get(
-                    delivery.notification_type, True
-                )
+                delivery.profile.notification_consents.get(delivery.notification_type, True)
                 is not False
             )
             and (

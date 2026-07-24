@@ -52,6 +52,9 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, session: Database) -> o
         "max_alerts_per_day",
         "priority_only_instant",
         "notification_consents",
+        "preferred_email_time",
+        "email_digest_job_limit",
+        "email_empty_digest_enabled",
     }
     if any(updates.get(field) is None for field in non_nullable if field in updates):
         raise AppError(422, "validation_error", "Notification safety settings cannot be null")
@@ -133,93 +136,98 @@ def export_me(user: CurrentUser, session: Database) -> AccountExportResponse:
             .where(Application.profile_id == profile.id)
         )
     )
-    return AccountExportResponse.model_validate({
-        "exported_at": datetime.now(UTC).isoformat(),
-        "profile": {
-            "id": str(profile.id),
-            "email": profile.email,
-            "timezone": profile.timezone,
-            "notification_cadence": profile.notification_cadence.value,
-            "email_notifications_enabled": profile.email_notifications_enabled,
-            "email_notifications_consent_at": profile.email_notifications_consent_at,
-            "telegram_connected": profile.telegram_chat_id is not None,
-            "telegram_notifications_enabled": profile.telegram_notifications_enabled,
-            "quiet_hours_start": profile.quiet_hours_start,
-            "quiet_hours_end": profile.quiet_hours_end,
-            "weekend_pause": profile.weekend_pause,
-            "max_alerts_per_day": profile.max_alerts_per_day,
-            "priority_only_instant": profile.priority_only_instant,
-            "notification_consents": profile.notification_consents,
-            "created_at": profile.created_at,
-        },
-        "filters": [
-            {
-                "id": str(item.id),
-                "name": item.name,
-                "role_keywords": item.role_keywords,
-                "location_keywords": item.location_keywords,
-                "terms": item.terms,
-                "work_mode": item.work_mode.value,
-                "active": item.active,
-            }
-            for item in filters
-        ],
-        "matches": [
-            {
-                "id": str(item.id),
-                "status": item.status.value,
-                "applied_at": item.applied_at,
-                "reasons": item.reasons,
-                "job": {
-                    "id": str(item.job.id),
+    return AccountExportResponse.model_validate(
+        {
+            "exported_at": datetime.now(UTC).isoformat(),
+            "profile": {
+                "id": str(profile.id),
+                "email": profile.email,
+                "timezone": profile.timezone,
+                "notification_cadence": profile.notification_cadence.value,
+                "email_notifications_enabled": profile.email_notifications_enabled,
+                "email_notifications_consent_at": profile.email_notifications_consent_at,
+                "preferred_email_time": profile.preferred_email_time,
+                "email_digest_job_limit": profile.email_digest_job_limit,
+                "email_empty_digest_enabled": profile.email_empty_digest_enabled,
+                "telegram_connected": profile.telegram_chat_id is not None,
+                "telegram_notifications_enabled": profile.telegram_notifications_enabled,
+                "quiet_hours_start": profile.quiet_hours_start,
+                "quiet_hours_end": profile.quiet_hours_end,
+                "weekend_pause": profile.weekend_pause,
+                "max_alerts_per_day": profile.max_alerts_per_day,
+                "priority_only_instant": profile.priority_only_instant,
+                "notification_consents": profile.notification_consents,
+                "created_at": profile.created_at,
+            },
+            "filters": [
+                {
+                    "id": str(item.id),
+                    "name": item.name,
+                    "role_keywords": item.role_keywords,
+                    "location_keywords": item.location_keywords,
+                    "terms": item.terms,
+                    "work_mode": item.work_mode.value,
+                    "active": item.active,
+                }
+                for item in filters
+            ],
+            "matches": [
+                {
+                    "id": str(item.id),
+                    "status": item.status.value,
+                    "applied_at": item.applied_at,
+                    "reasons": item.reasons,
+                    "job": {
+                        "id": str(item.job.id),
+                        "company": item.job.company,
+                        "title": item.job.title,
+                        "location": item.job.location,
+                        "term": item.job.term,
+                    },
+                    "deliveries": [
+                        {
+                            "channel": delivery.channel.value,
+                            "status": delivery.status.value,
+                            "sent_at": delivery.sent_at,
+                        }
+                        for delivery in item.deliveries
+                    ],
+                }
+                for item in matches
+            ],
+            "applications": [
+                {
+                    "id": str(item.id),
+                    "job_id": str(item.job_id),
                     "company": item.job.company,
                     "title": item.job.title,
-                    "location": item.job.location,
-                    "term": item.job.term,
-                },
-                "deliveries": [
-                    {
-                        "channel": delivery.channel.value,
-                        "status": delivery.status.value,
-                        "sent_at": delivery.sent_at,
-                    }
-                    for delivery in item.deliveries
-                ],
-            }
-            for item in matches
-        ],
-        "applications": [
-            {
-                "id": str(item.id),
-                "job_id": str(item.job_id),
-                "company": item.job.company,
-                "title": item.job.title,
-                "stage": item.stage.value,
-                "notes": item.notes,
-                "deadline_at": item.deadline_at,
-                "follow_up_at": item.follow_up_at,
-                "interview_at": item.interview_at,
-                "contact": item.contact,
-                "resume_version": item.resume_version,
-                "application_url": item.application_url,
-                "applied_at": item.applied_at,
-                "outcome": item.outcome,
-                "timeline": [
-                    {
-                        "id": str(event.id),
-                        "event_type": event.event_type,
-                        "data": event.data,
-                        "corrected_event_id": (
-                            str(event.corrected_event_id) if event.corrected_event_id else None
-                        ),
-                        "created_at": event.created_at,
-                    }
-                    for event in item.events
-                ],
-            }
-            for item in applications
-        ],
-    })
+                    "stage": item.stage.value,
+                    "notes": item.notes,
+                    "deadline_at": item.deadline_at,
+                    "follow_up_at": item.follow_up_at,
+                    "interview_at": item.interview_at,
+                    "contact": item.contact,
+                    "resume_version": item.resume_version,
+                    "application_url": item.application_url,
+                    "applied_at": item.applied_at,
+                    "outcome": item.outcome,
+                    "timeline": [
+                        {
+                            "id": str(event.id),
+                            "event_type": event.event_type,
+                            "data": event.data,
+                            "corrected_event_id": (
+                                str(event.corrected_event_id) if event.corrected_event_id else None
+                            ),
+                            "created_at": event.created_at,
+                        }
+                        for event in item.events
+                    ],
+                }
+                for item in applications
+            ],
+        }
+    )
 
 
 @router.delete(

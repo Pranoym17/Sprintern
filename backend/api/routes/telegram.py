@@ -88,9 +88,7 @@ async def telegram_webhook(
         await _reply(chat_id, "Telegram alerts are active.")
     elif command == "/status":
         state = "active" if profile.telegram_notifications_enabled else "paused"
-        await _reply(
-            chat_id, f"Telegram alerts: {state}\nCadence: {profile.notification_cadence.value}"
-        )
+        await _reply(chat_id, f"Telegram alerts: {state}\nNew-match alerts: instant")
     elif command == "/filters":
         filters = list(
             session.scalars(
