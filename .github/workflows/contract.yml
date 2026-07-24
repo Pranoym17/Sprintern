@@ -12,6 +12,7 @@ on:
     branches: [main]
     paths:
       - "backend/api/**"
+      - "backend/scripts/export_openapi.py"
       - "frontend/openapi/**"
       - "frontend/src/lib/api/schema.d.ts"
 

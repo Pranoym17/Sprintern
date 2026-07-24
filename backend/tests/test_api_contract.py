@@ -56,6 +56,14 @@ def test_frontend_contract_excludes_internal_operations_and_schemas() -> None:
     assert "/api/v1/users/me" in schema["paths"]
     assert "/api/v1/admin/sources" in schema["paths"]
     assert "SourceStatusResponse" not in schema["components"]["schemas"]
+    descriptions = [
+        operation["responses"]["422"]["description"]
+        for path_item in schema["paths"].values()
+        for operation in path_item.values()
+        if isinstance(operation, dict) and "422" in operation.get("responses", {})
+    ]
+    assert descriptions
+    assert set(descriptions) == {"Unprocessable Content"}
 
 
 async def test_unversioned_product_route_is_not_available() -> None:

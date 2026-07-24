@@ -40,6 +40,15 @@ def public_contract() -> dict[str, Any]:
     schema["components"]["schemas"] = {
         name: definition for name, definition in schemas.items() if name in reachable
     }
+    # Python 3.13 adopted RFC 9110's newer phrase while Python 3.12 still reports the
+    # historical phrase. Normalize documentation so supported runtimes generate one contract.
+    for path_item in schema["paths"].values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            response = operation.get("responses", {}).get("422")
+            if isinstance(response, dict):
+                response["description"] = "Unprocessable Content"
     return schema
 
 
