@@ -117,6 +117,8 @@ class GitHubRepositoryAdapter:
             next_cursor={"sha": commit_sha},
             rejected_count=len(errors),
             rejection_errors=errors[:25],
+            detected_schema="github_markdown_table:v1",
+            missing_columns=[],
         )
 
     def _headers(self) -> dict[str, str]:

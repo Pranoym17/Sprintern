@@ -754,14 +754,14 @@
             "type": "string"
           },
           "parser_schema": {
+            "const": "github_markdown_table",
             "default": "github_markdown_table",
-            "maxLength": 64,
             "title": "Parser Schema",
             "type": "string"
           },
           "parser_version": {
+            "const": "1",
             "default": "1",
-            "maxLength": 32,
             "title": "Parser Version",
             "type": "string"
           },
@@ -999,8 +999,7 @@
           "parser_schema": {
             "anyOf": [
               {
-                "maxLength": 64,
-                "minLength": 1,
+                "const": "github_markdown_table",
                 "type": "string"
               },
               {
@@ -1012,8 +1011,7 @@
           "parser_version": {
             "anyOf": [
               {
-                "maxLength": 32,
-                "minLength": 1,
+                "const": "1",
                 "type": "string"
               },
               {
@@ -3792,6 +3790,17 @@
             },
             "title": "Suspicious Truncated Values",
             "type": "array"
+          },
+          "validation_errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Validation Errors",
+            "type": "array"
+          },
+          "validation_passed": {
+            "title": "Validation Passed",
+            "type": "boolean"
           }
         },
         "required": [
@@ -3805,7 +3814,9 @@
           "rejected_rows",
           "suspicious_truncated_values",
           "inferred_terms",
-          "application_domains"
+          "application_domains",
+          "validation_passed",
+          "validation_errors"
         ],
         "title": "SourcePreviewResponse",
         "type": "object"

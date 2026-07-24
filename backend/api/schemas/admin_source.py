@@ -18,8 +18,8 @@ class AdminSourceCreate(APIModel):
     poll_minutes: int = Field(default=15, ge=5, le=1440)
     jitter_seconds: int = Field(default=30, ge=0, le=300)
     default_term: str | None = Field(default=None, max_length=100)
-    parser_schema: str = Field(default="github_markdown_table", max_length=64)
-    parser_version: str = Field(default="1", max_length=32)
+    parser_schema: Literal["github_markdown_table"] = "github_markdown_table"
+    parser_version: Literal["1"] = "1"
 
 
 class AdminSourceUpdate(APIModel):
@@ -30,8 +30,8 @@ class AdminSourceUpdate(APIModel):
     poll_minutes: int | None = Field(default=None, ge=5, le=1440)
     jitter_seconds: int | None = Field(default=None, ge=0, le=300)
     default_term: str | None = Field(default=None, max_length=100)
-    parser_schema: str | None = Field(default=None, min_length=1, max_length=64)
-    parser_version: str | None = Field(default=None, min_length=1, max_length=32)
+    parser_schema: Literal["github_markdown_table"] | None = None
+    parser_version: Literal["1"] | None = None
 
 
 class SourceStateChange(APIModel):
@@ -99,6 +99,8 @@ class SourcePreviewResponse(APIModel):
     suspicious_truncated_values: list[str]
     inferred_terms: list[TermSummary]
     application_domains: list[str]
+    validation_passed: bool
+    validation_errors: list[str]
 
 
 class AdminRunResponse(APIModel):

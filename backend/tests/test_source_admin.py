@@ -44,6 +44,7 @@ class PreviewAdapter:
             ],
             completeness=PollCompleteness.INCREMENTAL,
             next_cursor={"sha": "preview"},
+            detected_schema="github_markdown_table:v1",
         )
 
 
@@ -128,6 +129,8 @@ async def test_admin_preview_is_read_only_and_required_before_enable(
     jobs_after = db_session.scalar(select(func.count(JobSource.id)))
     assert preview.status_code == 200
     assert preview.json()["accepted"] == 1
+    assert preview.json()["validation_passed"] is True
+    assert preview.json()["detected_table_schema"] == "github_markdown_table:v1"
     assert preview.json()["application_domains"] == ["jobs.example.com"]
     assert jobs_after == jobs_before
 
@@ -145,6 +148,35 @@ async def test_admin_preview_is_read_only_and_required_before_enable(
         )
         == 3
     )
+
+
+async def test_admin_cannot_enable_a_preview_with_no_valid_rows(
+    api_client: httpx.AsyncClient,
+    authenticated_user: AuthenticatedUser,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from api.routes import admin_sources
+
+    monkeypatch.setattr(settings, "admin_user_ids_value", str(authenticated_user.id))
+    monkeypatch.setattr(admin_sources, "build_adapter", lambda *_: EmptyChangedAdapter())
+    created = await api_client.post(
+        "/admin/sources",
+        json={"owner": "empty", "repository": "repository"},
+    )
+    source_id = created.json()["id"]
+
+    preview = await api_client.post(f"/admin/sources/{source_id}/preview")
+    assert preview.status_code == 200
+    assert preview.json()["validation_passed"] is False
+    assert preview.json()["validation_errors"] == [
+        "No valid internship rows were detected"
+    ]
+
+    enabled = await api_client.post(
+        f"/admin/sources/{source_id}/state",
+        json={"enabled": True, "confirmation": "ENABLE"},
+    )
+    assert enabled.status_code == 409
 
 
 def test_toml_only_seeds_an_empty_database(

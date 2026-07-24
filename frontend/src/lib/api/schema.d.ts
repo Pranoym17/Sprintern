@@ -1108,13 +1108,15 @@ export interface components {
             /**
              * Parser Schema
              * @default github_markdown_table
+             * @constant
              */
-            parser_schema: string;
+            parser_schema: "github_markdown_table";
             /**
              * Parser Version
              * @default 1
+             * @constant
              */
-            parser_version: string;
+            parser_version: "1";
             /**
              * Path
              * @default README.md
@@ -1192,9 +1194,9 @@ export interface components {
             /** Owner */
             owner?: string | null;
             /** Parser Schema */
-            parser_schema?: string | null;
+            parser_schema?: "github_markdown_table" | null;
             /** Parser Version */
-            parser_version?: string | null;
+            parser_version?: "1" | null;
             /** Path */
             path?: string | null;
             /** Poll Minutes */
@@ -2038,6 +2040,10 @@ export interface components {
             sample_normalized_output: components["schemas"]["PreviewSample"][];
             /** Suspicious Truncated Values */
             suspicious_truncated_values: string[];
+            /** Validation Errors */
+            validation_errors: string[];
+            /** Validation Passed */
+            validation_passed: boolean;
         };
         /** SourceStateChange */
         SourceStateChange: {

@@ -18,6 +18,7 @@ from api.ingestion.normalization import normalize_job
 from api.ingestion.service import IngestionService
 from api.models import (
     IngestionRun,
+    Job,
     JobSource,
     JobSourceName,
     SourceAuditLog,
@@ -159,7 +160,11 @@ def create_admin_source(
     return _response(session, source)
 
 
-@router.patch("/sources/{source_id}", response_model=AdminSourceResponse)
+@router.patch(
+    "/sources/{source_id}",
+    response_model=AdminSourceResponse,
+    dependencies=[Depends(user_rate_limit("admin.sources.update", 60, 3600))],
+)
 def update_admin_source(
     source_id: uuid.UUID,
     payload: AdminSourceUpdate,
@@ -205,7 +210,11 @@ def update_admin_source(
     return _response(session, source)
 
 
-@router.post("/sources/{source_id}/state", response_model=AdminSourceResponse)
+@router.post(
+    "/sources/{source_id}/state",
+    response_model=AdminSourceResponse,
+    dependencies=[Depends(user_rate_limit("admin.sources.state", 30, 3600))],
+)
 def change_source_state(
     source_id: uuid.UUID,
     payload: SourceStateChange,
@@ -224,7 +233,11 @@ def change_source_state(
     return _response(session, source)
 
 
-@router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/sources/{source_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(user_rate_limit("admin.sources.delete", 10, 3600))],
+)
 def delete_admin_source(
     source_id: uuid.UUID,
     payload: SourceDeleteRequest,
@@ -244,7 +257,11 @@ def delete_admin_source(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/sources/{source_id}/preview", response_model=SourcePreviewResponse)
+@router.post(
+    "/sources/{source_id}/preview",
+    response_model=SourcePreviewResponse,
+    dependencies=[Depends(user_rate_limit("admin.sources.preview", 30, 3600))],
+)
 async def preview_admin_source(
     source_id: uuid.UUID, admin: Administrator, session: Database
 ) -> SourcePreviewResponse:
@@ -276,6 +293,17 @@ async def preview_admin_source(
                 )
             )
         )
+    fingerprints = {item.canonical_fingerprint for item in normalized}
+    if fingerprints:
+        duplicates += len(
+            set(
+                session.scalars(
+                    select(Job.canonical_fingerprint).where(
+                        Job.canonical_fingerprint.in_(fingerprints)
+                    )
+                )
+            )
+        )
     terms = Counter(item.term or "Unknown" for item in normalized)
     domain_values: set[str] = set()
     for item in normalized:
@@ -287,13 +315,29 @@ async def preview_admin_source(
         for item in normalized
         if len(item.title) < 5 or item.title.endswith(("...", "…"))
     ][:25]
-    source.last_validated_at = datetime.now(UTC)
+    total_rows = len(normalized) + len(errors)
+    validation_errors: list[str] = []
+    if not normalized:
+        validation_errors.append("No valid internship rows were detected")
+    if total_rows and len(errors) / total_rows > 0.9:
+        validation_errors.append("More than 90% of detected rows were rejected")
+    if batch.missing_columns:
+        validation_errors.append(
+            f"Required columns are missing: {', '.join(batch.missing_columns)}"
+        )
+    validation_passed = not validation_errors
+    source.last_validated_at = datetime.now(UTC) if validation_passed else None
     _audit(
         session,
         admin.id,
         "previewed",
         source.id,
-        {"accepted": len(normalized), "rejected": len(errors)},
+        {
+            "accepted": len(normalized),
+            "rejected": len(errors),
+            "validation_passed": validation_passed,
+            "validation_errors": validation_errors,
+        },
     )
     session.commit()
     return SourcePreviewResponse(
@@ -313,8 +357,8 @@ async def preview_admin_source(
             )
             for item in normalized[:10]
         ],
-        detected_table_schema=source.parser_schema,
-        missing_columns=[],
+        detected_table_schema=batch.detected_schema or "unknown",
+        missing_columns=batch.missing_columns,
         rejected_rows=errors[:25],
         suspicious_truncated_values=suspicious,
         inferred_terms=[
@@ -322,10 +366,16 @@ async def preview_admin_source(
             for term, count in sorted(terms.items(), key=lambda item: item[0] or "")
         ],
         application_domains=domains,
+        validation_passed=validation_passed,
+        validation_errors=validation_errors,
     )
 
 
-@router.post("/sources/{source_id}/ingest", response_model=IngestionRunResponse)
+@router.post(
+    "/sources/{source_id}/ingest",
+    response_model=IngestionRunResponse,
+    dependencies=[Depends(user_rate_limit("admin.sources.ingest", 20, 3600))],
+)
 async def ingest_admin_source(
     source_id: uuid.UUID, admin: Administrator, session: Database
 ) -> object:

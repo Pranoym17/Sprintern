@@ -31,6 +31,8 @@ class PollBatch(BaseModel):
     next_cursor: dict[str, Any] = Field(default_factory=dict)
     rejected_count: int = Field(default=0, ge=0)
     rejection_errors: list[str] = Field(default_factory=list, max_length=25)
+    detected_schema: str | None = None
+    missing_columns: list[str] = Field(default_factory=list)
 
 
 class SourceAdapter(Protocol):
