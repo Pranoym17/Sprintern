@@ -1,10 +1,30 @@
+import os
 import uuid
 from collections.abc import AsyncIterator, Generator
 
 import httpx
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
+
+
+def _configure_isolated_test_database() -> None:
+    test_url = os.getenv("TEST_DATABASE_URL", "").strip()
+    if not test_url:
+        raise RuntimeError(
+            "TEST_DATABASE_URL is required; tests must never use the development database"
+        )
+    database = (make_url(test_url).database or "").casefold()
+    if not database.endswith("_test"):
+        raise RuntimeError("TEST_DATABASE_URL database name must end with '_test'")
+    os.environ["APP_ENV"] = "test"
+    os.environ["DATABASE_URL"] = test_url
+    os.environ["DATABASE_API_URL"] = test_url
+    os.environ["DATABASE_WORKER_URL"] = test_url
+
+
+_configure_isolated_test_database()
 
 from api.auth import AuthenticatedUser, get_current_user
 from api.database import engine, get_db, get_user_db
