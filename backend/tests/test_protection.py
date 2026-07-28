@@ -6,12 +6,13 @@ import httpx
 import pytest
 import redis
 from fastapi import Request
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 import api.routes.sources as source_routes
 from api.errors import AppError
 from api.main import app
-from api.models import JobSourceName, SourceState
+from api.models import JobSourceName, SourceConfiguration, SourceState
 from api.rate_limiting import InMemoryRateLimiter, RateLimit, RedisRateLimiter, client_ip
 from api.settings import settings
 
@@ -116,6 +117,7 @@ async def test_public_source_status_is_aggregate_and_authenticated(
 ) -> None:
     now = datetime.now(UTC)
     keys = ["owner/one:README.md", "owner/two:README.md"]
+    db_session.execute(delete(SourceConfiguration))
     monkeypatch.setattr(
         source_routes,
         "load_source_config",

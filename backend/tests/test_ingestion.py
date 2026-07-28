@@ -26,7 +26,6 @@ from api.ingestion.normalization import (
 )
 from api.ingestion.persistence import JobPersister, PersistenceOutcome
 from api.ingestion.service import IngestionService
-from api.repositories.jobs import list_jobs
 from api.models import (
     IngestionRunStatus,
     Job,
@@ -36,6 +35,7 @@ from api.models import (
     PollCompleteness,
     SourceState,
 )
+from api.repositories.jobs import list_jobs
 from api.schemas.ingestion import IngestionRunRequest
 from api.settings import settings
 

@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 import pytest
 from pydantic import AnyHttpUrl
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.auth import AuthenticatedUser
@@ -18,6 +18,7 @@ from api.models import (
     ParserAlert,
     PollCompleteness,
     SourceAuditLog,
+    SourceConfiguration,
 )
 from api.scheduler.source_registry import (
     load_runtime_source_config,
@@ -184,6 +185,7 @@ def test_toml_only_seeds_an_empty_database(
     source_factory: sessionmaker[Session],
     tmp_path: Path,
 ) -> None:
+    db_session.execute(delete(SourceConfiguration))
     config_path = tmp_path / "sources.toml"
     config_path.write_text(
         '[[github]]\nowner="seed"\nrepository="repo"\nenabled=true\npoll_minutes=45\n',

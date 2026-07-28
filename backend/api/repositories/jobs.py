@@ -1,6 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -67,6 +67,7 @@ def list_jobs(
     if work_mode and work_mode not in {WorkMode.ANY, WorkMode.UNKNOWN}:
         statement = statement.where(Job.work_mode == work_mode)
 
+    ordering: tuple[Any, ...]
     if sort == "company":
         ordering = (Job.normalized_company.asc(), published_at.desc(), Job.id.desc())
     elif sort == "deadline":

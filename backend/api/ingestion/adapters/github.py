@@ -2,6 +2,7 @@ import base64
 import hashlib
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from pydantic import ValidationError
 
@@ -18,6 +19,7 @@ MARKDOWN_IMAGE = re.compile(r"!\[([^]]*)]\([^)]+\)")
 MARKDOWN_TEXT_LINK = re.compile(r"\[([^]]+)]\([^)]+\)")
 SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
 CLOSED_MARKERS = {"closed", "filled", "expired", "🔒"}
+AGGREGATOR_HOSTS = {"applyguy.ai", "simplify.jobs", "speedyapply.com"}
 
 HEADER_ALIASES = {
     "company": {"company", "employer"},
@@ -30,6 +32,7 @@ HEADER_ALIASES = {
         "posting",
         "application link",
         "application/link",
+        "actions",
     },
     "date": {"date", "date posted", "posted", "posting date"},
     "term": {"term", "season", "internship term", "internship season", "cycle"},
@@ -238,7 +241,9 @@ class GitHubRepositoryAdapter:
             normalized = (html_to_text(header) or "").lower().strip("*_`~ ")
             for name, aliases in HEADER_ALIASES.items():
                 if normalized in aliases:
-                    result[name] = index
+                    # Some generated tables contain both "Title" and "Role", where
+                    # Role is a description. Preserve the first canonical column.
+                    result.setdefault(name, index)
         return result
 
     @staticmethod
@@ -357,8 +362,16 @@ class GitHubRepositoryAdapter:
 
     @staticmethod
     def _extract_url(value: str) -> str | None:
+        candidates: list[str] = []
         for pattern in (NESTED_IMAGE_LINK, MARKDOWN_LINK, HTML_LINK, RAW_LINK):
-            match = pattern.search(value)
-            if match:
-                return match.group(1) if match.lastindex else match.group(0)
-        return None
+            for match in pattern.finditer(value):
+                candidate = match.group(1) if match.lastindex else match.group(0)
+                if candidate not in candidates:
+                    candidates.append(candidate)
+        for candidate in candidates:
+            hostname = (urlsplit(candidate).hostname or "").lower()
+            if hostname not in AGGREGATOR_HOSTS and not any(
+                hostname.endswith(f".{domain}") for domain in AGGREGATOR_HOSTS
+            ):
+                return candidate
+        return candidates[0] if candidates else None

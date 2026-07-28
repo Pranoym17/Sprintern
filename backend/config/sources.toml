@@ -27,7 +27,7 @@ poll_minutes = 180
 jitter_seconds = 120
 
 [[github]]
-enabled = true
+enabled = false
 owner = "SimplifyJobs"
 repository = "Summer2026-Internships"
 path = "README.md"
@@ -48,10 +48,28 @@ jitter_seconds = 240
 enabled = true
 owner = "negarprh"
 repository = "Canadian-Tech-Internships-2026"
-path = "README.md"
+path = "README-2027.md"
 branch = "main"
 poll_minutes = 90
 jitter_seconds = 300
+
+[[github]]
+enabled = true
+owner = "hanzili"
+repository = "canada_sde_intern_position"
+path = "README.md"
+branch = "main"
+poll_minutes = 60
+jitter_seconds = 210
+
+[[github]]
+enabled = true
+owner = "ApplyGuy"
+repository = "2027-Internships"
+path = "README.md"
+branch = "main"
+poll_minutes = 60
+jitter_seconds = 270
 
 [[github]]
 enabled = true

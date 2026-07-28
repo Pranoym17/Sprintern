@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.orm import Session
 
 from api.launch import launch_readiness, operational_status
@@ -46,6 +46,7 @@ async def test_operational_status_collects_safe_monitoring_signals(
 ) -> None:
     now = datetime.now(UTC)
     source_key = "owner/repository:README.md"
+    db_session.execute(delete(SourceConfiguration))
     db_session.add_all(
         [
             SourceConfiguration(

@@ -57,6 +57,18 @@ MIXED_TERM_README = "\n".join(
     ]
 )
 
+GENERATED_ACTIONS_README = "\n".join(
+    [
+        "# 2027 Internships",
+        "",
+        "| Title | Company | Role | Location | Season | Actions |",
+        "| ----- | ------- | ---- | -------- | ------ | ------- |",
+        "| Software Developer Intern | Example | Build product features | Toronto | "
+        "Summer 2027 | [![Apply](apply.svg)](https://applyguy.ai/jobs/123) "
+        "[![View](view.svg)](https://example.com/job) |",
+    ]
+)
+
 
 async def test_github_skips_unchanged_commit() -> None:
     calls = 0
@@ -136,6 +148,29 @@ async def test_github_parses_current_repository_table_style() -> None:
     assert batch.records[0].location == "Toronto, ON Remote"
     assert batch.records[1].company == "Example"
     assert batch.rejected_count == 0
+
+
+async def test_github_prefers_title_and_supports_actions_link_column() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/commits"):
+            return httpx.Response(200, json=[{"sha": "generated-sha"}])
+        return httpx.Response(
+            200,
+            json={
+                "encoding": "base64",
+                "content": base64.b64encode(GENERATED_ACTIONS_README.encode()).decode(),
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        batch = await GitHubRepositoryAdapter(
+            "owner", "generated", RetryingHTTPClient(client)
+        ).fetch({})
+
+    assert len(batch.records) == 1
+    assert batch.records[0].title == "Software Developer Intern"
+    assert batch.records[0].term == "Summer 2027"
+    assert str(batch.records[0].apply_url) == "https://example.com/job"
 
 
 async def test_github_infers_mixed_terms_with_explicit_priority() -> None:
