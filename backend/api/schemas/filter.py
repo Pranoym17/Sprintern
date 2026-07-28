@@ -25,6 +25,8 @@ def clean_terms(values: list[str]) -> list[str]:
     cleaned = clean_values(values)
     if any(re.fullmatch(r"(?:Summer|Fall|Winter) \d{4}", value) is None for value in cleaned):
         raise ValueError("terms must use Summer, Fall, or Winter followed by a four-digit year")
+    if any(value.casefold() == "summer 2026" for value in cleaned):
+        raise ValueError("Summer 2026 is no longer available")
     return cleaned
 
 

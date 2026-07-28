@@ -24,6 +24,7 @@ TRACKING_PARAMETERS = {
 }
 MAX_RAW_METADATA_BYTES = 100_000
 CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+RETIRED_TERMS = {"summer 2026"}
 
 
 class NormalizedJob(BaseModel):
@@ -81,6 +82,8 @@ def normalize_job(source: JobSourceName, source_key: str, raw: RawSourceJob) -> 
     description = clean_external_text(raw.description) if raw.description else None
     if not company or not title:
         raise ValueError("company and title must contain visible text")
+    if term and term.casefold() in RETIRED_TERMS:
+        raise ValueError("Summer 2026 postings are no longer accepted")
     normalized_company = normalize_text(company)
     normalized_title = normalize_text(title)
     normalized_location = normalize_text(location) if location else None

@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 from api.auth import CurrentUser
 from api.database import get_user_db
 from api.errors import AppError
+from api.models import WorkMode
 from api.repositories.jobs import get_job, list_jobs
-from api.repositories.pagination import decode_cursor, encode_cursor
+from api.repositories.pagination import decode_offset_cursor, encode_offset_cursor
 from api.schemas import JobPage, PublicJobResponse
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -22,15 +23,30 @@ def read_jobs(
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     cursor: str | None = None,
     query: Annotated[str | None, Query(min_length=1, max_length=120)] = None,
+    company: Annotated[str | None, Query(min_length=1, max_length=120)] = None,
+    location: Annotated[str | None, Query(min_length=1, max_length=120)] = None,
+    term: Annotated[str | None, Query(pattern=r"^(?:Summer|Fall|Winter) \d{4}$")] = None,
+    work_mode: WorkMode | None = None,
+    posted_within_days: Literal[1, 7, 14, 30] | None = None,
+    sort: Literal["newest", "company", "deadline", "relevance"] = "newest",
 ) -> JobPage:
-    jobs = list_jobs(session, limit, decode_cursor(cursor) if cursor else None, query)
+    offset = decode_offset_cursor(cursor) if cursor else 0
+    jobs = list_jobs(
+        session,
+        limit,
+        offset,
+        query,
+        company,
+        location,
+        term,
+        work_mode,
+        posted_within_days,
+        sort,
+    )
     has_more = len(jobs) > limit
     items = jobs[:limit]
-    next_cursor = (
-        encode_cursor(items[-1].posted_at or items[-1].first_seen_at, items[-1].id)
-        if has_more
-        else None
-    )
+    # Offset cursors keep pagination opaque while supporting several user-selected sort orders.
+    next_cursor = encode_offset_cursor(offset + limit) if has_more else None
     return JobPage(
         items=[PublicJobResponse.model_validate(job) for job in items], next_cursor=next_cursor
     )

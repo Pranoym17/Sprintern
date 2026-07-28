@@ -18,3 +18,20 @@ def decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
         return datetime.fromisoformat(payload["created_at"]), uuid.UUID(payload["id"])
     except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
         raise AppError(400, "invalid_cursor", "Pagination cursor is invalid") from exc
+
+
+def encode_offset_cursor(offset: int) -> str:
+    payload = json.dumps({"offset": offset}).encode()
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+
+def decode_offset_cursor(cursor: str) -> int:
+    try:
+        padding = "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(cursor + padding))
+        offset = int(payload["offset"])
+        if offset < 0:
+            raise ValueError
+        return offset
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        raise AppError(400, "invalid_cursor", "Pagination cursor is invalid") from exc

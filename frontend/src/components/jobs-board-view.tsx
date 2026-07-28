@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, BriefcaseBusiness, CalendarDays, MapPin, Search } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, CalendarDays, MapPin, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { useApp } from "@/components/app-provider";
+import { CompanyLogo } from "@/components/company-logo";
 import { EmptyState, PageHeader } from "@/components/dashboard-view";
 import { PageError } from "@/components/page-state";
-import type { Job } from "@/lib/api/types";
+import type { Job, JobBoardFilters, JobBoardSort, WorkMode } from "@/lib/api/types";
+
+const TERMS = ["Fall 2026", "Winter 2027", "Summer 2027", "Fall 2027", "Winter 2028", "Summer 2028", "Fall 2028"];
 
 export function JobsBoardView() {
   const { api } = useApp();
@@ -15,6 +18,12 @@ export function JobsBoardView() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [company, setCompany] = useState("");
+  const [location, setLocation] = useState("");
+  const [term, setTerm] = useState("");
+  const [workMode, setWorkMode] = useState<WorkMode>("any");
+  const [postedWithinDays, setPostedWithinDays] = useState<"" | 1 | 7 | 14 | 30>("");
+  const [sort, setSort] = useState<JobBoardSort>("newest");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
@@ -31,7 +40,16 @@ export function JobsBoardView() {
     if (next) setLoadingMore(true);
     else setLoading(true);
     try {
-      const page = await api.jobs(next, searchQuery);
+      const filters: JobBoardFilters = {
+        query: searchQuery || undefined,
+        company: company.trim() || undefined,
+        location: location.trim() || undefined,
+        term: term || undefined,
+        work_mode: workMode === "any" ? undefined : workMode,
+        posted_within_days: postedWithinDays || undefined,
+        sort,
+      };
+      const page = await api.jobs(next, filters);
       if (version !== loadVersion.current) return;
       setItems((current) => next ? [...current, ...page.items] : page.items);
       setCursor(page.next_cursor);
@@ -45,7 +63,7 @@ export function JobsBoardView() {
         setLoadingMore(false);
       }
     }
-  }, [api, searchQuery]);
+  }, [api, company, location, postedWithinDays, searchQuery, sort, term, workMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -54,32 +72,55 @@ export function JobsBoardView() {
 
   if (error && !items.length) return <PageError message={error} retry={() => void load()} />;
 
+  const hasFilters = Boolean(searchQuery || company || location || term || workMode !== "any" || postedWithinDays || sort !== "newest");
+  const clearFilters = () => {
+    setQuery(""); setSearchQuery(""); setCompany(""); setLocation(""); setTerm("");
+    setWorkMode("any"); setPostedWithinDays(""); setSort("newest");
+  };
+
   return <div className="app-page jobs-board">
     <PageHeader
       eyebrow="All opportunities"
-      title="The 30-day job board"
-      copy="Browse every active internship Sprintern has found in the past 30 days. Your Matches page remains the personalized shortlist."
+      title="Job board"
+      copy="Browse active internships across Sprintern, then use filters to narrow the board to what matters to you."
     />
-    <div className="board-toolbar">
-      <label>
-        <Search size={18} />
-        <span className="sr-only">Search jobs</span>
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value.slice(0, 120))}
-          placeholder="Search title, company, or location"
-        />
-      </label>
-      <span>{loading ? "Checking the board…" : `${items.length} role${items.length === 1 ? "" : "s"} shown`}</span>
-    </div>
+    <section className="board-filter-panel" aria-label="Job board filters">
+      <div className="board-toolbar">
+        <label>
+          <Search size={18} />
+          <span className="sr-only">Search jobs</span>
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value.slice(0, 120))} placeholder="Search title, company, or location" />
+        </label>
+        <span>{loading ? "Checking the board…" : `${items.length} role${items.length === 1 ? "" : "s"} shown`}</span>
+      </div>
+      <div className="board-filter-grid">
+        <label><span>Company</span><input value={company} onChange={(event) => setCompany(event.target.value.slice(0, 120))} placeholder="Any company" /></label>
+        <label><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value.slice(0, 120))} placeholder="Any location" /></label>
+        <label><span>Term</span><select value={term} onChange={(event) => setTerm(event.target.value)}>
+          <option value="">Any term</option>{TERMS.map((value) => <option value={value} key={value}>{value}</option>)}
+        </select></label>
+        <label><span>Work mode</span><select value={workMode} onChange={(event) => setWorkMode(event.target.value as WorkMode)}>
+          <option value="any">Any mode</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="onsite">On-site</option>
+        </select></label>
+        <label><span>Added</span><select value={postedWithinDays} onChange={(event) => setPostedWithinDays(event.target.value ? Number(event.target.value) as 1 | 7 | 14 | 30 : "")}>
+          <option value="">Any time</option><option value={1}>Past 24 hours</option><option value={7}>Past week</option><option value={14}>Past 2 weeks</option><option value={30}>Past 30 days</option>
+        </select></label>
+        <label><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as JobBoardSort)}>
+          <option value="newest">Newest</option><option value="relevance">Relevance</option><option value="company">Company</option><option value="deadline">Deadline</option>
+        </select></label>
+      </div>
+      <div className="board-filter-footer">
+        <span><SlidersHorizontal size={15} /> Filters update the board automatically.</span>
+        {hasFilters && <button className="board-clear-filters" type="button" onClick={clearFilters}><X size={15} /> Clear filters</button>}
+      </div>
+    </section>
 
     {loading ? <BoardSkeleton /> : items.length ? <div className="board-list">
       {items.map((job) => <JobBoardRow job={job} key={job.id} />)}
     </div> : <EmptyState
       icon={<Search />}
-      title={searchQuery ? "No roles match that search" : "No current roles yet"}
-      copy={searchQuery ? "Try a company, role, or location with fewer words." : "The board will fill as the next source checks finish."}
+      title={hasFilters ? "No roles match those filters" : "No current roles yet"}
+      copy={hasFilters ? "Try clearing a filter or broadening your search." : "The board will fill as the next source checks finish."}
     />}
 
     {error && items.length > 0 && <p className="board-inline-error" role="status">{error}</p>}
@@ -92,7 +133,7 @@ export function JobsBoardView() {
 function JobBoardRow({ job }: { job: Job }) {
   const publishedAt = job.posted_at ?? job.first_seen_at;
   return <article className="board-job">
-    <span className="company-avatar company-avatar--large" aria-hidden="true">{job.company.slice(0, 2).toUpperCase()}</span>
+    <CompanyLogo company={job.company} size="large" />
     <div className="board-job__identity">
       <p>{job.company}</p>
       <h2><Link href={`/jobs/${job.id}`}>{job.title}</Link></h2>
@@ -122,6 +163,5 @@ function relativeTime(value: string) {
   if (seconds < 60) return "Just added";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  const days = Math.floor(seconds / 86400);
-  return `${days}d ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }

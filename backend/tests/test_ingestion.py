@@ -26,6 +26,7 @@ from api.ingestion.normalization import (
 )
 from api.ingestion.persistence import JobPersister, PersistenceOutcome
 from api.ingestion.service import IngestionService
+from api.repositories.jobs import list_jobs
 from api.models import (
     IngestionRunStatus,
     Job,
@@ -167,6 +168,50 @@ def test_explicit_different_terms_remain_distinct_jobs(db_session: Session) -> N
         db_session.scalars(select(Job).where(Job.normalized_company == summer.normalized_company))
     )
     assert {job.term for job in jobs} == {"Summer 2027", "Fall 2027"}
+
+
+def test_summer_2026_jobs_are_retired_at_normalization_boundary() -> None:
+    with pytest.raises(ValueError, match="Summer 2026"):
+        normalize_job(
+            JobSourceName.GITHUB_REPO,
+            "owner/retired:README.md",
+            raw_job("retired-row").model_copy(update={"term": "Summer 2026"}),
+        )
+
+
+def test_job_board_filters_active_jobs_without_a_fixed_age_window(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    persister = JobPersister()
+    toronto = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/board-one:README.md",
+        raw_job("board-one", "Northstar Labs").model_copy(
+            update={"title": "Software Intern", "location": "Toronto", "term": "Summer 2027"}
+        ),
+    )
+    vancouver = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/board-two:README.md",
+        raw_job("board-two", "Westcoast Systems").model_copy(
+            update={"title": "Product Intern", "location": "Vancouver", "term": "Fall 2027"}
+        ),
+    )
+    persister.persist(db_session, toronto, now - timedelta(days=45))
+    persister.persist(db_session, vancouver, now)
+    db_session.flush()
+
+    all_jobs = list_jobs(db_session, limit=10, offset=0)
+    filtered = list_jobs(
+        db_session,
+        limit=10,
+        offset=0,
+        query="software",
+        location="Toronto",
+        term="Summer 2027",
+    )
+
+    assert {job.company for job in all_jobs} >= {"Northstar Labs", "Westcoast Systems"}
+    assert [job.company for job in filtered] == ["Northstar Labs"]
 
 
 def test_different_locations_remain_distinct_jobs(db_session: Session) -> None:

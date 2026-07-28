@@ -42,6 +42,16 @@ export type SourceAudit = Schemas["SourceAuditResponse"];
 
 export type MatchReason = Record<string, unknown>;
 export type MatchSort = "newest" | "company" | "relevance" | "deadline";
+export type JobBoardSort = "newest" | "company" | "relevance" | "deadline";
+export type JobBoardFilters = {
+  query?: string;
+  company?: string;
+  location?: string;
+  term?: string;
+  work_mode?: WorkMode;
+  posted_within_days?: 1 | 7 | 14 | 30;
+  sort?: JobBoardSort;
+};
 export type Collection =
   | "toronto"
   | "remote"

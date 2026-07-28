@@ -4790,6 +4790,12 @@ export interface operations {
                 limit?: number;
                 cursor?: string | null;
                 query?: string | null;
+                company?: string | null;
+                location?: string | null;
+                term?: string | null;
+                work_mode?: components["schemas"]["WorkMode"] | null;
+                posted_within_days?: (1 | 7 | 14 | 30) | null;
+                sort?: "newest" | "company" | "deadline" | "relevance";
             };
             header?: never;
             path?: never;

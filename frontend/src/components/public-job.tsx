@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import type { Job } from "@/lib/api/types";
 import { Brand } from "./brand";
+import { CompanyLogo } from "./company-logo";
 
 export function PublicJob({ job, expiresAt }: { job: Job; expiresAt?: string | null }) {
   const applyUrl = job.application_url;
@@ -10,7 +11,7 @@ export function PublicJob({ job, expiresAt }: { job: Job; expiresAt?: string | n
     <header><Brand /><Link href="/">Back to Sprintern</Link></header>
     <article>
       <span className="page-eyebrow">Shared internship</span>
-      <p className="public-job-company">{job.company}</p><h1>{job.title}</h1>
+      <div className="public-job-company"><CompanyLogo company={job.company} size="large"/><p>{job.company}</p></div><h1>{job.title}</h1>
       <div className="job-meta">
         <span><MapPin size={17} />{job.location ?? "Location not listed"}</span>
         <span><BriefcaseBusiness size={17} />{job.term ?? "Term unknown"}</span>

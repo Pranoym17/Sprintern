@@ -83,6 +83,7 @@ def list_matches(
         .where(
             JobMatch.profile_id == profile_id,
             or_(Job.status == JobStatus.ACTIVE, JobMatch.status == MatchStatus.APPLIED),
+            func.lower(func.coalesce(Job.term, "")) != "summer 2026",
         )
     )
     if not include_hidden:
@@ -174,7 +175,10 @@ def list_matches(
 
 
 def match_status_counts(session: Session, profile_id: uuid.UUID) -> tuple[int, int, int, int]:
-    visible = or_(Job.status == JobStatus.ACTIVE, JobMatch.status == MatchStatus.APPLIED)
+    visible = and_(
+        or_(Job.status == JobStatus.ACTIVE, JobMatch.status == MatchStatus.APPLIED),
+        func.lower(func.coalesce(Job.term, "")) != "summer 2026",
+    )
     statement = (
         select(
             func.count(JobMatch.id),

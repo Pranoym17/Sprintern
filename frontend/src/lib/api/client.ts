@@ -1,5 +1,5 @@
 import { apiUrl } from "@/lib/env";
-import type { AccountExport, AdminSource, AdminSourceInput, AdminSourceRun, Analytics, Application, ApplicationStage, Collection, CompanyWatchlist, CSVImportResult, DeliveryChannel, DeliveryQueue, FilterInput, FilterNotification, FilterPreview, Job, JobFilter, JobInteraction, JobMatch, JobPage, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceAudit, SourceHealth, SourcePreview, TelegramLink, WeeklyProgress } from "./types";
+import type { AccountExport, AdminSource, AdminSourceInput, AdminSourceRun, Analytics, Application, ApplicationStage, Collection, CompanyWatchlist, CSVImportResult, DeliveryChannel, DeliveryQueue, FilterInput, FilterNotification, FilterPreview, Job, JobBoardFilters, JobFilter, JobInteraction, JobMatch, JobPage, MatchPage, MatchSort, MatchStatus, Profile, ProfileUpdate, ShareLink, SourceAudit, SourceHealth, SourcePreview, TelegramLink, WeeklyProgress } from "./types";
 
 export class ApiError extends Error {
   constructor(public status:number, public code:string, message:string, public details?:unknown) { super(message); this.name = "ApiError"; }
@@ -63,7 +63,14 @@ export class ApiClient {
   updateFilterNotifications = (id:string, value:Omit<FilterNotification,"filter_id"|"uses_profile_defaults">) => this.request<FilterNotification>(`/filters/${id}/notifications`, {method:"PUT", body:JSON.stringify(value)});
   notificationQueue = () => this.request<DeliveryQueue>("/notifications/queue");
   testNotification = (channel:DeliveryChannel) => this.request<{channel:DeliveryChannel;outcome:string;error:string|null}>("/notifications/test", {method:"POST", body:JSON.stringify({channel})});
-  jobs = (cursor?:string, query="") => this.request<JobPage>(`/jobs?limit=30${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}${query ? `&query=${encodeURIComponent(query)}` : ""}`);
+  jobs = (cursor?:string, filters:JobBoardFilters = {}) => {
+    const params = new URLSearchParams({ limit:"30" });
+    if (cursor) params.set("cursor", cursor);
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== "") params.set(key, String(value));
+    }
+    return this.request<JobPage>(`/jobs?${params.toString()}`);
+  };
   watchlists = () => this.request<CompanyWatchlist[]>("/watchlists");
   createWatchlist = (value:{company:string;terms:string[];locations:string[];active:boolean}) => this.request<CompanyWatchlist>("/watchlists", {method:"POST", body:JSON.stringify(value)});
   updateWatchlist = (id:string, value:Record<string,unknown>) => this.request<CompanyWatchlist>(`/watchlists/${id}`, {method:"PATCH", body:JSON.stringify(value)});

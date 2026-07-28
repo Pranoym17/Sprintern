@@ -14,10 +14,10 @@ type NodeConfig = {
 };
 
 const RINGS: Record<NodeConfig["ring"], { diameter: number; spin: "cw" | "ccw"; duration: number }> = {
-  1: { diameter: 353, spin: "ccw", duration: 30 },
-  2: { diameter: 501, spin: "cw", duration: 40 },
-  3: { diameter: 649, spin: "cw", duration: 50 },
-  4: { diameter: 797, spin: "ccw", duration: 60 },
+  1: { diameter: 353, spin: "ccw", duration: 14 },
+  2: { diameter: 501, spin: "cw", duration: 19 },
+  3: { diameter: 649, spin: "cw", duration: 24 },
+  4: { diameter: 797, spin: "ccw", duration: 29 },
 };
 
 const NODES: NodeConfig[] = [
@@ -59,36 +59,44 @@ function useCountUp(target: number, delayMs = 300, durationMs = 2000) {
 }
 
 export function OrbitVisual({ logos, id }: { logos: Logo[]; id?: string }) {
-  const count = useCountUp(logos.length);
+  const count = useCountUp(1);
+  const indexedNodes = NODES.map((node, index) => ({ node, index }));
   return (
     <div className="orbit-visual" id={id} aria-label="Companies Sprintern watches for you">
       <div className="orbit-visual__stage">
-        {([1, 2, 3, 4] as const).map((ring) => (
-          <div key={ring} className={`orbit-ring orbit-ring--${ring} orbit-ring--${RINGS[ring].spin}`} style={{ width: RINGS[ring].diameter, height: RINGS[ring].diameter, animationDuration: `${RINGS[ring].duration}s` }} aria-hidden="true" />
-        ))}
-        {NODES.map((node, index) => {
-          const logo = logos[index % logos.length];
-          const ring = RINGS[node.ring];
-          const counterSpin = ring.spin === "cw" ? "ccw" : "cw";
+        {([1, 2, 3, 4] as const).map((ring) => {
+          const config = RINGS[ring];
+          const counterSpin = config.spin === "cw" ? "ccw" : "cw";
           return (
-            <div
-              key={`${node.ring}-${node.angle}-${index}`}
-              className="orbit-node"
-              style={{ "--node-angle": `${node.angle}deg`, "--node-radius": `${ring.diameter / 2}px` } as React.CSSProperties}
-            >
-              <div className="orbit-node__enter" style={{ animationDelay: `${node.delay}s` }}>
-                <div className={`orbit-node__counter orbit-node__counter--${counterSpin}`} style={{ animationDuration: `${ring.duration}s` }}>
-                  <span className={`orbit-node__logo orbit-node__logo--${node.shape} orbit-node__logo--${node.size} orbit-node__logo--glow-${node.glow}`}>
-                    <Image src={logo.logo} alt={logo.name} width={node.size} height={node.size} />
-                  </span>
-                </div>
-              </div>
+            // Nodes live INSIDE the ring so the ring's own rotation actually carries
+            // them around the circle; each node's inner counter div spins the opposite
+            // way at the same duration so the logo itself stays upright while orbiting.
+            <div key={ring} className={`orbit-ring orbit-ring--${ring} orbit-ring--${config.spin}`} style={{ width: config.diameter, height: config.diameter, animationDuration: `${config.duration}s` }}>
+              <div className="orbit-ring__border" aria-hidden="true" />
+              {indexedNodes.filter(({ node }) => node.ring === ring).map(({ node, index }) => {
+                const logo = logos[index % logos.length];
+                return (
+                  <div
+                    key={index}
+                    className="orbit-node"
+                    style={{ "--node-angle": `${node.angle}deg`, "--node-radius": `${config.diameter / 2}px` } as React.CSSProperties}
+                  >
+                    <div className="orbit-node__enter" style={{ animationDelay: `${node.delay}s` }}>
+                      <div className={`orbit-node__counter orbit-node__counter--${counterSpin}`} style={{ animationDuration: `${config.duration}s` }}>
+                        <span className={`orbit-node__logo orbit-node__logo--${node.shape} orbit-node__logo--${node.size} orbit-node__logo--glow-${node.glow}`}>
+                          <Image src={logo.logo} alt={logo.name} width={node.size} height={node.size} />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
         <div className="orbit-center">
-          <strong>{count}</strong>
-          <span>Employers watched</span>
+          <strong>{count}k+</strong>
+          <span>Job postings</span>
         </div>
       </div>
     </div>

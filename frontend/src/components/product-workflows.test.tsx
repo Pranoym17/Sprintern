@@ -71,13 +71,16 @@ describe("authenticated product workflows", () => {
     await waitFor(() => expect(api.createFilter).toHaveBeenCalledWith(expect.objectContaining({name:"Software internships",role_keywords:["software"]})));
   });
 
-  it("shows and searches the complete 30-day job board", async () => {
+  it("shows and filters the complete job board", async () => {
     const user = userEvent.setup();
     render(<JobsBoardView />);
     await screen.findByRole("heading", { name:"Software Intern" });
     expect(screen.getByRole("link", { name:/apply/i })).toHaveAttribute("href", "https://example.com/apply");
     await user.type(screen.getByRole("searchbox", { name:"Search jobs" }), "Toronto");
-    await waitFor(() => expect(api.jobs).toHaveBeenLastCalledWith(undefined, "Toronto"));
+    await waitFor(() => expect(api.jobs).toHaveBeenLastCalledWith(undefined, expect.objectContaining({
+      query:"Toronto", sort:"newest",
+    })));
+    expect(screen.queryByRole("option", { name:"Summer 2026" })).not.toBeInTheDocument();
   });
 
   it("persists channel and daily digest preferences", async () => {

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { useApp } from "./app-provider";
+import { CompanyLogo } from "./company-logo";
 import { EmptyState, PageHeader } from "./dashboard-view";
 import { MatchesSkeleton, PageError } from "./page-state";
 import type {
@@ -218,7 +219,7 @@ function JobCard({ item, isNew, interaction, pending, compared, compareFull, onC
     ? Object.values(rawDimensions as Record<string, unknown>).map(String)
     : [];
   return <article className={`job-card ${isNew ? "job-card--new" : ""} ${item.status === "applied" ? "job-card--applied" : ""}`} id={item.id}>
-    <div className="job-card__top"><span className="company-avatar company-avatar--large">{item.job.company.slice(0, 2).toUpperCase()}</span><div className="job-card__identity"><div className="company-line"><p>{item.job.company}</p>{isNew && <span className="new-badge"><i />New</span>}</div><h2><Link href={`/jobs/${item.job.id}`} onClick={onView}>{item.job.title}</Link></h2>{item.job.title_incomplete && <small className="quality-warning">Title information may be incomplete</small>}<div className="job-meta"><span><MapPin size={15} />{item.job.location ?? "Location not listed"}</span><span><BriefcaseBusiness size={15} />{item.job.term ?? "Term unknown"}</span><span><Clock3 size={15} />{relativeTime(item.job.posted_at ?? item.job.first_seen_at)}</span>{deadline && <span className={`deadline-badge ${deadlineUrgency(deadline)}`}><Clock3 size={15} />{deadlineLabel(deadline)}{interaction?.deadline_override_at ? " · your date" : item.job.deadline_is_estimated ? " · estimated" : ""}</span>}</div></div><span className={`status-pill status-pill--${item.status}`}>{item.status}</span></div>
+    <div className="job-card__top"><CompanyLogo company={item.job.company} size="large"/><div className="job-card__identity"><div className="company-line"><p>{item.job.company}</p>{isNew && <span className="new-badge"><i />New</span>}</div><h2><Link href={`/jobs/${item.job.id}`} onClick={onView}>{item.job.title}</Link></h2>{item.job.title_incomplete && <small className="quality-warning">Title information may be incomplete</small>}<div className="job-meta"><span><MapPin size={15} />{item.job.location ?? "Location not listed"}</span><span><BriefcaseBusiness size={15} />{item.job.term ?? "Term unknown"}</span><span><Clock3 size={15} />{relativeTime(item.job.posted_at ?? item.job.first_seen_at)}</span>{deadline && <span className={`deadline-badge ${deadlineUrgency(deadline)}`}><Clock3 size={15} />{deadlineLabel(deadline)}{interaction?.deadline_override_at ? " · your date" : item.job.deadline_is_estimated ? " · estimated" : ""}</span>}</div></div><span className={`status-pill status-pill--${item.status}`}>{item.status}</span></div>
     {dimensions.length > 0 && <div className="reason-row"><span>Matched on</span>{dimensions.map((value) => <em key={value}>{value}</em>)}</div>}
     <div className="job-card__actions">
       {applyUrl ? <a className="button button--primary button--small" href={applyUrl} target="_blank" rel="noopener noreferrer" onClick={onView}>Apply now <ArrowUpRight size={16} /></a> : <span className="apply-unavailable">Application link unavailable</span>}
