@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, LoaderCircle, LogIn } from "lucide-react";
+import { ArrowRight, LoaderCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { safeInternalPath } from "@/lib/auth/redirect";
@@ -44,7 +45,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   }
 
   return <form className="auth-form" onSubmit={submit} aria-busy={pending}>
-    <button className="button oauth-button" type="button" disabled={pending} onClick={continueWithGoogle}><LogIn size={19} />Continue with Google</button>
+    <button className="button oauth-button" type="button" disabled={pending} onClick={continueWithGoogle}><Image src="/company-logos/google.svg" alt="" width={19} height={19} />Continue with Google</button>
     <div className="auth-divider"><span>or use email</span></div>
     <div className="field"><label htmlFor="email">Email address</label><input id="email" name="email" type="email" autoComplete="email" required placeholder="you@example.com" /></div>
     <div className="field"><div className="field-label-row"><label htmlFor="password">Password</label>{!isSignUp && <Link href="/forgot-password">Forgot password?</Link>}</div><input id="password" name="password" type="password" minLength={8} autoComplete={isSignUp ? "new-password" : "current-password"} required /><span className="field__help">At least 8 characters</span></div>
