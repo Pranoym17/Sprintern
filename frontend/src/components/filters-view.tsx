@@ -32,6 +32,7 @@ export function FiltersView() {
   const [filters, setFilters] = useState<JobFilter[]>([]);
   const [watchlists, setWatchlists] = useState<CompanyWatchlist[]>([]);
   const [editing, setEditing] = useState<JobFilter | "new" | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<JobFilter | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -58,10 +59,11 @@ export function FiltersView() {
   }
 
   async function remove(filter: JobFilter) {
-    if (pendingIds.has(filter.id) || !window.confirm(`Delete “${filter.name}”? This cannot be undone.`)) return;
+    if (pendingIds.has(filter.id)) return;
     setPendingIds((current) => new Set(current).add(filter.id));
-    try { await api.deleteFilter(filter.id); setFilters((current) => current.filter((item) => item.id !== filter.id)); notify("Filter deleted."); }
+    try { await api.deleteFilter(filter.id); setFilters((current) => current.filter((item) => item.id !== filter.id)); setDeleteTarget(null); notify("Filter deleted."); }
     catch (reason) { notify(reason instanceof Error ? reason.message : "Delete failed.", "error"); }
+    finally { setPendingIds((current) => { const next = new Set(current); next.delete(filter.id); return next; }); }
   }
 
   if (loading) return <PageLoading label="Loading filters" />;
@@ -70,8 +72,19 @@ export function FiltersView() {
   return <div className="app-page">
     <PageHeader eyebrow="Filters" title="Tune your signal" copy="Preview exactly what passes before an alert is ever sent." action={<button className="button button--primary" onClick={() => setEditing("new")}><Plus size={18} />New filter</button>} />
     {editing && <FilterEditor initial={editing === "new" ? blank : editing} onCancel={() => setEditing(null)} onSaved={(value) => { setFilters((current) => editing === "new" ? [value, ...current] : current.map((item) => item.id === value.id ? value : item)); setEditing(null); }} />}
-    {filters.length ? <div className="filter-list">{filters.map((filter) => <FilterCard key={filter.id} filter={filter} pending={pendingIds.has(filter.id)} edit={() => setEditing(filter)} toggle={() => void toggle(filter)} remove={() => void remove(filter)} />)}</div> : !editing && <EmptyState icon={<FilterIcon />} title="Create your first signal" copy="Add the roles, places and term you care about. Preview the results before saving." />}
+    {filters.length ? <div className="filter-list">{filters.map((filter) => <FilterCard key={filter.id} filter={filter} pending={pendingIds.has(filter.id)} edit={() => setEditing(filter)} toggle={() => void toggle(filter)} remove={() => setDeleteTarget(filter)} />)}</div> : !editing && <EmptyState icon={<FilterIcon />} title="Create your first signal" copy="Add the roles, places and term you care about. Preview the results before saving." />}
     <WatchlistPanel values={watchlists} onChange={setWatchlists} />
+    {deleteTarget && <div className="confirm-dialog" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeleteTarget(null); }}>
+      <section className="confirm-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="delete-filter-title">
+        <p className="page-eyebrow">Delete filter</p>
+        <h2 id="delete-filter-title">Delete “{deleteTarget.name}”?</h2>
+        <p>This permanently removes the filter. Existing job and application history stays in your account.</p>
+        <div className="confirm-dialog__actions">
+          <button className="button button--ghost" onClick={() => setDeleteTarget(null)}>Keep filter</button>
+          <button className="button button--danger" disabled={pendingIds.has(deleteTarget.id)} onClick={() => void remove(deleteTarget)}>Delete filter</button>
+        </div>
+      </section>
+    </div>}
   </div>;
 }
 

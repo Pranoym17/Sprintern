@@ -1,5 +1,6 @@
 import logging
 from functools import lru_cache
+from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -13,7 +14,12 @@ logger = logging.getLogger(__name__)
 
 @lru_cache
 def expected_migration_revisions() -> set[str]:
-    return set(ScriptDirectory.from_config(Config("alembic.ini")).get_heads())
+    backend_root = Path(__file__).resolve().parents[1]
+    config = Config(backend_root / "alembic.ini")
+    # Readiness must behave the same from pytest, a local shell, and the
+    # deployment process; relying on the process working directory made it flaky.
+    config.set_main_option("script_location", str(backend_root / "migrations"))
+    return set(ScriptDirectory.from_config(config).get_heads())
 
 
 def assert_ready(session: Session) -> None:

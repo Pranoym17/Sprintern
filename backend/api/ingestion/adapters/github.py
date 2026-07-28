@@ -255,6 +255,14 @@ class GitHubRepositoryAdapter:
         without_links = MARKDOWN_TEXT_LINK.sub(r"\1", without_images)
         return (html_to_text(without_links) or "").strip()
 
+    @staticmethod
+    def _title_text(value: str) -> str:
+        # Repository tables often put country-flag image badges beside a title.
+        # Their alt text ("us", "ca") is metadata, not part of the actual role.
+        without_images = MARKDOWN_IMAGE.sub("", value)
+        without_links = MARKDOWN_TEXT_LINK.sub(r"\1", without_images)
+        return (html_to_text(without_links) or "").strip()
+
     def _map_row(
         self,
         cells: list[str],
@@ -271,7 +279,7 @@ class GitHubRepositoryAdapter:
         if not company:
             raise ValueError("company is missing and cannot be inherited")
 
-        title = self._cell_text(cells[columns["title"]]).strip("*~ ")
+        title = self._title_text(cells[columns["title"]]).strip("*~ ")
         url_cell = cells[columns["url"]]
         if any(marker in url_cell.lower() for marker in CLOSED_MARKERS):
             return None, company

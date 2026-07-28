@@ -214,6 +214,9 @@ def test_github_extracts_outer_apply_link_and_cleans_linked_company() -> None:
         "url": 2,
     }
     assert GitHubRepositoryAdapter._column_map(["Company", "Role", "**Apply**"])["url"] == 2
+    assert GitHubRepositoryAdapter._title_text(
+        "Software Engineer Intern ![us](https://example.com/us.svg)"
+    ) == "Software Engineer Intern"
 
 
 async def test_github_parses_simplify_style_html_table() -> None:

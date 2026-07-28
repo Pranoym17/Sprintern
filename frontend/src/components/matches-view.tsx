@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   ArrowUpRight, Bookmark, BriefcaseBusiness, Check, ChevronDown, Clock3, Copy,
-  EyeOff, Flag, MapPin, RotateCcw, Search, Share2, X,
+  EyeOff, Flag, MapPin, MoreHorizontal, RotateCcw, Search, Share2, X,
 } from "lucide-react";
 
 import { useApp } from "./app-provider";
@@ -50,22 +50,32 @@ export function MatchesView() {
   const [similar, setSimilar] = useState<{ owner: Job; jobs: Job[] } | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
+  const loadVersion = useRef(0);
 
   const load = useCallback(async (next?: string) => {
+    const version = next ? loadVersion.current : ++loadVersion.current;
     setError("");
     if (next) setLoadingMore(true);
     try {
       const page = await api.matches(
         next, tab === "all" ? undefined : tab, query, sort, collection, showHidden,
       );
+      if (version !== loadVersion.current) return;
       setItems((current) => next ? [...current, ...page.items] : page.items);
       setCursor(page.next_cursor); setCounts(page.counts);
       const seen = readSeenMatches();
       setNewIds((current) => new Set([...current, ...page.items.filter((item) => !seen.has(item.id)).map((item) => item.id)]));
       writeSeenMatches(new Set([...seen, ...page.items.map((item) => item.id)]));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not load matches.");
-    } finally { setLoading(false); setLoadingMore(false); }
+      if (version === loadVersion.current) {
+        setError(reason instanceof Error ? reason.message : "Could not load matches.");
+      }
+    } finally {
+      if (version === loadVersion.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    }
   }, [api, collection, query, showHidden, sort, tab]);
 
   useEffect(() => {
@@ -117,7 +127,7 @@ export function MatchesView() {
         : current.map((match) => match.id === item.id ? updated : match));
       setCounts((current) => ({ ...current, [previous]: Math.max(0, current[previous] - 1), [status]: current[status] + 1 }));
       if (offerUndo) setUndo({ item: updated, previous });
-      notify(status === "applied" ? "Marked as applied." : status === "dismissed" ? "Match dismissed." : "Match restored.");
+      if (!offerUndo) notify(status === "dismissed" ? "Match dismissed." : "Match restored.");
     } catch (reason) {
       setItems((current) => current.map((match) => match.id === item.id ? { ...match, status: previous } : match));
       notify(reason instanceof Error ? reason.message : "Update failed.", "error");
@@ -134,9 +144,9 @@ export function MatchesView() {
         setItems((current) => current.filter((match) => match.id !== item.id));
         setHiddenUndo(item);
       } else if (value.hidden === false) {
-        setItems((current) => current.some((match) => match.id === item.id) ? current : [item, ...current]);
+        await load();
       }
-      notify(value.bookmarked ? "Job saved." : value.hidden ? "Job hidden." : "Job updated.");
+      if (!value.hidden) notify(value.bookmarked ? "Job saved." : "Job updated.");
     } catch (reason) { notify(reason instanceof Error ? reason.message : "Could not update job.", "error"); }
   }
 
@@ -179,7 +189,7 @@ export function MatchesView() {
     </div>
     {undo && <div className="undo-banner" role="status"><span><Check size={18} />Moved to Applied</span><button onClick={() => { void change(undo.item, undo.previous); setUndo(null); }}>Undo</button><button aria-label="Dismiss message" onClick={() => setUndo(null)}><X size={16} /></button></div>}
     {hiddenUndo && <div className="undo-banner" role="status"><span><EyeOff size={18} />Job hidden</span><button onClick={() => { void interact(hiddenUndo, { hidden: false }); setHiddenUndo(null); }}>Undo</button><button aria-label="Dismiss message" onClick={() => setHiddenUndo(null)}><X size={16} /></button></div>}
-    <div className="feed-toolbar"><div className="tabs" aria-label="Filter matches by status">{tabs.map(([value, label]) => <button aria-pressed={tab === value} className={tab === value ? "active" : ""} key={value} onClick={() => setTab(value)}>{label}<span>{counts[value]}</span></button>)}</div><small>Server totals</small></div>
+    <div className="feed-toolbar"><div className="tabs" aria-label="Filter matches by status">{tabs.map(([value, label]) => <button aria-pressed={tab === value} className={tab === value ? "active" : ""} key={value} onClick={() => setTab(value)}>{label}<span>{counts[value]}</span></button>)}</div><small>{query ? "Totals before search" : "Live totals"}</small></div>
     {shown.length ? <div className="job-list">{shown.map((item) => <JobCard key={item.id} item={item} isNew={newIds.has(item.id)} interaction={interactions[item.job.id]} pending={pendingIds.has(item.id)} compared={compareIds.includes(item.id)} compareFull={compareIds.length >= 3} onChange={change} onInteract={interact} onCopy={copyApplication} onShare={share} onSimilar={showSimilar} onView={() => recordViewed(item.job.id)} onCompare={(id) => { recordViewed(item.job.id); toggleCompare(id); }} onFlag={(reason) => { void api.reportJob(item.job.id, reason); notify("Thanks — posting flagged for review."); }} />)}</div>
       : showHidden
         ? <EmptyState icon={<EyeOff />} title="No hidden jobs" copy="Jobs you hide stay out of your feed and appear here if you want to restore them." />
@@ -210,8 +220,26 @@ function JobCard({ item, isNew, interaction, pending, compared, compareFull, onC
   return <article className={`job-card ${isNew ? "job-card--new" : ""} ${item.status === "applied" ? "job-card--applied" : ""}`} id={item.id}>
     <div className="job-card__top"><span className="company-avatar company-avatar--large">{item.job.company.slice(0, 2).toUpperCase()}</span><div className="job-card__identity"><div className="company-line"><p>{item.job.company}</p>{isNew && <span className="new-badge"><i />New</span>}</div><h2><Link href={`/jobs/${item.job.id}`} onClick={onView}>{item.job.title}</Link></h2>{item.job.title_incomplete && <small className="quality-warning">Title information may be incomplete</small>}<div className="job-meta"><span><MapPin size={15} />{item.job.location ?? "Location not listed"}</span><span><BriefcaseBusiness size={15} />{item.job.term ?? "Term unknown"}</span><span><Clock3 size={15} />{relativeTime(item.job.posted_at ?? item.job.first_seen_at)}</span>{deadline && <span className={`deadline-badge ${deadlineUrgency(deadline)}`}><Clock3 size={15} />{deadlineLabel(deadline)}{interaction?.deadline_override_at ? " · your date" : item.job.deadline_is_estimated ? " · estimated" : ""}</span>}</div></div><span className={`status-pill status-pill--${item.status}`}>{item.status}</span></div>
     {dimensions.length > 0 && <div className="reason-row"><span>Matched on</span>{dimensions.map((value) => <em key={value}>{value}</em>)}</div>}
-    <div className="job-card__actions">{applyUrl ? <a className="button button--primary button--small" href={applyUrl} target="_blank" rel="noopener noreferrer" onClick={onView}>Apply now <ArrowUpRight size={16} /></a> : <span className="apply-unavailable">Application link unavailable</span>}{item.status !== "applied" && <button className="button apply-button button--small" disabled={pending} onClick={() => void onChange(item, "applied", true)}><Check size={16} />Mark applied</button>}{item.status === "matched" ? <button className="icon-text-button" disabled={pending} onClick={() => void onChange(item, "dismissed")}><X size={16} />Dismiss</button> : item.status === "dismissed" && <button className="icon-text-button" disabled={pending} onClick={() => void onChange(item, "matched")}><RotateCcw size={16} />Restore</button>}<button className={`icon-text-button ${interaction?.bookmarked_at ? "active" : ""}`} onClick={() => void onInteract(item, { bookmarked: !interaction?.bookmarked_at })}><Bookmark size={16} fill={interaction?.bookmarked_at ? "currentColor" : "none"} />Save</button>{interaction?.hidden_at ? <button className="icon-text-button" onClick={() => void onInteract(item, { hidden: false })}><RotateCcw size={16} />Restore to feed</button> : <button className="icon-text-button" onClick={() => void onInteract(item, { hidden: true })}><EyeOff size={16} />Hide</button>}<button className="icon-text-button" onClick={() => void onCopy(item)}><Copy size={16} />Copy</button><button className="icon-text-button" onClick={() => void onShare(item)}><Share2 size={16} />Share</button><label className="compact-select"><select aria-label="Not interested reason" defaultValue="" onChange={(event) => { if (event.target.value) void onInteract(item, { not_interested_reason: event.target.value }); }}><option value="">Not interested…</option><option value="wrong_role">Wrong role</option><option value="wrong_location">Wrong location</option><option value="wrong_term">Wrong term</option><option value="authorization">Authorization</option><option value="unpaid">Unpaid</option><option value="not_internship">Not an internship</option><option value="company_preference">Company preference</option><option value="other">Other</option></select></label><label className="compact-select"><Flag size={15} /><select aria-label="Flag posting" defaultValue="" onChange={(event) => { if (event.target.value) onFlag(event.target.value); }}><option value="">Flag…</option><option value="closed">Closed</option><option value="duplicate">Duplicate</option><option value="suspicious">Suspicious</option><option value="inaccurate">Inaccurate data</option></select></label><label className="compare-check"><input type="checkbox" checked={compared} onChange={() => onCompare(item.id)} disabled={!compared && compareFull} />Compare</label></div>
-    <div className="discovery-secondary"><label>Your deadline <input type="date" value={interaction?.deadline_override_at?.slice(0, 10) ?? ""} onChange={(event) => void onInteract(item, { deadline_override_at: event.target.value ? new Date(`${event.target.value}T23:59:59`).toISOString() : null })} /></label><button onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/jobs/${item.job.id}`); }}><Share2 size={15} />Copy public link</button><button onClick={() => void onSimilar(item)}>Show similar jobs</button></div>
+    <div className="job-card__actions">
+      {applyUrl ? <a className="button button--primary button--small" href={applyUrl} target="_blank" rel="noopener noreferrer" onClick={onView}>Apply now <ArrowUpRight size={16} /></a> : <span className="apply-unavailable">Application link unavailable</span>}
+      {item.status !== "applied" && <button className="button apply-button button--small" disabled={pending} onClick={() => void onChange(item, "applied", true)}><Check size={16} />Mark applied</button>}
+      {item.status === "matched" ? <button className="icon-text-button" disabled={pending} onClick={() => void onChange(item, "dismissed")}><X size={16} />Dismiss</button> : item.status === "dismissed" && <button className="icon-text-button" disabled={pending} onClick={() => void onChange(item, "matched")}><RotateCcw size={16} />Restore</button>}
+      <button className={`icon-text-button ${interaction?.bookmarked_at ? "active" : ""}`} onClick={() => void onInteract(item, { bookmarked: !interaction?.bookmarked_at })}><Bookmark size={16} fill={interaction?.bookmarked_at ? "currentColor" : "none"} />Save</button>
+      <details className="job-more">
+        <summary aria-label={`More actions for ${item.job.title}`}><MoreHorizontal size={18} /></summary>
+        <div className="job-more__menu">
+          {interaction?.hidden_at ? <button onClick={() => void onInteract(item, { hidden: false })}><RotateCcw size={16} />Restore to feed</button> : <button onClick={() => void onInteract(item, { hidden: true })}><EyeOff size={16} />Hide from feed</button>}
+          <button onClick={() => void onCopy(item)}><Copy size={16} />Copy application link</button>
+          <button onClick={() => void onShare(item)}><Share2 size={16} />Copy private share link</button>
+          <button onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/jobs/${item.job.id}`); }}><Share2 size={16} />Copy public link</button>
+          <button onClick={() => void onSimilar(item)}>Show similar jobs</button>
+          <label><span className="sr-only">Not interested reason</span><select aria-label="Not interested reason" defaultValue="" onChange={(event) => { if (event.target.value) void onInteract(item, { not_interested_reason: event.target.value }); }}><option value="">Not interested…</option><option value="wrong_role">Wrong role</option><option value="wrong_location">Wrong location</option><option value="wrong_term">Wrong term</option><option value="authorization">Authorization</option><option value="unpaid">Unpaid</option><option value="not_internship">Not an internship</option><option value="company_preference">Company preference</option><option value="other">Other</option></select></label>
+          <label><Flag size={15} /><select aria-label="Flag posting" defaultValue="" onChange={(event) => { if (event.target.value) onFlag(event.target.value); }}><option value="">Flag posting…</option><option value="closed">Closed</option><option value="duplicate">Duplicate</option><option value="suspicious">Suspicious</option><option value="inaccurate">Inaccurate data</option></select></label>
+          <label className="compare-check"><input type="checkbox" checked={compared} onChange={() => onCompare(item.id)} disabled={!compared && compareFull} />Compare this job</label>
+          <label>Your deadline<input type="date" value={interaction?.deadline_override_at?.slice(0, 10) ?? ""} onChange={(event) => void onInteract(item, { deadline_override_at: event.target.value ? new Date(`${event.target.value}T23:59:59`).toISOString() : null })} /></label>
+        </div>
+      </details>
+    </div>
   </article>;
 }
 
@@ -223,7 +251,7 @@ function ComparePanel({ ids, items, clear }: { ids: string[]; items: JobMatch[];
       const applyUrl = match?.job.application_url;
       return match ? <article key={id}>
         <p>{match.job.company}</p><h3>{match.job.title}</h3>
-        <span>{match.job.location ?? "Unknown location"} · {match.job.work_mode}</span>
+        <span>{match.job.location ?? "Unknown location"}{match.job.work_mode !== "unknown" ? ` · ${match.job.work_mode}` : ""}</span>
         <span>{match.job.term ?? "Unknown term"}</span>
         <span>Deadline: {match.job.deadline_at ? new Date(match.job.deadline_at).toLocaleDateString() : "Not listed"}</span>
         <span>Posting checked {relativeTime(match.job.last_seen_at)}</span>

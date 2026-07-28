@@ -1,105 +1,136 @@
+import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  BellRing,
-  Check,
-  ExternalLink,
-  Filter,
-  Layers3,
-  MapPin,
-  Radio,
-  Sparkles,
-} from "lucide-react";
 
 import { Brand } from "@/components/brand";
+import { MarketingHeaderActions } from "@/components/marketing-header-actions";
 import { SiteFooter } from "@/components/site-footer";
 
+const companies = [
+  { name: "Google", logo: "/company-logos/google.svg" },
+  { name: "Apple", logo: "/company-logos/apple.svg" },
+  { name: "NVIDIA", logo: "/company-logos/nvidia.svg" },
+  { name: "Shopify", logo: "/company-logos/shopify.svg" },
+  { name: "Meta", logo: "/company-logos/meta.svg" },
+];
+
+const previewJobs = [
+  { company: "Google", logo: "/company-logos/google.svg", title: "Software Developer Intern", place: "Toronto, ON", term: "Summer 2027", age: "4m" },
+  { company: "Shopify", logo: "/company-logos/shopify.svg", title: "Backend Engineering Intern", place: "Remote, Canada", term: "Summer 2027", age: "11m" },
+  { company: "NVIDIA", logo: "/company-logos/nvidia.svg", title: "Systems Software Intern", place: "Toronto, ON", term: "Fall 2026", age: "18m" },
+];
+
 const steps = [
-  { number: "01", title: "We watch for openings", copy: "Sprintern checks for new internships throughout the day." },
-  { number: "02", title: "Your rules cut the noise", copy: "Role, location, term, and work-mode filters create a short list you can actually act on." },
-  { number: "03", title: "You hear about matches", copy: "Get an email or Telegram alert with the original application link." },
+  ["01", "Set your signal", "Choose the roles, locations, terms, and work modes that matter. Exclusions keep the obvious noise out."],
+  ["02", "Sprintern keeps watch", "Fresh postings are normalized, checked, and matched against your criteria throughout the day."],
+  ["03", "Move while the role is fresh", "Telegram sends the fast alert. Email gives you a considered daily shortlist. Both keep the original application link."],
 ];
 
 export default function Home() {
   return (
-    <main className="marketing-page">
+    <main className="marketing-page marketing-page--editorial">
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <header className="site-header">
+      <header className="site-header site-header--editorial">
         <div className="site-header__inner">
           <Brand />
           <nav className="site-nav" aria-label="Primary navigation">
+            <a href="#product">Product</a>
             <a href="#how-it-works">How it works</a>
-            <a href="#features">Features</a>
-            <a href="#coverage">Job coverage</a>
+            <a href="#principles">Why Sprintern</a>
           </nav>
-          <div className="header-actions">
-            <Link className="text-link" href="/sign-in">Sign in</Link>
-            <Link className="button button--dark button--small" href="/sign-up">Start tracking <ArrowRight size={16} /></Link>
-          </div>
+          <MarketingHeaderActions />
         </div>
       </header>
 
-      <section className="hero" id="main-content">
-        <div className="hero__copy">
-          <div className="eyebrow"><span className="status-dot" /> Internship signal is live</div>
-          <h1>Stop finding internships <em>after everyone else.</em></h1>
-          <p className="hero__lede">Sprintern watches new software internships, filters out the noise, and sends the right roles straight to you.</p>
-          <div className="hero__actions">
-            <Link className="button button--primary" href="/sign-up">Create your alert <ArrowRight size={18} /></Link>
-            <a className="button button--ghost" href="#how-it-works">See how it works</a>
+      <section className="editorial-hero" id="main-content">
+        <div className="editorial-hero__copy">
+          <p className="editorial-eyebrow"><span /> Built for the application window</p>
+          <h1>Stop refreshing.<br /><em>Start applying.</em></h1>
+          <p>Sprintern watches for internships that fit, then gets the useful ones in front of you while they are still fresh.</p>
+          <div className="editorial-hero__actions">
+            <Link className="button button--primary" href="/sign-up">Create your free alert <span aria-hidden="true">↗</span></Link>
+            <a className="editorial-text-link" href="#product">See the product <span aria-hidden="true">↓</span></a>
           </div>
-          <p className="hero__note"><Check size={16} /> Free to use · Original application links</p>
+          <ul className="hero-assurances" aria-label="Product assurances">
+            <li>No credit card</li>
+            <li>Direct application links</li>
+            <li>Pause any time</li>
+          </ul>
         </div>
 
-        <div className="signal-stage" aria-label="Illustration of an internship passing through Sprintern's matching pipeline">
-          <div className="orbit orbit--outer" />
-          <div className="orbit orbit--middle" />
-          <div className="orbit orbit--inner" />
-          <div className="source-node source-node--github"><Layers3 size={18} /><span>New internships</span></div>
-          <div className="source-node source-node--role"><Sparkles size={18} /><span>Software</span></div>
-          <div className="source-node source-node--place"><MapPin size={18} /><span>Toronto</span></div>
-          <div className="signal-core">
-            <span className="signal-core__icon"><Radio size={24} /></span>
-            <strong>1 match</strong>
-            <small>ready to send</small>
+        <div className="product-stage" id="product" aria-label="Preview of the Sprintern match feed">
+          <div className="product-stage__chrome">
+            <span className="product-stage__label">Live matches</span>
+            <span className="product-stage__status"><i /> Watching</span>
           </div>
-          <div className="alert-card">
-            <span className="alert-card__icon"><BellRing size={18} /></span>
-            <span><strong>New match</strong><small>Software Engineer Intern</small></span>
-            <ArrowRight size={16} />
+          <div className="product-stage__summary">
+            <div><strong>3</strong><span>new roles<br />worth a look</span></div>
+            <p>Software · Canada<br />Summer 2027</p>
+          </div>
+          <div className="preview-feed">
+            {previewJobs.map((job, index) => (
+              <article className={index === 0 ? "preview-job preview-job--new" : "preview-job"} key={job.company}>
+                <span className="preview-job__logo"><Image src={job.logo} alt="" width={24} height={24} /></span>
+                <div><small>{job.company}</small><strong>{job.title}</strong><span>{job.place} · {job.term}</span></div>
+                <time>{job.age}</time>
+                <span className="preview-job__action" aria-hidden="true">↗</span>
+              </article>
+            ))}
+          </div>
+          <div className="product-stage__alert">
+            <span>New match sent to Telegram</span>
+            <strong>Google · Software Developer Intern</strong>
           </div>
         </div>
       </section>
 
-      <section className="proof-strip" aria-label="Current capabilities">
-        <span><Layers3 size={18} /> Continuously updated jobs</span>
-        <span><Radio size={18} /> Scheduled monitoring</span>
-        <span><BellRing size={18} /> Email and Telegram alerts</span>
-        <span><ExternalLink size={18} /> Direct apply links</span>
+      <section className="company-rail" aria-labelledby="company-rail-title">
+        <p id="company-rail-title">Watch the companies you care about</p>
+        <div>
+          {companies.map((company) => (
+            <span key={company.name}><Image src={company.logo} alt="" width={26} height={26} /><b>{company.name}</b></span>
+          ))}
+        </div>
+        <small>Illustrative employers. Role availability changes.</small>
       </section>
 
-      <section className="section" id="how-it-works">
-        <div className="section-heading"><span className="section-kicker">A quieter job search</span><h2>From noisy board to useful alert.</h2><p>The pipeline is deliberately simple, inspectable, and built around your criteria.</p></div>
-        <div className="steps-grid">
-          {steps.map((step) => <article className="step-card" key={step.number}><span>{step.number}</span><h3>{step.title}</h3><p>{step.copy}</p></article>)}
+      <section className="editorial-section process-section" id="how-it-works">
+        <div className="editorial-section__heading">
+          <p className="section-kicker">A quieter job search</p>
+          <h2>Three steps.<br />No daily scavenger hunt.</h2>
+        </div>
+        <div className="process-list">
+          {steps.map(([number, title, copy]) => (
+            <article key={number}>
+              <span>{number}</span>
+              <h3>{title}</h3>
+              <p>{copy}</p>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section className="section feature-section" id="features">
-        <div className="section-heading section-heading--left"><span className="section-kicker">Built for the application window</span><h2>Everything you need to move quickly.</h2></div>
-        <div className="bento-grid">
-          <article className="bento bento--wide"><span className="feature-icon"><Filter /></span><div><h3>Filters that read like your search</h3><p>Combine role, location, term, and work mode. Multiple choices within a field broaden your search; populated fields work together.</p></div><div className="filter-preview"><span>software</span><span>backend</span><span>Toronto</span><span>Summer 2027</span></div></article>
-          <article className="bento"><span className="feature-icon feature-icon--teal"><BellRing /></span><h3>Alerts with the next action</h3><p>Telegram messages include the original application link, so the alert is useful the moment it arrives.</p></article>
-          <article className="bento bento--ink"><span className="feature-icon"><Layers3 /></span><h3>One posting, not five copies</h3><p>Normalization and deduplication keep repeated listings from rebuilding your job list.</p></article>
+      <section className="editorial-section product-principles" id="principles">
+        <div className="product-principles__statement">
+          <p className="section-kicker">The useful parts, kept visible</p>
+          <h2>A focused feed, not another job board.</h2>
+          <p>Every screen is built around the next decision: review, save, apply, or move on.</p>
+        </div>
+        <div className="principle-list">
+          <article><span>01</span><div><h3>One clean view</h3><p>Repeated listings are collapsed while genuinely different roles stay visible.</p></div></article>
+          <article><span>02</span><div><h3>Alerts with restraint</h3><p>Telegram moves instantly. Email sends a ranked daily shortlist at your chosen time.</p></div></article>
+          <article><span>03</span><div><h3>Your process, intact</h3><p>Save roles, track applications, add notes, and keep deadlines in one place.</p></div></article>
         </div>
       </section>
 
-      <section className="section source-section" id="coverage">
-        <div><span className="section-kicker">One useful feed</span><h2>Consistent listings, direct applications.</h2></div>
-        <div><p>Sprintern normalizes public job information into one clean feed and preserves the employer application link whenever it is available.</p><p className="source-footnote">Postings can change or expire. Sprintern monitors freshness and makes uncertainty visible instead of silently dropping jobs.</p><Link className="inline-link" href="/data-sources">How job data and accuracy work</Link></div>
+      <section className="editorial-cta">
+        <div className="editorial-cta__copy">
+          <p className="section-kicker">Ready when the next role opens</p>
+          <h2>Set your criteria once.<br />Keep the head start.</h2>
+          <Link className="button button--paper" href="/sign-up">Build your first alert <span aria-hidden="true">↗</span></Link>
+        </div>
+        <Image className="editorial-cta__mark" src="/brand/sprintern-metallic.png" alt="" width={685} height={384} />
       </section>
 
-      <section className="final-cta"><span className="section-kicker">Your next application could arrive first</span><h2>Set the signal once.<br />Let Sprintern keep watch.</h2><Link className="button button--paper" href="/sign-up">Create a free alert <ArrowRight size={18} /></Link></section>
       <SiteFooter />
     </main>
   );
