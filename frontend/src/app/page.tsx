@@ -2,21 +2,41 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { Brand } from "@/components/brand";
+import { LogoTicker } from "@/components/logo-ticker";
 import { MarketingHeaderActions } from "@/components/marketing-header-actions";
+import { OrbitVisual } from "@/components/orbit-visual";
 import { SiteFooter } from "@/components/site-footer";
 
+// Local, pinned Simple Icons assets keep the landing page fast and prevent third-party tracking.
 const companies = [
   { name: "Google", logo: "/company-logos/google.svg" },
   { name: "Apple", logo: "/company-logos/apple.svg" },
   { name: "NVIDIA", logo: "/company-logos/nvidia.svg" },
   { name: "Shopify", logo: "/company-logos/shopify.svg" },
   { name: "Meta", logo: "/company-logos/meta.svg" },
-];
-
-const previewJobs = [
-  { company: "Google", logo: "/company-logos/google.svg", title: "Software Developer Intern", place: "Toronto, ON", term: "Summer 2027", age: "4m" },
-  { company: "Shopify", logo: "/company-logos/shopify.svg", title: "Backend Engineering Intern", place: "Remote, Canada", term: "Summer 2027", age: "11m" },
-  { company: "NVIDIA", logo: "/company-logos/nvidia.svg", title: "Systems Software Intern", place: "Toronto, ON", term: "Fall 2026", age: "18m" },
+  { name: "Airbnb", logo: "/company-logos/airbnb.svg" },
+  { name: "AMD", logo: "/company-logos/amd.svg" },
+  { name: "Atlassian", logo: "/company-logos/atlassian.svg" },
+  { name: "Cloudflare", logo: "/company-logos/cloudflare.svg" },
+  { name: "Coinbase", logo: "/company-logos/coinbase.svg" },
+  { name: "Datadog", logo: "/company-logos/datadog.svg" },
+  { name: "DigitalOcean", logo: "/company-logos/digitalocean.svg" },
+  { name: "Discord", logo: "/company-logos/discord.svg" },
+  { name: "Docker", logo: "/company-logos/docker.svg" },
+  { name: "DoorDash", logo: "/company-logos/doordash.svg" },
+  { name: "Dropbox", logo: "/company-logos/dropbox.svg" },
+  { name: "GitLab", logo: "/company-logos/gitlab.svg" },
+  { name: "Intel", logo: "/company-logos/intel.svg" },
+  { name: "MongoDB", logo: "/company-logos/mongodb.svg" },
+  { name: "PayPal", logo: "/company-logos/paypal.svg" },
+  { name: "Pinterest", logo: "/company-logos/pinterest.svg" },
+  { name: "Reddit", logo: "/company-logos/reddit.svg" },
+  { name: "SAP", logo: "/company-logos/sap.svg" },
+  { name: "Snowflake", logo: "/company-logos/snowflake.svg" },
+  { name: "Spotify", logo: "/company-logos/spotify.svg" },
+  { name: "Stripe", logo: "/company-logos/stripe.svg" },
+  { name: "Tesla", logo: "/company-logos/tesla.svg" },
+  { name: "Zoom", logo: "/company-logos/zoom.svg" },
 ];
 
 const steps = [
@@ -57,39 +77,12 @@ export default function Home() {
           </ul>
         </div>
 
-        <div className="product-stage" id="product" aria-label="Preview of the Sprintern match feed">
-          <div className="product-stage__chrome">
-            <span className="product-stage__label">Live matches</span>
-            <span className="product-stage__status"><i /> Watching</span>
-          </div>
-          <div className="product-stage__summary">
-            <div><strong>3</strong><span>new roles<br />worth a look</span></div>
-            <p>Software · Canada<br />Summer 2027</p>
-          </div>
-          <div className="preview-feed">
-            {previewJobs.map((job, index) => (
-              <article className={index === 0 ? "preview-job preview-job--new" : "preview-job"} key={job.company}>
-                <span className="preview-job__logo"><Image src={job.logo} alt="" width={24} height={24} /></span>
-                <div><small>{job.company}</small><strong>{job.title}</strong><span>{job.place} · {job.term}</span></div>
-                <time>{job.age}</time>
-                <span className="preview-job__action" aria-hidden="true">↗</span>
-              </article>
-            ))}
-          </div>
-          <div className="product-stage__alert">
-            <span>New match sent to Telegram</span>
-            <strong>Google · Software Developer Intern</strong>
-          </div>
-        </div>
+        <OrbitVisual logos={companies} id="product" />
       </section>
 
       <section className="company-rail" aria-labelledby="company-rail-title">
         <p id="company-rail-title">Watch the companies you care about</p>
-        <div>
-          {companies.map((company) => (
-            <span key={company.name}><Image src={company.logo} alt="" width={26} height={26} /><b>{company.name}</b></span>
-          ))}
-        </div>
+        <LogoTicker logos={companies} />
         <small>Illustrative employers. Role availability changes.</small>
       </section>
 
