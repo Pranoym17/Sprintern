@@ -102,8 +102,8 @@ def test_filter_override_keeps_priority_while_email_remains_daily(db_session: Se
     assert delivery is not None
     assert delivery.priority == NotificationPriority.HIGH
     assert delivery.cadence == NotificationCadence.DAILY
-    assert delivery.queued_reason is None
-    assert delivery.next_attempt_at == datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
+    assert delivery.queued_reason == "initial_digest"
+    assert delivery.next_attempt_at == datetime(2026, 7, 23, 11, 0, tzinfo=UTC)
 
 
 def test_delivery_window_moves_weekend_to_monday() -> None:

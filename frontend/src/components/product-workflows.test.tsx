@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FiltersView } from "./filters-view";
+import { JobsBoardView } from "./jobs-board-view";
 import { MatchesView } from "./matches-view";
 import { SettingsView } from "./settings-view";
 
@@ -18,6 +19,7 @@ beforeEach(() => {
   signOut.mockReset();
   api = {
     matches: vi.fn(async (_cursor, status) => ({ items: status === "applied" ? [{...match,id:"applied-1",status:"applied"}] : [match], next_cursor:null, counts:{all:2,matched:1,applied:1,dismissed:0} })),
+    jobs: vi.fn(async () => ({items:[match.job],next_cursor:null})),
     updateMatch: vi.fn(async (_id, status) => ({...match,status})),
     interactions: vi.fn(async () => []),
     updateInteraction: vi.fn(), recordView: vi.fn(async () => undefined), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
@@ -67,6 +69,15 @@ describe("authenticated product workflows", () => {
     await user.type(screen.getByLabelText("Roles or fields"), "software{Enter}");
     await user.click(screen.getByRole("button", { name:/save and match/i }));
     await waitFor(() => expect(api.createFilter).toHaveBeenCalledWith(expect.objectContaining({name:"Software internships",role_keywords:["software"]})));
+  });
+
+  it("shows and searches the complete 30-day job board", async () => {
+    const user = userEvent.setup();
+    render(<JobsBoardView />);
+    await screen.findByRole("heading", { name:"Software Intern" });
+    expect(screen.getByRole("link", { name:/apply/i })).toHaveAttribute("href", "https://example.com/apply");
+    await user.type(screen.getByRole("searchbox", { name:"Search jobs" }), "Toronto");
+    await waitFor(() => expect(api.jobs).toHaveBeenLastCalledWith(undefined, "Toronto"));
   });
 
   it("persists channel and daily digest preferences", async () => {

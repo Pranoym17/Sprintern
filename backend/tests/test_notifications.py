@@ -98,8 +98,55 @@ def test_planner_creates_idempotent_daily_email_delivery(db_session: Session) ->
     assert second == 0
     assert delivery is not None
     assert delivery.cadence == NotificationCadence.DAILY
-    assert delivery.next_attempt_at == datetime(2026, 7, 14, 8, 0, tzinfo=UTC)
+    assert delivery.next_attempt_at == now
+    assert delivery.queued_reason == "initial_digest"
     assert delivery.idempotency_key == f"{match.id}:email"
+
+
+def test_email_returns_to_preferred_daily_time_after_initial_digest(
+    db_session: Session,
+) -> None:
+    profile, first_match = create_match(db_session)
+    now = datetime(2026, 7, 13, 14, 20, tzinfo=UTC)
+    planner = NotificationPlanner()
+    planner.plan_match(db_session, first_match, profile, now)
+    first_delivery = db_session.scalar(
+        select(NotificationDelivery).where(NotificationDelivery.match_id == first_match.id)
+    )
+    assert first_delivery is not None
+    first_delivery.status = DeliveryStatus.SENT
+    first_delivery.sent_at = now
+
+    job = Job(
+        company="Second Company",
+        normalized_company="second company",
+        title="Platform Engineering Intern",
+        normalized_title="platform engineering intern",
+        canonical_fingerprint="a" * 64,
+        first_seen_at=now,
+        last_seen_at=now,
+    )
+    job.sources.append(
+        JobSource(
+            source=JobSourceName.GREENHOUSE,
+            source_key="second-company",
+            external_id="second-role",
+            apply_url="https://example.com/second-role",
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+    )
+    second_match = JobMatch(profile=profile, job=job, reasons=[])
+    db_session.add(second_match)
+
+    planner.plan_match(db_session, second_match, profile, now)
+    second_delivery = db_session.scalar(
+        select(NotificationDelivery).where(NotificationDelivery.match_id == second_match.id)
+    )
+
+    assert second_delivery is not None
+    assert second_delivery.next_attempt_at == datetime(2026, 7, 14, 8, 0, tzinfo=UTC)
+    assert second_delivery.queued_reason is None
 
 
 def test_concurrent_planners_create_one_delivery() -> None:

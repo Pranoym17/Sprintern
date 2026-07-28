@@ -27,6 +27,7 @@ class Job(TimestampMixin, Base):
     __tablename__ = "jobs"
     __table_args__ = (
         Index("ix_jobs_status_posted", "status", "posted_at"),
+        Index("ix_jobs_status_first_seen", "status", "first_seen_at"),
         Index("ix_jobs_fingerprint", "canonical_fingerprint"),
     )
 

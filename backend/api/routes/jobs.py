@@ -21,11 +21,16 @@ def read_jobs(
     session: Database,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     cursor: str | None = None,
+    query: Annotated[str | None, Query(min_length=1, max_length=120)] = None,
 ) -> JobPage:
-    jobs = list_jobs(session, limit, decode_cursor(cursor) if cursor else None)
+    jobs = list_jobs(session, limit, decode_cursor(cursor) if cursor else None, query)
     has_more = len(jobs) > limit
     items = jobs[:limit]
-    next_cursor = encode_cursor(items[-1].created_at, items[-1].id) if has_more else None
+    next_cursor = (
+        encode_cursor(items[-1].posted_at or items[-1].first_seen_at, items[-1].id)
+        if has_more
+        else None
+    )
     return JobPage(
         items=[PublicJobResponse.model_validate(job) for job in items], next_cursor=next_cursor
     )

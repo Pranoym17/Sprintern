@@ -234,6 +234,40 @@ class NotificationPlanner:
                 return next_scheduled, "daily_cap"
             candidate_date += timedelta(days=1)
 
+    @staticmethod
+    def _promote_initial_email_digest(
+        session: Session,
+        profile: Profile,
+        now: datetime,
+    ) -> None:
+        """Send the first useful digest promptly after explicit email opt-in.
+
+        This is intentionally based on delivery history, not account creation:
+        an email address alone is not consent. Once the first match digest is
+        sent, later email alerts return to the user's chosen daily local time.
+        """
+        first_digest_already_sent = session.scalar(
+            select(NotificationDelivery.id).where(
+                NotificationDelivery.profile_id == profile.id,
+                NotificationDelivery.channel == NotificationChannel.EMAIL,
+                NotificationDelivery.notification_type == "new_match",
+                NotificationDelivery.status == DeliveryStatus.SENT,
+            )
+        )
+        if first_digest_already_sent:
+            return
+        scheduled, _ = apply_delivery_window(profile, now)
+        for delivery in session.scalars(
+            select(NotificationDelivery).where(
+                NotificationDelivery.profile_id == profile.id,
+                NotificationDelivery.channel == NotificationChannel.EMAIL,
+                NotificationDelivery.notification_type == "new_match",
+                NotificationDelivery.status.in_([DeliveryStatus.PENDING, DeliveryStatus.FAILED]),
+            )
+        ):
+            delivery.next_attempt_at = scheduled
+            delivery.queued_reason = "initial_digest"
+
     def plan_match(
         self,
         session: Session,
@@ -311,6 +345,9 @@ class NotificationPlanner:
                 )
             )
             created += 1
+        if NotificationChannel.EMAIL in destination_channels:
+            session.flush()
+            self._promote_initial_email_digest(session, profile, now)
         return created
 
     def plan_events(self, session: Session, now: datetime | None = None) -> int:

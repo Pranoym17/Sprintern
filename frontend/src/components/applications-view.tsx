@@ -57,7 +57,14 @@ function TextField({ label, value, change }: { label: string; value: string | nu
 function GoalCard({ value, save }: { value: WeeklyProgress; save: (value: { target: number; reminders_enabled: boolean; streaks_enabled: boolean }) => Promise<void> }) {
   const [target, setTarget] = useState(value.target);
   const percent = target ? Math.min(100, Math.round(value.applied / target * 100)) : 100;
-  return <section className="goal-card"><span><Target /></span><div><small>This week</small><strong>{value.applied} of {target} applications</strong><div><i style={{ width: `${percent}%` }} /></div></div><label>Weekly goal<input type="number" min="0" max="100" value={target} onChange={(event) => setTarget(Number(event.target.value))} onBlur={() => void save({ target, reminders_enabled: value.reminders_enabled, streaks_enabled: value.streaks_enabled })} /></label><p>{value.interviews} interviews · {value.offers} offers{value.streaks_enabled ? ` · ${value.current_streak} week streak` : ""}</p></section>;
+  function updateTarget(rawValue: string) {
+    if (!/^\d{0,3}$/.test(rawValue)) return;
+    setTarget(Math.min(100, Math.max(0, Number(rawValue || 0))));
+  }
+  function saveTarget() {
+    void save({ target, reminders_enabled: value.reminders_enabled, streaks_enabled: value.streaks_enabled });
+  }
+  return <section className="goal-card"><span><Target /></span><div><small>This week</small><strong>{value.applied} of {target} applications</strong><div><i style={{ width: `${percent}%` }} /></div></div><label>Weekly goal<input aria-label="Weekly application goal" inputMode="numeric" pattern="[0-9]*" type="text" value={target} onChange={(event) => updateTarget(event.target.value)} onBlur={saveTarget} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /></label><p>{value.interviews} interviews · {value.offers} offers{value.streaks_enabled ? ` · ${value.current_streak} week streak` : ""}</p></section>;
 }
 
 function ImportPanel({ close, complete }: { close: () => void; complete: () => void }) {

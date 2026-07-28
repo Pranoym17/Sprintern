@@ -128,7 +128,7 @@ export default function Home() {
           <h2>Set your criteria once.<br />Keep the head start.</h2>
           <Link className="button button--paper" href="/sign-up">Build your first alert <span aria-hidden="true">↗</span></Link>
         </div>
-        <Image className="editorial-cta__mark" src="/brand/sprintern-metallic.png" alt="" width={685} height={384} />
+        <Image className="editorial-cta__mark" src="/brand/sprintern-metallic.png" alt="" width={1056} height={600} />
       </section>
 
       <SiteFooter />

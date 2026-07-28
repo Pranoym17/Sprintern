@@ -1,11 +1,11 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
 
 from api.auth import AuthenticatedUser
-from api.models import Job, JobFilter, JobMatch, MatchStatus, Profile
+from api.models import Job, JobFilter, JobMatch, JobStatus, MatchStatus, Profile
 
 
 async def test_profile_bootstrap_and_filter_crud(api_client: AsyncClient) -> None:
@@ -138,6 +138,53 @@ async def test_pagination_rejects_out_of_bounds_limits(api_client: AsyncClient) 
     for path in ("/jobs", "/matches"):
         assert (await api_client.get(path, params={"limit": 0})).status_code == 422
         assert (await api_client.get(path, params={"limit": 101})).status_code == 422
+
+
+async def test_job_board_lists_only_active_roles_from_the_last_30_days(
+    api_client: AsyncClient, db_session: Session
+) -> None:
+    now = datetime.now(UTC)
+    jobs = [
+        Job(
+            company="Current Company",
+            normalized_company="current company",
+            title="Software Engineering Intern",
+            normalized_title="software engineering intern",
+            location="Toronto, ON",
+            normalized_location="toronto on",
+            canonical_fingerprint="1" * 64,
+            status=JobStatus.ACTIVE,
+            first_seen_at=now - timedelta(days=2),
+            last_seen_at=now,
+        ),
+        Job(
+            company="Old Company",
+            normalized_company="old company",
+            title="Software Engineering Intern",
+            normalized_title="software engineering intern",
+            canonical_fingerprint="2" * 64,
+            status=JobStatus.ACTIVE,
+            first_seen_at=now - timedelta(days=31),
+            last_seen_at=now,
+        ),
+        Job(
+            company="Closed Company",
+            normalized_company="closed company",
+            title="Software Engineering Intern",
+            normalized_title="software engineering intern",
+            canonical_fingerprint="3" * 64,
+            status=JobStatus.EXPIRED,
+            first_seen_at=now - timedelta(days=1),
+            last_seen_at=now,
+        ),
+    ]
+    db_session.add_all(jobs)
+    db_session.commit()
+
+    response = await api_client.get("/jobs", params={"query": "Toronto"})
+
+    assert response.status_code == 200
+    assert [item["company"] for item in response.json()["items"]] == ["Current Company"]
 
 
 async def test_match_ownership_hides_other_users_records(

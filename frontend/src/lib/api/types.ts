@@ -12,6 +12,7 @@ export type ApplicationStage = Schemas["ApplicationStage"];
 export type Profile = Schemas["ProfileResponse"];
 export type ProfileUpdate = Schemas["ProfileUpdate"];
 export type Job = Schemas["PublicJobResponse"];
+export type JobPage = Schemas["JobPage"];
 export type DeliverySummary = Schemas["DeliverySummary"];
 export type JobMatch = Schemas["MatchResponse"];
 export type MatchCounts = Schemas["MatchCounts"];

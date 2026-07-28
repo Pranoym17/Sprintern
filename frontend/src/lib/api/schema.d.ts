@@ -4789,6 +4789,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 cursor?: string | null;
+                query?: string | null;
             };
             header?: never;
             path?: never;
