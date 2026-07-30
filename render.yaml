@@ -1,3 +1,5 @@
+region: ohio
+
 services:
   - type: web
     name: sprintern-api
