@@ -7,7 +7,7 @@ const bodyFont = Inter({ subsets: ["latin"], variable: "--font-body" });
 const headingFont = Urbanist({ subsets: ["latin"], variable: "--font-heading" });
 
 export const metadata: Metadata = {
-  title: { default: "Sprintern — Internship alerts without the refresh loop", template: "%s · Sprintern" },
+  title: { default: "Sprintern", template: "%s · Sprintern" },
   description: "Track software internships with focused filters and timely email or Telegram alerts.",
 };
 
