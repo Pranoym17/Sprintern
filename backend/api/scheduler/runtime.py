@@ -20,6 +20,11 @@ from api.scheduler.workflows import SchedulerWorkflows
 from api.settings import Settings, settings
 
 logger = logging.getLogger(__name__)
+_SCHEDULER_LOCK_RETRY_SECONDS = 5
+
+
+class SchedulerLockUnavailable(RuntimeError):
+    """Raised when another process currently owns the scheduler singleton lock."""
 
 
 def job_snapshot(scheduler: AsyncIOScheduler) -> list[dict[str, str | None]]:
@@ -108,58 +113,94 @@ async def run_scheduler(app_settings: Settings = settings) -> None:
 
     restore_signals = _install_signal_handlers(request_stop)
     try:
-        with scheduler_process_lock():
-            workflows = SchedulerWorkflows()
-            scheduler = build_scheduler(workflows, source_config, app_settings)
-            runtime_store = SchedulerRuntimeStore()
-            instance_id = uuid.uuid4()
-
-            def heartbeat() -> None:
-                runtime_store.heartbeat(instance_id, job_snapshot(scheduler))
-
-            scheduler.add_job(
-                heartbeat,
-                "interval",
-                seconds=app_settings.scheduler_heartbeat_interval_seconds,
-                id="scheduler:heartbeat",
-                replace_existing=True,
-                max_instances=1,
-                coalesce=True,
-                misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
-            )
-            scheduler.start(paused=True)
-            runtime_started = False
+        waiting_for_lock = False
+        while not stop_event.is_set():
             try:
-                runtime_store.start(instance_id, job_snapshot(scheduler))
-                runtime_started = True
-                scheduler.resume()
-                logger.info(
-                    "scheduler.started",
-                    extra={
-                        "event": "scheduler.started",
-                        "github_sources": len(source_config.enabled_github),
-                        "jobs": len(scheduler.get_jobs()),
-                        "timezone": app_settings.scheduler_timezone,
-                    },
-                )
-                await stop_event.wait()
-            finally:
-                scheduler.pause()
-                idle = await workflows.wait_until_idle(
-                    app_settings.scheduler_shutdown_timeout_seconds
-                )
-                if not idle:
+                with scheduler_process_lock():
+                    if waiting_for_lock:
+                        logger.info(
+                            "scheduler.lock_acquired",
+                            extra={"event": "scheduler.lock_acquired"},
+                        )
+                    await _run_scheduler_instance(source_config, stop_event, app_settings)
+                    return
+            except SchedulerLockUnavailable:
+                if not waiting_for_lock:
+                    # Render briefly overlaps worker generations during deployment. Waiting
+                    # preserves the singleton guarantee without creating a crash loop.
                     logger.warning(
-                        "scheduler.shutdown_timeout",
-                        extra={"event": "scheduler.shutdown_timeout"},
+                        "scheduler.lock_waiting",
+                        extra={
+                            "event": "scheduler.lock_waiting",
+                            "retry_seconds": _SCHEDULER_LOCK_RETRY_SECONDS,
+                        },
                     )
-                scheduler.shutdown(wait=False)
-                await asyncio.sleep(0)
-                if runtime_started:
-                    runtime_store.stop(instance_id)
-                logger.info("scheduler.stopped", extra={"event": "scheduler.stopped"})
+                    waiting_for_lock = True
+                try:
+                    await asyncio.wait_for(
+                        stop_event.wait(),
+                        timeout=_SCHEDULER_LOCK_RETRY_SECONDS,
+                    )
+                except TimeoutError:
+                    continue
     finally:
         restore_signals()
+
+
+async def _run_scheduler_instance(
+    source_config: SchedulerSourceConfig,
+    stop_event: asyncio.Event,
+    app_settings: Settings,
+) -> None:
+    workflows = SchedulerWorkflows()
+    scheduler = build_scheduler(workflows, source_config, app_settings)
+    runtime_store = SchedulerRuntimeStore()
+    instance_id = uuid.uuid4()
+
+    def heartbeat() -> None:
+        runtime_store.heartbeat(instance_id, job_snapshot(scheduler))
+
+    scheduler.add_job(
+        heartbeat,
+        "interval",
+        seconds=app_settings.scheduler_heartbeat_interval_seconds,
+        id="scheduler:heartbeat",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+    )
+    scheduler.start(paused=True)
+    runtime_started = False
+    try:
+        runtime_store.start(instance_id, job_snapshot(scheduler))
+        runtime_started = True
+        scheduler.resume()
+        logger.info(
+            "scheduler.started",
+            extra={
+                "event": "scheduler.started",
+                "github_sources": len(source_config.enabled_github),
+                "jobs": len(scheduler.get_jobs()),
+                "timezone": app_settings.scheduler_timezone,
+            },
+        )
+        await stop_event.wait()
+    finally:
+        scheduler.pause()
+        idle = await workflows.wait_until_idle(
+            app_settings.scheduler_shutdown_timeout_seconds
+        )
+        if not idle:
+            logger.warning(
+                "scheduler.shutdown_timeout",
+                extra={"event": "scheduler.shutdown_timeout"},
+            )
+        scheduler.shutdown(wait=False)
+        await asyncio.sleep(0)
+        if runtime_started:
+            runtime_store.stop(instance_id)
+        logger.info("scheduler.stopped", extra={"event": "scheduler.stopped"})
 
 
 @contextmanager
@@ -179,7 +220,7 @@ def scheduler_process_lock(
             session.scalar(text("SELECT pg_try_advisory_lock(:key)"), {"key": lock_key})
         )
         if not acquired:
-            raise RuntimeError("another scheduler process is already running")
+            raise SchedulerLockUnavailable("another scheduler process is already running")
         try:
             yield
         finally:

@@ -1,5 +1,7 @@
 import asyncio
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -7,10 +9,16 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+import api.scheduler.runtime as scheduler_runtime
 from api.database import SessionLocal
 from api.models import BackgroundJob, JobSourceName, SourceState
 from api.scheduler.config import GitHubSourceConfig, SchedulerSourceConfig
-from api.scheduler.runtime import build_scheduler, scheduler_process_lock
+from api.scheduler.runtime import (
+    SchedulerLockUnavailable,
+    build_scheduler,
+    run_scheduler,
+    scheduler_process_lock,
+)
 from api.scheduler.status import SchedulerRuntimeStore, scheduler_status
 from api.scheduler.workflows import SchedulerWorkflows
 from api.settings import settings
@@ -161,6 +169,48 @@ def test_process_lock_rejects_second_scheduler() -> None:
         with pytest.raises(RuntimeError, match="already running"):
             with scheduler_process_lock(SessionLocal):
                 raise AssertionError("a second scheduler must not acquire the lock")
+
+
+async def test_scheduler_waits_for_deploy_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+    ran_instance = False
+
+    @contextmanager
+    def handoff_lock() -> Iterator[None]:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise SchedulerLockUnavailable("another scheduler process is already running")
+        yield
+
+    async def record_instance(
+        _source_config: SchedulerSourceConfig,
+        _stop_event: asyncio.Event,
+        _settings: object,
+    ) -> None:
+        nonlocal ran_instance
+        ran_instance = True
+
+    monkeypatch.setattr(scheduler_runtime, "scheduler_process_lock", handoff_lock)
+    monkeypatch.setattr(
+        scheduler_runtime,
+        "load_runtime_source_config",
+        lambda *_args: scheduler_config(),
+    )
+    monkeypatch.setattr(scheduler_runtime, "_run_scheduler_instance", record_instance)
+    monkeypatch.setattr(scheduler_runtime, "_SCHEDULER_LOCK_RETRY_SECONDS", 0.001)
+    monkeypatch.setattr(
+        scheduler_runtime,
+        "_install_signal_handlers",
+        lambda _callback: lambda: None,
+    )
+
+    await run_scheduler(settings)
+
+    assert attempts == 2
+    assert ran_instance is True
 
 
 async def test_workflow_waits_for_active_work() -> None:
