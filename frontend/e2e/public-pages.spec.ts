@@ -2,9 +2,10 @@ import { expect, test } from "@playwright/test";
 
 test("landing page communicates the live product and stays within the viewport", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Stop finding internships");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Stop refreshing.");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Start applying.");
   await expect(page.getByRole("link", { name: /create your alert/i })).toBeVisible();
-  await expect(page.getByText("Continuously updated jobs").first()).toBeVisible();
+  await expect(page.getByText("Watch the companies you care about")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
 });
@@ -48,6 +49,12 @@ test("security headers are present", async ({ request }) => {
 test("reduced motion removes continuous animations", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  const duration = await page.locator(".orbit--outer").evaluate((element) => getComputedStyle(element).animationDuration);
-  expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.00001);
+  for (const selector of [".orbit-ring", ".logo-ticker__track"]) {
+    const animation = await page.locator(selector).first().evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { duration: style.animationDuration, name: style.animationName };
+    });
+    expect(animation.name).toBe("none");
+    expect(Number.parseFloat(animation.duration)).toBeLessThanOrEqual(0.00001);
+  }
 });
