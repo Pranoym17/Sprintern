@@ -4,7 +4,7 @@ test("landing page communicates the live product and stays within the viewport",
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Stop refreshing.");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Start applying.");
-  await expect(page.getByRole("link", { name: /create your alert/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create your free alert" })).toBeVisible();
   await expect(page.getByText("Watch the companies you care about")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
