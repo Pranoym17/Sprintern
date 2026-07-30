@@ -1,9 +1,8 @@
-region: ohio
-
 services:
   - type: web
     name: sprintern-api
     runtime: docker
+    region: ohio
     autoDeployTrigger: checksPass
     maxShutdownDelaySeconds: 30
     dockerfilePath: ./backend/Dockerfile.api
@@ -16,6 +15,7 @@ services:
   - type: worker
     name: sprintern-scheduler
     runtime: docker
+    region: ohio
     autoDeployTrigger: checksPass
     maxShutdownDelaySeconds: 60
     dockerfilePath: ./backend/Dockerfile.api
@@ -27,6 +27,7 @@ services:
   - type: worker
     name: sprintern-worker
     runtime: docker
+    region: ohio
     autoDeployTrigger: checksPass
     maxShutdownDelaySeconds: 60
     dockerfilePath: ./backend/Dockerfile.api
