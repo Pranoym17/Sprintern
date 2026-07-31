@@ -2,7 +2,12 @@ import uuid
 
 from sqlalchemy import text
 
-from api.database import engine
+from api.database import api_engine, engine
+
+
+def test_database_engines_redact_bound_parameters() -> None:
+    assert engine.hide_parameters is True
+    assert api_engine.hide_parameters is True
 
 
 def test_restricted_api_role_can_only_see_claimed_user() -> None:

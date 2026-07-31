@@ -14,8 +14,10 @@ from api.settings import settings
 worker_url = settings.database_worker_url or settings.database_url
 api_url = settings.database_api_url or settings.database_url
 
-engine = create_engine(worker_url, pool_pre_ping=True)
-api_engine = create_engine(api_url, pool_pre_ping=True)
+# SQL text remains available for diagnosis, but bound values can contain email
+# addresses, tokens, or user-authored notes and must not appear in production logs.
+engine = create_engine(worker_url, pool_pre_ping=True, hide_parameters=True)
+api_engine = create_engine(api_url, pool_pre_ping=True, hide_parameters=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 ApiSessionLocal = sessionmaker(bind=api_engine, autoflush=False, expire_on_commit=False)
 
