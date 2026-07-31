@@ -53,6 +53,49 @@ def test_restricted_api_role_cannot_read_internal_tables() -> None:
             transaction.rollback()
 
 
+def test_restricted_api_role_only_sees_own_email_suppression() -> None:
+    first_id = uuid.uuid4()
+    second_id = uuid.uuid4()
+    first_email = "first-suppression@example.test"
+    second_email = "second-suppression@example.test"
+    with engine.begin() as owner:
+        owner.execute(
+            text("INSERT INTO profiles (id, email) VALUES (:id, :email)"),
+            [
+                {"id": first_id, "email": first_email},
+                {"id": second_id, "email": second_email},
+            ],
+        )
+        owner.execute(
+            text(
+                "INSERT INTO email_suppressions (email, reason) "
+                "VALUES (:first, 'bounce'), (:second, 'complaint')"
+            ),
+            {"first": first_email, "second": second_email},
+        )
+    try:
+        with engine.begin() as restricted:
+            restricted.execute(text("SET LOCAL ROLE sprintern_api"))
+            restricted.execute(
+                text("SELECT set_config('request.jwt.claim.sub', :subject, true)"),
+                {"subject": str(first_id)},
+            )
+            visible = restricted.scalars(
+                text("SELECT email FROM email_suppressions ORDER BY email")
+            ).all()
+            assert visible == [first_email]
+    finally:
+        with engine.begin() as owner:
+            owner.execute(
+                text("DELETE FROM email_suppressions WHERE email IN (:first, :second)"),
+                {"first": first_email, "second": second_email},
+            )
+            owner.execute(
+                text("DELETE FROM profiles WHERE id IN (:first, :second)"),
+                {"first": first_id, "second": second_id},
+            )
+
+
 def test_worker_role_can_use_internal_tables_without_bypassing_rls() -> None:
     with engine.begin() as worker:
         worker.execute(text("SET LOCAL ROLE sprintern_worker"))
