@@ -48,17 +48,17 @@ async def test_user_controls_daily_digest_time_and_size(
         json={
             "timezone": "America/Toronto",
             "preferred_email_time": "07:45",
-            "email_digest_job_limit": 10,
+            "email_digest_job_limit": 15,
             "email_empty_digest_enabled": True,
         },
     )
     invalid = await api_client.patch(
-        "/users/me", json={"email_digest_job_limit": 11}
+        "/users/me", json={"email_digest_job_limit": 16}
     )
 
     assert response.status_code == 200
     assert response.json()["preferred_email_time"] == "07:45:00"
-    assert response.json()["email_digest_job_limit"] == 10
+    assert response.json()["email_digest_job_limit"] == 15
     assert response.json()["email_empty_digest_enabled"] is True
     assert invalid.status_code == 422
 

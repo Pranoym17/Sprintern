@@ -60,10 +60,10 @@ def list_matches(
     )
     ts_query = func.websearch_to_tsquery("english", search)
     typo_score = func.greatest(
-        func.similarity(Job.normalized_title, search.casefold()),
-        func.similarity(Job.normalized_company, search.casefold()),
-        func.similarity(func.coalesce(Job.normalized_location, ""), search.casefold()),
-        func.word_similarity(
+        func.extensions.similarity(Job.normalized_title, search.casefold()),
+        func.extensions.similarity(Job.normalized_company, search.casefold()),
+        func.extensions.similarity(func.coalesce(Job.normalized_location, ""), search.casefold()),
+        func.extensions.word_similarity(
             search.casefold(),
             func.concat_ws(
                 " ",

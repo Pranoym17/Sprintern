@@ -75,9 +75,9 @@ def list_jobs(
     elif sort == "relevance" and query:
         search = query.strip().casefold()
         relevance = func.greatest(
-            func.similarity(Job.normalized_title, search),
-            func.similarity(Job.normalized_company, search),
-            func.similarity(func.coalesce(Job.normalized_location, ""), search),
+            func.extensions.similarity(Job.normalized_title, search),
+            func.extensions.similarity(Job.normalized_company, search),
+            func.extensions.similarity(func.coalesce(Job.normalized_location, ""), search),
         )
         ordering = (relevance.desc(), published_at.desc(), Job.id.desc())
     else:

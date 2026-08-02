@@ -14,7 +14,7 @@ class Profile(TimestampMixin, Base):
     __tablename__ = "profiles"
     __table_args__ = (
         CheckConstraint(
-            "email_digest_job_limit BETWEEN 1 AND 10",
+            "email_digest_job_limit BETWEEN 1 AND 15",
             name="ck_profiles_email_digest_job_limit",
         ),
     )
@@ -44,7 +44,7 @@ class Profile(TimestampMixin, Base):
     preferred_email_time: Mapped[time] = mapped_column(
         Time, default=time(8, 0), server_default="08:00:00"
     )
-    email_digest_job_limit: Mapped[int] = mapped_column(Integer, default=7, server_default="7")
+    email_digest_job_limit: Mapped[int] = mapped_column(Integer, default=15, server_default="15")
     email_empty_digest_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )

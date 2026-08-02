@@ -7,7 +7,8 @@ branch = "dev"
 poll_minutes = 15
 jitter_seconds = 30
 
-# Sources below passed manual ingestion and retain staggered schedules to spread GitHub traffic.
+# Validated sources retain staggered schedules to spread GitHub traffic. Entries
+# that later drifted remain disabled so an administrator can preview them safely.
 [[github]]
 enabled = true
 owner = "speedyapply"
@@ -72,22 +73,24 @@ poll_minutes = 60
 jitter_seconds = 270
 
 [[github]]
-enabled = true
+enabled = false
 owner = "zapplyjobs"
 repository = "Internships-2027"
 path = "README.md"
 branch = "main"
 poll_minutes = 60
 jitter_seconds = 30
+# Disabled: the upstream table currently replaces application URLs with "#".
 
 [[github]]
-enabled = true
+enabled = false
 owner = "zapplyjobs"
 repository = "Canada-Internships-2027"
 path = "README.md"
 branch = "main"
 poll_minutes = 60
 jitter_seconds = 90
+# Disabled: the upstream table currently replaces application URLs with "#".
 
 [[github]]
 enabled = true

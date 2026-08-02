@@ -656,9 +656,10 @@
     inset: auto;
     top: 50%;
     left: 50%;
+    margin: -360px 0 0 -360px;
     opacity: 1;
     animation: none;
-    transform: translate(-50%, -50%) scale(.391);
+    transform: scale(.43);
   }
   .company-rail { width: calc(100% - 34px); }
   .logo-ticker__track { gap: 40px; }

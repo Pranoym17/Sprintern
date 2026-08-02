@@ -13,6 +13,11 @@ from api.models import JobSourceName, PollCompleteness
 
 MARKDOWN_LINK = re.compile(r"\[[^]]*]\((https?://[^)\s]+)[^)]*\)")
 NESTED_IMAGE_LINK = re.compile(r"\[!\[[^]]*]\(https?://[^)]+\)]\((https?://[^)\s]+)[^)]*\)")
+# Generated repositories sometimes place an HTML image with a relative asset path
+# inside a Markdown link. The outer HTTPS target is still the employer application.
+MARKDOWN_HTML_IMAGE_LINK = re.compile(
+    r"\[\s*<img\b[^>]*>\s*]\((https?://[^)\s]+)[^)]*\)", re.IGNORECASE
+)
 HTML_LINK = re.compile(r"href=[\"'](https?://[^\"']+)", re.IGNORECASE)
 RAW_LINK = re.compile(r"https?://[^\s<>|)]+")
 MARKDOWN_IMAGE = re.compile(r"!\[([^]]*)]\([^)]+\)")
@@ -363,7 +368,13 @@ class GitHubRepositoryAdapter:
     @staticmethod
     def _extract_url(value: str) -> str | None:
         candidates: list[str] = []
-        for pattern in (NESTED_IMAGE_LINK, MARKDOWN_LINK, HTML_LINK, RAW_LINK):
+        for pattern in (
+            NESTED_IMAGE_LINK,
+            MARKDOWN_HTML_IMAGE_LINK,
+            MARKDOWN_LINK,
+            HTML_LINK,
+            RAW_LINK,
+        ):
             for match in pattern.finditer(value):
                 candidate = match.group(1) if match.lastindex else match.group(0)
                 if candidate not in candidates:

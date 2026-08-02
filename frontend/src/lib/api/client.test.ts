@@ -20,6 +20,15 @@ describe("ApiClient", () => {
     await expect(api.matches("bad cursor")).rejects.toMatchObject({ status: 400, code: "invalid_cursor", message: "Pagination cursor is invalid" } satisfies Partial<ApiError>);
   });
 
+  it("turns structured validation details into a useful field message", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: { code: "validation_error", message: "Request validation failed", details: [{ location:["body","email_digest_job_limit"], message:"Input should be less than or equal to 15", type:"less_than_equal" }] } }), { status: 422 })));
+    await expect(api.updateProfile({ email_digest_job_limit:16 })).rejects.toMatchObject({
+      status:422,
+      code:"validation_error",
+      message:"Top matches per email: Input should be less than or equal to 15.",
+    } satisfies Partial<ApiError>);
+  });
+
   it("normalizes authentication detail responses", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: "Invalid authentication credentials" }), { status: 401 })));
     await expect(api.profile()).rejects.toMatchObject({ status: 401, message: "Invalid authentication credentials" } satisfies Partial<ApiError>);

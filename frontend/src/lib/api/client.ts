@@ -29,7 +29,7 @@ export class ApiClient {
     const body = await response.json().catch(() => null);
     if (!response.ok) {
       const detail = body?.error ?? body;
-      const message = detail?.message ?? (typeof detail?.detail === "string" ? detail.detail : "Something went wrong. Please try again.");
+      const message = validationMessage(detail) ?? detail?.message ?? (typeof detail?.detail === "string" ? detail.detail : "Something went wrong. Please try again.");
       if (response.status === 401 && this.onUnauthorized && !this.handlingUnauthorized) {
         this.handlingUnauthorized = true;
         try { await this.onUnauthorized(); } finally { this.handlingUnauthorized = false; }
@@ -100,4 +100,26 @@ export class ApiClient {
   ingestAdminSource = (id:string) => this.request<Record<string,unknown>>(`/admin/sources/${id}/ingest`, {method:"POST"});
   adminSourceRuns = (id:string) => this.request<AdminSourceRun[]>(`/admin/sources/${id}/runs`);
   sourceAudit = () => this.request<SourceAudit[]>("/admin/source-audit");
+}
+
+function validationMessage(detail: unknown): string | null {
+  if (!detail || typeof detail !== "object") return null;
+  const value = detail as { code?:unknown; details?:unknown };
+  if (value.code !== "validation_error" || !Array.isArray(value.details) || !value.details.length) return null;
+  const issue = value.details[0];
+  if (!issue || typeof issue !== "object") return null;
+  const record = issue as { location?:unknown; message?:unknown };
+  const location = Array.isArray(record.location) ? record.location : [];
+  const rawField = [...location].reverse().find((item) => typeof item === "string");
+  const labels:Record<string,string> = {
+    email_digest_job_limit:"Top matches per email",
+    role_keywords:"Roles",
+    location_keywords:"Locations",
+    timezone:"Timezone",
+  };
+  const field = typeof rawField === "string"
+    ? labels[rawField] ?? rawField.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase())
+    : "This value";
+  const message = typeof record.message === "string" ? record.message.replace(/^Value error,\s*/i, "") : "is invalid";
+  return `${field}: ${message.charAt(0).toUpperCase()}${message.slice(1)}.`.replace(/\.\.$/, ".");
 }

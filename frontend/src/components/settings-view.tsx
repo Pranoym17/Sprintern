@@ -208,7 +208,7 @@ export function SettingsView() {
         <PreferenceHeading number="02" title="Shape your daily email" copy="Telegram sends every new match immediately. Email sends one ranked highlights digest at your chosen local time." />
         <div className="notification-guardrails">
           <label>Daily delivery time<input name="email_time" type="time" required defaultValue={profile.preferred_email_time.slice(0, 5)} /></label>
-          <label>Top matches per email<input name="digest_limit" type="number" min="1" max="10" required defaultValue={profile.email_digest_job_limit} /></label>
+          <label>Top matches per email<input name="digest_limit" type="number" min="1" max="15" required defaultValue={profile.email_digest_job_limit} /></label>
         </div>
         <p className="next-digest" role="status"><CalendarClock size={17} /><span><strong>Next expected digest</strong><small>{nextDigestText(profile)}</small></span></p>
         <label className="switch-row"><input type="checkbox" name="empty_digest" defaultChecked={profile.email_empty_digest_enabled} /><span><strong>Email me when there are no matches</strong><small>Off by default. When off, Sprintern skips empty days.</small></span></label>

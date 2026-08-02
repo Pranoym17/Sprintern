@@ -3228,7 +3228,7 @@
           "email_digest_job_limit": {
             "anyOf": [
               {
-                "maximum": 10.0,
+                "maximum": 15.0,
                 "minimum": 1.0,
                 "type": "integer"
               },

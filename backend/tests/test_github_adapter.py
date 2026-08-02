@@ -240,6 +240,10 @@ def test_github_extracts_outer_apply_link_and_cleans_linked_company() -> None:
     assert GitHubRepositoryAdapter._extract_url(nested) == (
         "https://jobs.example.com/direct-application"
     )
+    assert GitHubRepositoryAdapter._extract_url(
+        '[<img src="images/apply.png" width="80" alt="Apply">]'
+        "(https://jobs.example.com/generated-application)"
+    ) == "https://jobs.example.com/generated-application"
     assert GitHubRepositoryAdapter._cell_text("[Example Corp](https://example.com)") == (
         "Example Corp"
     )

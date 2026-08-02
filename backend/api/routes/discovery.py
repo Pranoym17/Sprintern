@@ -250,7 +250,7 @@ def similar_jobs(
 ) -> list[PublicJobResponse]:
     job = _owned_job(session, user.id, job_id)
     similarity = (
-        func.similarity(Job.normalized_title, job.normalized_title) * 3
+        func.extensions.similarity(Job.normalized_title, job.normalized_title) * 3
         + cast(Job.normalized_company == job.normalized_company, Integer) * 2
         + cast(Job.term == job.term, Integer)
     )
@@ -264,7 +264,7 @@ def similar_jobs(
                 Job.id != job.id,
                 or_(
                     Job.normalized_company == job.normalized_company,
-                    func.similarity(Job.normalized_title, job.normalized_title) >= 0.25,
+                    func.extensions.similarity(Job.normalized_title, job.normalized_title) >= 0.25,
                 ),
             )
             .order_by(similarity.desc(), Job.first_seen_at.desc())

@@ -21,7 +21,7 @@ class ProfileUpdate(APIModel):
     notification_cadence: NotificationCadence | None = None
     email_notifications_enabled: bool | None = None
     preferred_email_time: time | None = None
-    email_digest_job_limit: int | None = Field(default=None, ge=1, le=10)
+    email_digest_job_limit: int | None = Field(default=None, ge=1, le=15)
     email_empty_digest_enabled: bool | None = None
     telegram_notifications_enabled: bool | None = None
     quiet_hours_start: time | None = None

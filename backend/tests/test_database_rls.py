@@ -105,4 +105,33 @@ def test_worker_role_can_use_internal_tables_without_bypassing_rls() -> None:
     with engine.begin() as worker:
         worker.execute(text("SET LOCAL ROLE sprintern_worker"))
         worker.execute(text("SELECT id FROM parser_alerts LIMIT 1"))
+        worker.execute(text("SELECT id FROM background_jobs LIMIT 1"))
         worker.execute(text("SELECT version_num FROM alembic_version"))
+
+
+def test_database_advisor_hardening_is_applied() -> None:
+    with engine.connect() as owner:
+        rls = dict(
+            owner.execute(
+                text(
+                    "SELECT relname, relrowsecurity FROM pg_class "
+                    "WHERE relname IN ('background_jobs', 'alembic_version')"
+                )
+            ).all()
+        )
+        assert rls == {"alembic_version": True, "background_jobs": True}
+        extension_schema = owner.scalar(
+            text(
+                "SELECT namespace.nspname FROM pg_extension extension "
+                "JOIN pg_namespace namespace ON namespace.oid = extension.extnamespace "
+                "WHERE extension.extname = 'pg_trgm'"
+            )
+        )
+        assert extension_schema == "extensions"
+        function_config = owner.scalar(
+            text(
+                "SELECT proconfig FROM pg_proc "
+                "WHERE oid = 'public.sprintern_auth_user_id()'::regprocedure"
+            )
+        )
+        assert function_config == ["search_path=\"\""]
