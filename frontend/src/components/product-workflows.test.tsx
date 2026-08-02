@@ -19,7 +19,7 @@ beforeEach(() => {
   signOut.mockReset();
   api = {
     matches: vi.fn(async (_cursor, status) => ({ items: status === "applied" ? [{...match,id:"applied-1",status:"applied"}] : [match], next_cursor:null, counts:{all:2,matched:1,applied:1,dismissed:0} })),
-    jobs: vi.fn(async () => ({items:[match.job],next_cursor:null})),
+    jobs: vi.fn(async () => ({items:[match.job],next_cursor:null,total_count:47})),
     updateMatch: vi.fn(async (_id, status) => ({...match,status})),
     interactions: vi.fn(async () => []),
     updateInteraction: vi.fn(), recordView: vi.fn(async () => undefined), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
@@ -75,6 +75,7 @@ describe("authenticated product workflows", () => {
     const user = userEvent.setup();
     render(<JobsBoardView />);
     await screen.findByRole("heading", { name:"Software Intern" });
+    expect(screen.getByText("47 roles found")).toBeInTheDocument();
     expect(screen.getByRole("link", { name:/apply/i })).toHaveAttribute("href", "https://example.com/apply");
     await user.type(screen.getByRole("searchbox", { name:"Search jobs" }), "Toronto");
     await waitFor(() => expect(api.jobs).toHaveBeenLastCalledWith(undefined, expect.objectContaining({

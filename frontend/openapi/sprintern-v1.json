@@ -2708,11 +2708,16 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "total_count": {
+            "title": "Total Count",
+            "type": "integer"
           }
         },
         "required": [
           "items",
-          "next_cursor"
+          "next_cursor",
+          "total_count"
         ],
         "title": "JobPage",
         "type": "object"

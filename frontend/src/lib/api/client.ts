@@ -12,12 +12,12 @@ export class ApiClient {
     private onUnauthorized?: () => Promise<void> | void,
     private timeoutMs = 12_000,
   ) {}
-  async request<T>(path:string, init:RequestInit = {}):Promise<T> {
+  async request<T>(path:string, init:RequestInit = {}, timeoutMs = this.timeoutMs):Promise<T> {
     const token = await this.getToken();
     if (!token) throw new ApiError(401, "not_authenticated", "Your session has expired. Please sign in again.");
     let response:Response;
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
     const abortFromCaller = () => controller.abort();
     init.signal?.addEventListener("abort", abortFromCaller, { once: true });
     try { response = await fetch(`${apiUrl}${path}`, { ...init, signal:controller.signal, cache:"no-store", headers:{ Authorization:`Bearer ${token}`, ...(init.body ? {"Content-Type":"application/json"} : {}), ...init.headers } }); }
@@ -55,8 +55,8 @@ export class ApiClient {
   deleteAccount = () => this.request<void>("/users/me", {method:"DELETE", body:JSON.stringify({confirmation:"DELETE"})});
   sourceHealth = () => this.request<SourceHealth>("/sources/status");
   filters = () => this.request<JobFilter[]>("/filters");
-  createFilter = (value:FilterInput) => this.request<JobFilter>("/filters", {method:"POST", body:JSON.stringify(value)});
-  updateFilter = (id:string, value:Partial<FilterInput>) => this.request<JobFilter>(`/filters/${id}`, {method:"PATCH", body:JSON.stringify(value)});
+  createFilter = (value:FilterInput) => this.request<JobFilter>("/filters", {method:"POST", body:JSON.stringify(value)}, 30_000);
+  updateFilter = (id:string, value:Partial<FilterInput>) => this.request<JobFilter>(`/filters/${id}`, {method:"PATCH", body:JSON.stringify(value)}, 30_000);
   deleteFilter = (id:string) => this.request<void>(`/filters/${id}`, {method:"DELETE"});
   previewFilter = (value:FilterInput) => this.request<FilterPreview>("/filters/preview", {method:"POST", body:JSON.stringify(value)});
   filterNotifications = (id:string) => this.request<FilterNotification>(`/filters/${id}/notifications`);

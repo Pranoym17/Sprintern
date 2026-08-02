@@ -8,7 +8,7 @@ from api.auth import CurrentUser
 from api.database import get_user_db
 from api.errors import AppError
 from api.models import WorkMode
-from api.repositories.jobs import get_job, list_jobs
+from api.repositories.jobs import count_jobs, get_job, list_jobs
 from api.repositories.pagination import decode_offset_cursor, encode_offset_cursor
 from api.schemas import JobPage, PublicJobResponse
 
@@ -48,7 +48,11 @@ def read_jobs(
     # Offset cursors keep pagination opaque while supporting several user-selected sort orders.
     next_cursor = encode_offset_cursor(offset + limit) if has_more else None
     return JobPage(
-        items=[PublicJobResponse.model_validate(job) for job in items], next_cursor=next_cursor
+        items=[PublicJobResponse.model_validate(job) for job in items],
+        next_cursor=next_cursor,
+        total_count=count_jobs(
+            session, query, company, location, term, work_mode, posted_within_days
+        ),
     )
 
 

@@ -36,36 +36,15 @@ def list_jobs(
     sort: JobBoardSort = "newest",
 ) -> list[Job]:
     published_at = func.coalesce(Job.posted_at, Job.first_seen_at)
-    statement = (
-        select(Job)
-        .options(selectinload(Job.sources))
-        .where(
-            Job.status == JobStatus.ACTIVE,
-            func.lower(func.coalesce(Job.term, "")) != "summer 2026",
-        )
+    statement = _apply_board_filters(
+        select(Job).options(selectinload(Job.sources)),
+        query,
+        company,
+        location,
+        term,
+        work_mode,
+        posted_within_days,
     )
-    if posted_within_days is not None:
-        statement = statement.where(
-            Job.first_seen_at >= datetime.now(UTC) - timedelta(days=posted_within_days)
-        )
-    if query:
-        search = query.strip()
-        pattern = f"%{search}%"
-        statement = statement.where(
-            or_(
-                Job.title.ilike(pattern),
-                Job.company.ilike(pattern),
-                Job.location.ilike(pattern),
-            )
-        )
-    if company:
-        statement = statement.where(Job.company.ilike(f"%{company.strip()}%"))
-    if location:
-        statement = statement.where(Job.location.ilike(f"%{location.strip()}%"))
-    if term:
-        statement = statement.where(Job.term == term)
-    if work_mode and work_mode not in {WorkMode.ANY, WorkMode.UNKNOWN}:
-        statement = statement.where(Job.work_mode == work_mode)
 
     ordering: tuple[Any, ...]
     if sort == "company":
@@ -83,3 +62,57 @@ def list_jobs(
     else:
         ordering = (published_at.desc(), Job.id.desc())
     return list(session.scalars(statement.order_by(*ordering).offset(offset).limit(limit + 1)))
+
+
+def count_jobs(
+    session: Session,
+    query: str | None = None,
+    company: str | None = None,
+    location: str | None = None,
+    term: str | None = None,
+    work_mode: WorkMode | None = None,
+    posted_within_days: int | None = None,
+) -> int:
+    statement = _apply_board_filters(
+        select(func.count()).select_from(Job),
+        query,
+        company,
+        location,
+        term,
+        work_mode,
+        posted_within_days,
+    )
+    return int(session.scalar(statement) or 0)
+
+
+def _apply_board_filters(
+    statement: Any,
+    query: str | None,
+    company: str | None,
+    location: str | None,
+    term: str | None,
+    work_mode: WorkMode | None,
+    posted_within_days: int | None,
+) -> Any:
+    statement = statement.where(
+        Job.status == JobStatus.ACTIVE,
+        func.lower(func.coalesce(Job.term, "")) != "summer 2026",
+    )
+    if posted_within_days is not None:
+        statement = statement.where(
+            Job.first_seen_at >= datetime.now(UTC) - timedelta(days=posted_within_days)
+        )
+    if query:
+        pattern = f"%{query.strip()}%"
+        statement = statement.where(
+            or_(Job.title.ilike(pattern), Job.company.ilike(pattern), Job.location.ilike(pattern))
+        )
+    if company:
+        statement = statement.where(Job.company.ilike(f"%{company.strip()}%"))
+    if location:
+        statement = statement.where(Job.location.ilike(f"%{location.strip()}%"))
+    if term:
+        statement = statement.where(Job.term == term)
+    if work_mode and work_mode not in {WorkMode.ANY, WorkMode.UNKNOWN}:
+        statement = statement.where(Job.work_mode == work_mode)
+    return statement

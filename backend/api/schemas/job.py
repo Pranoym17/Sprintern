@@ -29,3 +29,4 @@ class PublicJobResponse(APIModel):
 class JobPage(APIModel):
     items: list[PublicJobResponse]
     next_cursor: str | None
+    total_count: int

@@ -184,7 +184,9 @@ async def test_job_board_lists_only_active_roles_from_the_last_30_days(
     response = await api_client.get("/jobs", params={"query": "Toronto"})
 
     assert response.status_code == 200
-    assert [item["company"] for item in response.json()["items"]] == ["Current Company"]
+    body = response.json()
+    assert [item["company"] for item in body["items"]] == ["Current Company"]
+    assert body["total_count"] == 1
 
 
 async def test_match_ownership_hides_other_users_records(

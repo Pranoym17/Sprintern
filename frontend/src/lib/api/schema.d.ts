@@ -1674,6 +1674,8 @@ export interface components {
             items: components["schemas"]["PublicJobResponse"][];
             /** Next Cursor */
             next_cursor: string | null;
+            /** Total Count */
+            total_count: number;
         };
         /** JobReportCreate */
         JobReportCreate: {

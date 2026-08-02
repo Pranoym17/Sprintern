@@ -16,6 +16,7 @@ export function JobsBoardView() {
   const { api } = useApp();
   const [items, setItems] = useState<Job[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
   const [query, setQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [company, setCompany] = useState("");
@@ -53,6 +54,7 @@ export function JobsBoardView() {
       if (version !== loadVersion.current) return;
       setItems((current) => next ? [...current, ...page.items] : page.items);
       setCursor(page.next_cursor);
+      setTotalCount(page.total_count);
     } catch (reason) {
       if (version === loadVersion.current) {
         setError(reason instanceof Error ? reason.message : "Could not load the job board.");
@@ -91,7 +93,7 @@ export function JobsBoardView() {
           <span className="sr-only">Search jobs</span>
           <input type="search" value={query} onChange={(event) => setQuery(event.target.value.slice(0, 120))} placeholder="Search title, company, or location" />
         </label>
-        <span>{loading ? "Checking the board…" : `${items.length} role${items.length === 1 ? "" : "s"} shown`}</span>
+        <span>{loading ? "Checking the board…" : `${totalCount.toLocaleString()} role${totalCount === 1 ? "" : "s"} found`}</span>
       </div>
       <div className="board-filter-grid">
         <label><span>Company</span><input value={company} onChange={(event) => setCompany(event.target.value.slice(0, 120))} placeholder="Any company" /></label>
@@ -125,7 +127,7 @@ export function JobsBoardView() {
 
     {error && items.length > 0 && <p className="board-inline-error" role="status">{error}</p>}
     {cursor && <button className="button button--ghost board-load-more" disabled={loadingMore} onClick={() => void load(cursor)}>
-      {loadingMore ? "Loading…" : "Load more roles"}
+      {loadingMore ? "Loading…" : `Load more roles (${items.length} of ${totalCount.toLocaleString()})`}
     </button>}
   </div>;
 }
