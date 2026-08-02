@@ -59,6 +59,26 @@ def test_queue_is_idempotent_and_retries_with_a_lease(db_session: Session) -> No
     assert completed.finished_at is not None
 
 
+def test_queue_bounds_long_correlation_ids(db_session: Session) -> None:
+    long_id = "source:" + "very-long-repository/" * 10
+    first = BackgroundJobQueue.enqueue(
+        db_session,
+        job_type="ingestion.github",
+        idempotency_key=f"test:long-correlation:{uuid.uuid4()}",
+        correlation_id=long_id,
+    )
+    second = BackgroundJobQueue.enqueue(
+        db_session,
+        job_type="ingestion.github",
+        idempotency_key=f"test:long-correlation:{uuid.uuid4()}",
+        correlation_id=long_id,
+    )
+
+    assert len(first.correlation_id) == 64
+    assert first.correlation_id.startswith("sha256:")
+    assert second.correlation_id == first.correlation_id
+
+
 def test_queue_dead_letters_after_max_attempts(db_session: Session) -> None:
     factory = sessionmaker(
         bind=db_session.get_bind(),

@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Response, status
@@ -136,7 +137,14 @@ def create_filter(
     _replace_exclusions(job_filter, exclusions)
     session.add(job_filter)
     session.flush()
-    matching_service.match_profile(session, user.id)
+    # A new filter immediately feels useful by backfilling the recent feed rather
+    # than waiting for the next ingestion run. Older history remains out of the
+    # initial match set so a broad filter cannot flood a new user's dashboard.
+    matching_service.match_profile(
+        session,
+        user.id,
+        seen_since=datetime.now(UTC) - timedelta(days=7),
+    )
     session.commit()
     session.refresh(job_filter)
     response.headers["Location"] = f"/filters/{job_filter.id}"

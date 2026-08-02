@@ -106,6 +106,14 @@ def test_worker_role_can_use_internal_tables_without_bypassing_rls() -> None:
         worker.execute(text("SET LOCAL ROLE sprintern_worker"))
         worker.execute(text("SELECT id FROM parser_alerts LIMIT 1"))
         worker.execute(text("SELECT id FROM background_jobs LIMIT 1"))
+        worker.execute(
+            text(
+                "INSERT INTO background_jobs "
+                "(id, job_type, idempotency_key, payload, available_at, correlation_id) "
+                "VALUES (:id, 'test.rls', :key, '{}'::jsonb, now(), 'rls-test')"
+            ),
+            {"id": uuid.uuid4(), "key": f"rls-test:{uuid.uuid4()}"},
+        )
         worker.execute(text("SELECT version_num FROM alembic_version"))
 
 

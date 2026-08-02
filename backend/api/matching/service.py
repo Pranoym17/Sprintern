@@ -1,5 +1,6 @@
 import uuid
 from collections import defaultdict
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -34,8 +35,17 @@ class MatchingService:
         )
         return sum(self._match_job(session, job, filters, watchlists=watchlists) for job in jobs)
 
-    def match_profile(self, session: Session, profile_id: uuid.UUID) -> int:
-        jobs = list(session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))
+    def match_profile(
+        self,
+        session: Session,
+        profile_id: uuid.UUID,
+        *,
+        seen_since: datetime | None = None,
+    ) -> int:
+        jobs_statement = select(Job).where(Job.status == JobStatus.ACTIVE)
+        if seen_since is not None:
+            jobs_statement = jobs_statement.where(Job.first_seen_at >= seen_since)
+        jobs = list(session.scalars(jobs_statement))
         filters = list(
             session.scalars(
                 select(JobFilter)

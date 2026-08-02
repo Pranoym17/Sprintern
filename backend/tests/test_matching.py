@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -119,6 +119,27 @@ def test_matching_service_aggregates_filters_and_is_idempotent(db_session: Sessi
     assert len(matches) == 1
     assert len(matches[0].reasons) == 2
     assert candidate.internship_status == InternshipStatus.CONFIRMED
+
+
+def test_profile_backfill_can_limit_matches_to_last_seven_days(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    profile = Profile(id=uuid.uuid4(), email="recent@example.com")
+    profile.filters.append(JobFilter(name="Software", role_keywords=["software"]))
+    recent = job("Software Engineering Intern", first_seen_at=now - timedelta(days=2))
+    old = job("Software Developer Intern", first_seen_at=now - timedelta(days=8))
+    db_session.add_all([profile, recent, old])
+    db_session.flush()
+
+    created = MatchingService().match_profile(
+        db_session,
+        profile.id,
+        seen_since=now - timedelta(days=7),
+    )
+    db_session.flush()
+
+    matches = list(db_session.scalars(select(JobMatch)))
+    assert created == 1
+    assert [match.job_id for match in matches] == [recent.id]
 
 
 def test_ambiguous_and_inactive_jobs_do_not_create_matches(db_session: Session) -> None:

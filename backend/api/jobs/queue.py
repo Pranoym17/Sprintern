@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -33,7 +34,7 @@ class BackgroundJobQueue:
                 job_type=job_type,
                 idempotency_key=idempotency_key,
                 payload=payload or {},
-                correlation_id=correlation_id or uuid.uuid4().hex,
+                correlation_id=_bounded_correlation_id(correlation_id),
                 max_attempts=max_attempts,
                 available_at=available_at or datetime.now(UTC),
             )
@@ -99,3 +100,13 @@ class BackgroundJobQueue:
                 job.status = "queued"
                 delay = min(30 * (2 ** max(job.attempts - 1, 0)), 3600)
                 job.available_at = now + timedelta(seconds=delay)
+
+
+def _bounded_correlation_id(value: str | None) -> str:
+    correlation_id = value or uuid.uuid4().hex
+    if len(correlation_id) <= 64:
+        return correlation_id
+    # Source keys are useful correlation inputs but can exceed the compact queue
+    # column. A stable digest preserves cross-process correlation without allowing
+    # one long repository name to break every scheduler tick.
+    return f"sha256:{hashlib.sha256(correlation_id.encode()).hexdigest()[:57]}"
