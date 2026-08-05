@@ -88,3 +88,4 @@ def test_fallback_registry_has_unique_exact_ten_minute_active_sources() -> None:
     assert keys.count("vanshb03/Summer2027-Internships:README.md") == 1
     assert keys.count("negarprh/Canadian-Tech-Internships-2026:README-2027.md") == 1
     assert keys.count("speedyapply/2027-SWE-College-Jobs:README.md") == 1
+    assert keys.count("SimplifyJobs/Summer2027-Internships:README.md") == 1

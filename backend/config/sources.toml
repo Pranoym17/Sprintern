@@ -28,6 +28,15 @@ poll_minutes = 10
 jitter_seconds = 0
 
 [[github]]
+enabled = true
+owner = "SimplifyJobs"
+repository = "Summer2027-Internships"
+path = "README.md"
+branch = "dev"
+poll_minutes = 10
+jitter_seconds = 0
+
+[[github]]
 enabled = false
 owner = "SimplifyJobs"
 repository = "Summer2026-Internships"
