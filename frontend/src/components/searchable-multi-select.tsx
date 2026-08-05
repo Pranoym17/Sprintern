@@ -2,8 +2,9 @@
 
 import { KeyboardEvent, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
+import type { FilterOptionGroup } from "@/lib/filter-options";
 
-type Choice = { value: string; custom: boolean };
+type Choice = { value: string; custom: boolean; group?: string };
 
 export function SearchableMultiSelect({
   id,
@@ -16,7 +17,7 @@ export function SearchableMultiSelect({
   id: string;
   label: string;
   values: string[];
-  options: readonly string[];
+  options: readonly string[] | readonly FilterOptionGroup[];
   placeholder: string;
   onChange: (values: string[]) => void;
 }) {
@@ -25,17 +26,22 @@ export function SearchableMultiSelect({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const choices = useMemo<Choice[]>(() => {
+    const grouped = options.length > 0 && typeof options[0] !== "string";
+    const flattened = grouped
+      ? (options as readonly FilterOptionGroup[]).flatMap((group) =>
+          group.options.map((value) => ({ value, group: group.label })))
+      : (options as readonly string[]).map((value) => ({ value, group: undefined }));
     const selected = new Set(values.map((value) => value.toLowerCase()));
     const normalized = query.trim().toLowerCase();
-    const suggestions = options
-      .filter((option) => !selected.has(option.toLowerCase()))
-      .filter((option) => !normalized || option.toLowerCase().includes(normalized))
-      .slice(0, 10)
-      .map((value) => ({ value, custom: false }));
+    const suggestions = flattened
+      .filter((option) => !selected.has(option.value.toLowerCase()))
+      .filter((option) => !normalized || option.value.toLowerCase().includes(normalized))
+      .slice(0, 18)
+      .map((option) => ({ ...option, custom: false }));
     const customValue = query.trim();
     const customAllowed = customValue
       && !selected.has(customValue.toLowerCase())
-      && !options.some((option) => option.toLowerCase() === customValue.toLowerCase());
+      && !flattened.some((option) => option.value.toLowerCase() === customValue.toLowerCase());
     return customAllowed
       ? [{ value: customValue, custom: true }, ...suggestions]
       : suggestions;
@@ -43,8 +49,12 @@ export function SearchableMultiSelect({
 
   function select(value: string) {
     if (values.length >= 25) return;
-    if (!values.some((item) => item.toLowerCase() === value.toLowerCase())) {
-      onChange([...values, value]);
+    const unrestricted = ["any role or field", "anywhere"];
+    const normalized = value.toLowerCase();
+    if (unrestricted.includes(normalized)) {
+      onChange([value]);
+    } else if (!values.some((item) => item.toLowerCase() === normalized)) {
+      onChange([...values.filter((item) => !unrestricted.includes(item.toLowerCase())), value]);
     }
     setQuery("");
     setActiveIndex(0);
@@ -115,6 +125,7 @@ export function SearchableMultiSelect({
         onClick={() => select(choice.value)}
       >
         <span>{choice.custom ? `Add “${choice.value}”` : choice.value}</span>
+        {!choice.custom && choice.group && <small>{choice.group}</small>}
         {!choice.custom && <Check size={15} aria-hidden="true" />}
       </button>) : <p>No more matching options.</p>}
     </div>}

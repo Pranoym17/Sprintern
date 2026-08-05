@@ -741,7 +741,7 @@
             "title": "Default Term"
           },
           "jitter_seconds": {
-            "default": 30,
+            "default": 0,
             "maximum": 300.0,
             "minimum": 0.0,
             "title": "Jitter Seconds",
@@ -773,7 +773,7 @@
             "type": "string"
           },
           "poll_minutes": {
-            "default": 15,
+            "default": 10,
             "maximum": 1440.0,
             "minimum": 5.0,
             "title": "Poll Minutes",

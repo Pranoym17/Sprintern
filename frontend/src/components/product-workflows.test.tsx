@@ -88,6 +88,9 @@ describe("authenticated product workflows", () => {
     const user = userEvent.setup(); render(<SettingsView />);
     await screen.findByText("Choose your channels");
     expect(screen.getByText(/enable email alerts to schedule a digest/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name:"Telegram alerts" })).toBeInTheDocument();
+    expect(screen.queryByText(/email me when there are no matches/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Posting updates")).not.toBeChecked();
     fireEvent.change(screen.getByLabelText(/top matches per email/i), { target: { value: "10" } });
     await user.click(screen.getByRole("button", { name:/save preferences/i }));
     await waitFor(() => expect(api.updateProfile).toHaveBeenCalledWith(expect.objectContaining({email_digest_job_limit:10,preferred_email_time:"08:00"})));

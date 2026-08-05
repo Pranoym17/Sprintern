@@ -15,8 +15,8 @@ class AdminSourceCreate(APIModel):
     repository: str = Field(min_length=1, max_length=100)
     branch: str | None = Field(default=None, min_length=1, max_length=255)
     path: str = Field(default="README.md", min_length=1, max_length=500)
-    poll_minutes: int = Field(default=15, ge=5, le=1440)
-    jitter_seconds: int = Field(default=30, ge=0, le=300)
+    poll_minutes: int = Field(default=10, ge=5, le=1440)
+    jitter_seconds: int = Field(default=0, ge=0, le=300)
     default_term: str | None = Field(default=None, max_length=100)
     parser_schema: Literal["github_markdown_table"] = "github_markdown_table"
     parser_version: Literal["1"] = "1"

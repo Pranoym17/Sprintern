@@ -8,7 +8,6 @@ from api.notifications.domain import NotificationMessage
 from api.notifications.email_renderer import (
     PublicNotificationJob,
     render_daily_digest,
-    render_email_notification,
 )
 from api.settings import settings
 
@@ -67,14 +66,7 @@ def build_message(deliveries: list[NotificationDelivery]) -> NotificationMessage
     body = str(first.payload.get("body") or "You have a new Sprintern update.")
     apply_url = str(first.payload.get("apply_url") or settings.frontend_url)
     if first.channel == NotificationChannel.EMAIL:
-        return render_email_notification(
-            profile_id=first.profile_id,
-            recipient=first.recipient,
-            title=title,
-            body=body,
-            apply_url=apply_url,
-            idempotency_key=first.idempotency_key,
-        )
+        raise ValueError("email only supports curated new-match digests")
     return NotificationMessage(
         recipient=first.recipient,
         subject=title,

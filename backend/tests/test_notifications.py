@@ -98,8 +98,8 @@ def test_planner_creates_idempotent_daily_email_delivery(db_session: Session) ->
     assert second == 0
     assert delivery is not None
     assert delivery.cadence == NotificationCadence.DAILY
-    assert delivery.next_attempt_at == now
-    assert delivery.queued_reason == "initial_digest"
+    assert delivery.next_attempt_at == datetime(2026, 7, 14, 8, 0, tzinfo=UTC)
+    assert delivery.queued_reason is None
     assert delivery.idempotency_key == f"{match.id}:email"
 
 
@@ -311,6 +311,35 @@ async def test_dispatcher_claims_once_and_records_success(db_session: Session) -
     assert len(provider.messages) == 1
     assert delivery is not None and delivery.status == DeliveryStatus.SENT
     assert delivery.provider_message_id == "provider-1"
+
+
+async def test_dispatcher_never_sends_legacy_non_digest_email(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    profile = Profile(
+        id=uuid.uuid4(),
+        email="legacy@example.com",
+        email_notifications_enabled=True,
+        email_notifications_consent_at=now,
+        notification_consents={"posting_updated": True},
+    )
+    delivery = NotificationDelivery(
+        profile=profile,
+        channel=NotificationChannel.EMAIL,
+        cadence=NotificationCadence.INSTANT,
+        recipient="legacy@example.com",
+        idempotency_key=f"legacy:{uuid.uuid4()}",
+        notification_type="posting_updated",
+        next_attempt_at=now,
+    )
+    db_session.add(delivery)
+    db_session.commit()
+    provider = RecordingProvider(ProviderResult(DeliveryOutcome.SENT, "should-not-send"))
+    dispatcher = NotificationDispatcher(
+        notification_factory(db_session), {NotificationChannel.EMAIL: provider}
+    )
+
+    assert await dispatcher.dispatch_due(now=now + timedelta(seconds=1)) == 0
+    assert provider.messages == []
 
 
 async def test_dispatcher_retries_transient_failure(db_session: Session) -> None:

@@ -121,7 +121,9 @@ class GitHubRepositoryAdapter:
         records, errors = self._parse_tables(markdown, commit_sha)
         return PollBatch(
             records=records,
-            completeness=PollCompleteness.INCREMENTAL,
+            # A changed GitHub file is parsed in full. Marking that snapshot complete
+            # lets lifecycle tracking retire rows removed by the repository.
+            completeness=PollCompleteness.COMPLETE,
             next_cursor={"sha": commit_sha},
             rejected_count=len(errors),
             rejection_errors=errors[:25],

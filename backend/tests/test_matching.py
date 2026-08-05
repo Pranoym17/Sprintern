@@ -95,6 +95,27 @@ def test_keyword_boundaries_prevent_partial_word_matches() -> None:
     assert match_filter(candidate, job_filter) is None
 
 
+def test_unrestricted_filter_choices_cover_unknown_roles_locations_and_terms() -> None:
+    candidate = job(
+        "Photonics Research Intern",
+        location="Dresden, Germany",
+        term=None,
+    )
+    job_filter = JobFilter(
+        id=uuid.uuid4(),
+        profile_id=uuid.uuid4(),
+        name="Everything",
+        role_keywords=["Any role or field"],
+        location_keywords=["Anywhere"],
+        terms=[],
+        work_mode=WorkMode.ANY,
+    )
+
+    assert match_filter(candidate, job_filter) is not None
+    assert canonical_term("Spring 2027") == "winter 2027"
+    assert canonical_term("Autumn 2027") == "fall 2027"
+
+
 def test_matching_service_aggregates_filters_and_is_idempotent(db_session: Session) -> None:
     profile = Profile(id=uuid.uuid4(), email="student@example.com")
     profile.filters.extend(

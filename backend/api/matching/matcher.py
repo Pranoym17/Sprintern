@@ -9,6 +9,48 @@ from api.models import ExclusionType, Job, JobFilter, WorkMode
 
 MATCHER_VERSION = "keyword-v2"
 ROLE_ALIASES = {
+    "software engineering": ("software engineer", "software developer", "software development"),
+    "software developer": ("software engineer", "software development engineer"),
+    "backend engineering": ("backend engineer", "back end engineer", "backend developer"),
+    "frontend engineering": ("frontend engineer", "front end engineer", "frontend developer"),
+    "full stack engineering": ("full stack engineer", "fullstack engineer", "full stack developer"),
+    "mobile engineering": ("mobile engineer", "mobile developer"),
+    "cloud engineering": ("cloud engineer", "cloud infrastructure"),
+    "site reliability engineering": ("site reliability engineer", "sre"),
+    "infrastructure engineering": ("infrastructure engineer", "platform engineer"),
+    "systems engineering": ("systems engineer", "system engineer"),
+    "network engineering": ("network engineer", "networking engineer"),
+    "data science": ("data scientist", "data science"),
+    "data analytics": ("data analyst", "analytics"),
+    "data engineering": ("data engineer", "data platform"),
+    "machine learning": ("machine learning", "ml engineer", "ml scientist"),
+    "artificial intelligence": ("artificial intelligence", "ai engineer", "ai research"),
+    "applied science": ("applied scientist", "applied science"),
+    "research science": ("research scientist", "research science"),
+    "computer vision": ("computer vision", "vision engineer", "vision scientist"),
+    "natural language processing": ("natural language processing", "nlp engineer", "nlp scientist"),
+    "embedded systems": ("embedded", "embedded systems"),
+    "firmware engineering": ("firmware engineer", "firmware developer"),
+    "hardware engineering": ("hardware engineer", "hardware design"),
+    "electrical engineering": ("electrical engineer", "electronics engineer"),
+    "asic engineering": ("asic", "asic engineer"),
+    "fpga engineering": ("fpga", "fpga engineer"),
+    "silicon engineering": ("silicon engineer", "silicon design"),
+    "verification engineering": ("verification engineer", "design verification"),
+    "mechanical engineering": ("mechanical engineer",),
+    "product management": ("product manager", "product management"),
+    "program management": ("program manager", "program management"),
+    "project management": ("project manager", "project management"),
+    "ux design": ("ux designer", "user experience designer"),
+    "ui design": ("ui designer", "interface designer"),
+    "product design": ("product designer", "product design"),
+    "ux research": ("ux researcher", "user research"),
+    "business analysis": ("business analyst", "business analysis"),
+    "quantitative research": ("quantitative researcher", "quant researcher"),
+    "quantitative trading": ("quantitative trader", "quant trader"),
+    "human resources": ("human resources", "people operations", "hr intern"),
+    "customer success": ("customer success", "customer experience"),
+    "supply chain": ("supply chain", "logistics"),
     "swe": ("software engineer", "software engineering", "software developer"),
     "sde": ("software developer", "software development engineer", "software engineer"),
     "pm": ("product manager", "product management"),
@@ -20,7 +62,8 @@ ROLE_ALIASES = {
     "frontend": ("front end", "frontend"),
     "backend": ("back end", "backend"),
 }
-UNRESTRICTED_LOCATIONS = {"all", "any", "everywhere"}
+UNRESTRICTED_ROLES = {"all", "any", "any role", "any role or field"}
+UNRESTRICTED_LOCATIONS = {"all", "any", "anywhere", "any location", "everywhere"}
 SEASONS = ("winter", "spring", "summer", "fall", "autumn")
 
 
@@ -43,6 +86,10 @@ def canonical_term(value: str | None) -> str | None:
     normalized = normalize_text(value or "")
     year = re.search(r"\b20\d{2}\b", normalized)
     season = next((item for item in SEASONS if f" {item} " in f" {normalized} "), None)
+    if season == "spring":
+        season = "winter"
+    elif season == "autumn":
+        season = "fall"
     if not year and not season:
         return normalized or None
     return " ".join(item for item in (season, year.group(0) if year else None) if item)
@@ -91,12 +138,17 @@ def match_filter(job: Job, job_filter: JobFilter) -> FilterMatch | None:
                 return None
             dimensions["radius"] = f"{round(distance)} km"
 
-    if job_filter.role_keywords:
+    restricted_roles = [
+        value
+        for value in job_filter.role_keywords
+        if normalize_text(value) not in UNRESTRICTED_ROLES
+    ]
+    if restricted_roles:
         title = normalize_text(job.title)
         role = next(
             (
                 matched
-                for keyword in job_filter.role_keywords
+                for keyword in restricted_roles
                 if (matched := _matches_phrase(title, keyword))
             ),
             None,

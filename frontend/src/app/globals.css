@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./notification-controls.css";
 @import "./source-admin.css";
+.searchable-multi-select__menu button small{margin-left:auto;color:var(--muted);font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 
 :root {
   --paper: #f5f1e8;

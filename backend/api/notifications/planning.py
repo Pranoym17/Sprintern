@@ -175,8 +175,11 @@ class NotificationPlanner:
         if not has_notification_consent(profile, notification_type):
             return []
         values: list[tuple[NotificationChannel, str]] = []
+        # Email is intentionally limited to one curated new-match digest. All
+        # lifecycle, reminder, and operational alerts belong to Telegram.
         if (
-            self._channel_enabled(profile, overrides, NotificationChannel.EMAIL)
+            notification_type == "new_match"
+            and self._channel_enabled(profile, overrides, NotificationChannel.EMAIL)
             and profile.email
             and profile.email_notifications_consent_at is not None
             and not is_email_suppressed(session, profile.email)
@@ -233,40 +236,6 @@ class NotificationPlanner:
                 next_scheduled, _ = apply_delivery_window(profile, next_local.astimezone(UTC))
                 return next_scheduled, "daily_cap"
             candidate_date += timedelta(days=1)
-
-    @staticmethod
-    def _promote_initial_email_digest(
-        session: Session,
-        profile: Profile,
-        now: datetime,
-    ) -> None:
-        """Send the first useful digest promptly after explicit email opt-in.
-
-        This is intentionally based on delivery history, not account creation:
-        an email address alone is not consent. Once the first match digest is
-        sent, later email alerts return to the user's chosen daily local time.
-        """
-        first_digest_already_sent = session.scalar(
-            select(NotificationDelivery.id).where(
-                NotificationDelivery.profile_id == profile.id,
-                NotificationDelivery.channel == NotificationChannel.EMAIL,
-                NotificationDelivery.notification_type == "new_match",
-                NotificationDelivery.status == DeliveryStatus.SENT,
-            )
-        )
-        if first_digest_already_sent:
-            return
-        scheduled, _ = apply_delivery_window(profile, now)
-        for delivery in session.scalars(
-            select(NotificationDelivery).where(
-                NotificationDelivery.profile_id == profile.id,
-                NotificationDelivery.channel == NotificationChannel.EMAIL,
-                NotificationDelivery.notification_type == "new_match",
-                NotificationDelivery.status.in_([DeliveryStatus.PENDING, DeliveryStatus.FAILED]),
-            )
-        ):
-            delivery.next_attempt_at = scheduled
-            delivery.queued_reason = "initial_digest"
 
     def plan_match(
         self,
@@ -345,9 +314,6 @@ class NotificationPlanner:
                 )
             )
             created += 1
-        if NotificationChannel.EMAIL in destination_channels:
-            session.flush()
-            self._promote_initial_email_digest(session, profile, now)
         return created
 
     def plan_events(self, session: Session, now: datetime | None = None) -> int:
@@ -446,65 +412,6 @@ class NotificationPlanner:
                     )
                     created += 1
         created += self._plan_system_events(session, now)
-        created += self._plan_empty_digest_events(session, now)
-        return created
-
-    def _plan_empty_digest_events(self, session: Session, now: datetime) -> int:
-        """Users may opt into a daily reassurance email; skipping empty digests is the default."""
-        created = 0
-        profiles = list(
-            session.scalars(
-                select(Profile).where(
-                    Profile.email_notifications_enabled.is_(True),
-                    Profile.email_empty_digest_enabled.is_(True),
-                    Profile.email_notifications_consent_at.is_not(None),
-                    Profile.email.is_not(None),
-                )
-            )
-        )
-        for profile in profiles:
-            zone = _zone(profile.timezone)
-            local_now = now.astimezone(zone)
-            preferred = _local_wall_time(local_now.date(), profile.preferred_email_time, zone)
-            if local_now < preferred:
-                continue
-            day_start = datetime.combine(local_now.date(), time.min, tzinfo=zone).astimezone(UTC)
-            day_end = datetime.combine(
-                local_now.date() + timedelta(days=1), time.min, tzinfo=zone
-            ).astimezone(UTC)
-            has_matches = session.scalar(
-                select(NotificationDelivery.id).where(
-                    NotificationDelivery.profile_id == profile.id,
-                    NotificationDelivery.channel == NotificationChannel.EMAIL,
-                    NotificationDelivery.notification_type == "new_match",
-                    NotificationDelivery.created_at >= day_start,
-                    NotificationDelivery.created_at < day_end,
-                )
-            )
-            key = f"empty-digest:{profile.id}:{local_now.date().isoformat()}"
-            self._lock_delivery_key(session, key)
-            exists = session.scalar(
-                select(NotificationDelivery.id).where(NotificationDelivery.idempotency_key == key)
-            )
-            if has_matches or exists or profile.email is None:
-                continue
-            session.add(
-                NotificationDelivery(
-                    profile_id=profile.id,
-                    channel=NotificationChannel.EMAIL,
-                    cadence=NotificationCadence.DAILY,
-                    recipient=profile.email,
-                    idempotency_key=key,
-                    notification_type="daily_empty_digest",
-                    payload={
-                        "title": "No new internship matches today",
-                        "body": "Sprintern is still watching. Your filters remain active.",
-                        "apply_url": f"{settings.frontend_url.rstrip('/')}/filters",
-                    },
-                    next_attempt_at=now,
-                )
-            )
-            created += 1
         return created
 
     def _plan_system_events(self, session: Session, now: datetime) -> int:

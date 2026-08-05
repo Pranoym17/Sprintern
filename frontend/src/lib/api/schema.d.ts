@@ -1100,7 +1100,7 @@ export interface components {
             default_term?: string | null;
             /**
              * Jitter Seconds
-             * @default 30
+             * @default 0
              */
             jitter_seconds: number;
             /** Owner */
@@ -1124,7 +1124,7 @@ export interface components {
             path: string;
             /**
              * Poll Minutes
-             * @default 15
+             * @default 10
              */
             poll_minutes: number;
             /** Repository */

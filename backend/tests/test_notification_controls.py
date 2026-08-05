@@ -102,8 +102,8 @@ def test_filter_override_keeps_priority_while_email_remains_daily(db_session: Se
     assert delivery is not None
     assert delivery.priority == NotificationPriority.HIGH
     assert delivery.cadence == NotificationCadence.DAILY
-    assert delivery.queued_reason == "initial_digest"
-    assert delivery.next_attempt_at == datetime(2026, 7, 23, 11, 0, tzinfo=UTC)
+    assert delivery.queued_reason is None
+    assert delivery.next_attempt_at == datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
 
 
 def test_delivery_window_moves_weekend_to_monday() -> None:
@@ -307,7 +307,7 @@ def test_priority_only_instant_suppresses_normal_telegram_but_keeps_daily_email(
     assert deliveries[0].cadence == NotificationCadence.DAILY
 
 
-def test_empty_digest_is_opt_in_and_idempotent(db_session: Session) -> None:
+def test_empty_digest_setting_never_creates_an_email(db_session: Session) -> None:
     now = datetime(2026, 7, 24, 13, 0, tzinfo=UTC)
     profile = Profile(
         id=uuid.uuid4(),
@@ -334,9 +334,9 @@ def test_empty_digest_is_opt_in_and_idempotent(db_session: Session) -> None:
         )
     )
 
-    assert first == 1
+    assert first == 0
     assert second == 0
-    assert len(empty) == 1
+    assert empty == []
 
 
 async def test_filter_notification_preferences_are_owned(
@@ -369,6 +369,8 @@ def test_due_reminder_is_planned_once_with_separate_consent(db_session: Session)
         email="reminder@example.com",
         email_notifications_enabled=True,
         email_notifications_consent_at=now,
+        telegram_chat_id="reminder-chat",
+        telegram_notifications_enabled=True,
         notification_consents={"follow_up": True},
         max_alerts_per_day=25,
     )
@@ -402,6 +404,7 @@ def test_due_reminder_is_planned_once_with_separate_consent(db_session: Session)
     assert first >= 1
     assert second >= 0
     assert len(deliveries) == 1
+    assert deliveries[0].channel == NotificationChannel.TELEGRAM
     assert build_message(deliveries).subject == "Follow Up reminder"
 
 

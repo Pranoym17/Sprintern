@@ -121,6 +121,10 @@ class NotificationDispatcher:
                 .where(
                     NotificationDelivery.attempt_count < self.max_attempts,
                     due,
+                    or_(
+                        NotificationDelivery.channel == NotificationChannel.TELEGRAM,
+                        NotificationDelivery.notification_type == "new_match",
+                    ),
                     ~and_(
                         NotificationDelivery.channel == NotificationChannel.EMAIL,
                         NotificationDelivery.notification_type == "new_match",
@@ -250,6 +254,10 @@ class NotificationDispatcher:
             return False
         return all(
             (has_notification_consent(delivery.profile, delivery.notification_type))
+            and (
+                delivery.channel != NotificationChannel.EMAIL
+                or delivery.notification_type == "new_match"
+            )
             and (
                 (
                     delivery.channel == NotificationChannel.EMAIL

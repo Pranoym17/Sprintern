@@ -118,6 +118,7 @@ async def test_github_parses_supported_table_and_inherited_company() -> None:
     assert batch.records[1].company == "Example"
     assert batch.records[0].term == "Summer 2027"
     assert batch.records[0].posted_at is not None
+    assert batch.completeness == PollCompleteness.COMPLETE
     assert batch.next_cursor == {"sha": "new-sha"}
 
 

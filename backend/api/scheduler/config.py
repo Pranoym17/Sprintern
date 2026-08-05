@@ -16,8 +16,8 @@ class GitHubSourceConfig(BaseModel):
     # Mixed-term repositories infer each row independently; this value is only
     # used when the row, title, and enclosing Markdown heading provide no term.
     term: str | None = Field(default=None, min_length=1, max_length=100)
-    poll_minutes: int = Field(default=15, ge=5, le=1440)
-    jitter_seconds: int = Field(default=30, ge=0, le=300)
+    poll_minutes: int = Field(default=10, ge=5, le=1440)
+    jitter_seconds: int = Field(default=0, ge=0, le=300)
 
     @property
     def source_key(self) -> str:

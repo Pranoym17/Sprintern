@@ -4,8 +4,8 @@ owner = "vanshb03"
 repository = "Summer2027-Internships"
 path = "README.md"
 branch = "dev"
-poll_minutes = 15
-jitter_seconds = 30
+poll_minutes = 10
+jitter_seconds = 0
 
 # Validated sources retain staggered schedules to spread GitHub traffic. Entries
 # that later drifted remain disabled so an administrator can preview them safely.
@@ -15,8 +15,8 @@ owner = "speedyapply"
 repository = "2027-SWE-College-Jobs"
 path = "README.md"
 branch = "main"
-poll_minutes = 180
-jitter_seconds = 60
+poll_minutes = 10
+jitter_seconds = 0
 
 [[github]]
 enabled = true
@@ -24,8 +24,8 @@ owner = "speedyapply"
 repository = "2027-AI-College-Jobs"
 path = "README.md"
 branch = "main"
-poll_minutes = 180
-jitter_seconds = 120
+poll_minutes = 10
+jitter_seconds = 0
 
 [[github]]
 enabled = false
@@ -42,8 +42,8 @@ owner = "sndsh404"
 repository = "summer-2027-internships"
 path = "README.md"
 branch = "main"
-poll_minutes = 360
-jitter_seconds = 240
+poll_minutes = 10
+jitter_seconds = 0
 
 [[github]]
 enabled = true
@@ -51,8 +51,8 @@ owner = "negarprh"
 repository = "Canadian-Tech-Internships-2026"
 path = "README-2027.md"
 branch = "main"
-poll_minutes = 90
-jitter_seconds = 300
+poll_minutes = 10
+jitter_seconds = 0
 
 [[github]]
 enabled = true
@@ -60,8 +60,8 @@ owner = "hanzili"
 repository = "canada_sde_intern_position"
 path = "README.md"
 branch = "main"
-poll_minutes = 60
-jitter_seconds = 210
+poll_minutes = 10
+jitter_seconds = 0
 
 [[github]]
 enabled = true
@@ -69,8 +69,8 @@ owner = "ApplyGuy"
 repository = "2027-Internships"
 path = "README.md"
 branch = "main"
-poll_minutes = 60
-jitter_seconds = 270
+poll_minutes = 10
+jitter_seconds = 0
 
 [[github]]
 enabled = false
@@ -98,5 +98,5 @@ owner = "zshah101"
 repository = "Automated-List-Of-Summer-2027-and-Fall-2026-Tech-Internships"
 path = "README.md"
 branch = "main"
-poll_minutes = 60
-jitter_seconds = 150
+poll_minutes = 10
+jitter_seconds = 0

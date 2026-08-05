@@ -340,8 +340,8 @@ class SourceConfiguration(TimestampMixin, Base):
     repository: Mapped[str] = mapped_column(String(100))
     branch: Mapped[str | None] = mapped_column(String(255))
     path: Mapped[str] = mapped_column(String(500), default="README.md", server_default="README.md")
-    poll_minutes: Mapped[int] = mapped_column(Integer, default=15, server_default="15")
-    jitter_seconds: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
+    poll_minutes: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
+    jitter_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     default_term: Mapped[str | None] = mapped_column(String(100))
     parser_schema: Mapped[str] = mapped_column(
         String(64), default="github_markdown_table", server_default="github_markdown_table"

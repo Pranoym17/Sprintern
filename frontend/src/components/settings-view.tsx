@@ -12,12 +12,11 @@ import { PageError, PageLoading } from "./page-state";
 import type { DeliveryChannel, DeliveryQueue, Profile } from "@/lib/api/types";
 
 const consentTypes = [
-  "new_match", "deadline", "saved", "follow_up", "interview", "posting_updated",
+  "deadline", "saved", "follow_up", "interview", "posting_updated",
   "posting_reopened", "weekly_progress",
 ];
 const administratorConsentTypes = ["source_stale", "parser_broken"];
 const consentLabels: Record<string, string> = {
-  new_match: "New matches",
   deadline: "Deadline reminders",
   saved: "Saved-job reminders",
   follow_up: "Follow-up reminders",
@@ -69,7 +68,7 @@ export function SettingsView() {
         email_notifications_enabled: data.get("email") === "on",
         preferred_email_time: String(data.get("email_time")),
         email_digest_job_limit: Number(data.get("digest_limit")),
-        email_empty_digest_enabled: data.get("empty_digest") === "on",
+        email_empty_digest_enabled: false,
         telegram_notifications_enabled:
           profile.telegram_chat_id !== null && data.get("telegram") === "on",
         quiet_hours_start: String(data.get("quiet_start") || "") || null,
@@ -78,6 +77,7 @@ export function SettingsView() {
         max_alerts_per_day: Number(data.get("max_alerts")),
         notification_consents: {
           ...profile.notification_consents,
+          new_match: true,
           ...Object.fromEntries(
             [...consentTypes, ...(administrator ? administratorConsentTypes : [])]
               .map((kind) => [kind, data.get(`consent_${kind}`) === "on"]),
@@ -205,13 +205,12 @@ export function SettingsView() {
       </section>
 
       <section className="preference-section">
-        <PreferenceHeading number="02" title="Shape your daily email" copy="Telegram sends every new match immediately. Email sends one ranked highlights digest at your chosen local time." />
+        <PreferenceHeading number="02" title="Shape your daily email" copy="Email sends one ranked job digest at your chosen local time. It never sends reminders or posting updates." />
         <div className="notification-guardrails">
           <label>Daily delivery time<input name="email_time" type="time" required defaultValue={profile.preferred_email_time.slice(0, 5)} /></label>
           <label>Top matches per email<input name="digest_limit" type="number" min="1" max="15" required defaultValue={profile.email_digest_job_limit} /></label>
         </div>
         <p className="next-digest" role="status"><CalendarClock size={17} /><span><strong>Next expected digest</strong><small>{nextDigestText(profile)}</small></span></p>
-        <label className="switch-row"><input type="checkbox" name="empty_digest" defaultChecked={profile.email_empty_digest_enabled} /><span><strong>Email me when there are no matches</strong><small>Off by default. When off, Sprintern skips empty days.</small></span></label>
       </section>
 
       <section className="preference-section preference-section--compact">
@@ -226,8 +225,8 @@ export function SettingsView() {
       </section>
 
       <section className="preference-section">
-        <PreferenceHeading number="04" title="Notification types" copy="Control lifecycle reminders separately from new-match alerts." />
-        <div className="consent-grid">{[...consentTypes, ...(administrator ? administratorConsentTypes : [])].map((kind) => <label className="switch-row" key={kind}><input type="checkbox" name={`consent_${kind}`} defaultChecked={profile.notification_consents[kind] !== false} /><span><strong>{consentLabels[kind]}</strong></span></label>)}</div>
+        <PreferenceHeading number="04" title="Telegram alerts" copy="New matches are instant when Telegram is enabled. Choose any additional Telegram-only reminders below." />
+        <div className="consent-grid">{[...consentTypes, ...(administrator ? administratorConsentTypes : [])].map((kind) => <label className="switch-row" key={kind}><input type="checkbox" name={`consent_${kind}`} defaultChecked={profile.notification_consents[kind] === true} /><span><strong>{consentLabels[kind]}</strong></span></label>)}</div>
         {queue && <p className="delivery-queue-status">{queue.pending} queued · {queue.delayed_by_quiet_hours + queue.delayed_by_weekend + queue.delayed_by_daily_cap} delayed by guardrails · {queue.failed} retrying · {queue.suppressed} suppressed</p>}
       </section>
       <div className="settings-save"><p>Changes affect future delivery attempts.</p><button className="button button--primary" disabled={pending}>{pending && <LoaderCircle className="spin" size={18} />}Save preferences</button></div>
