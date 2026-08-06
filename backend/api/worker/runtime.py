@@ -30,9 +30,17 @@ class BackgroundJobHandler:
             request = IngestionRunRequest(source=JobSourceName.GITHUB_REPO, **job.payload)
             await IngestionService(SessionLocal).run(build_adapter(request, self.client))
             return
-        if job.job_type == "matching.all":
+        if job.job_type in {"matching.all", "matching.jobs"}:
             with SessionLocal.begin() as session:
-                matching_service.match_all(session)
+                if job.job_type == "matching.all":
+                    matching_service.match_all(session)
+                else:
+                    fingerprints = job.payload.get("fingerprints", [])
+                    if not isinstance(fingerprints, list) or not all(
+                        isinstance(item, str) for item in fingerprints
+                    ):
+                        raise ValueError("matching.jobs requires a fingerprint list")
+                    matching_service.match_fingerprints(session, fingerprints)
                 BackgroundJobQueue.enqueue(
                     session,
                     job_type="notifications.dispatch",

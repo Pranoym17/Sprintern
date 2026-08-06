@@ -33,7 +33,9 @@ owner = "SimplifyJobs"
 repository = "Summer2027-Internships"
 path = "README.md"
 branch = "dev"
-poll_minutes = 10
+# This large, daily-maintained list has hundreds of rows. Thirty minutes keeps
+# alerts timely while avoiding repeated full-snapshot lifecycle writes.
+poll_minutes = 30
 jitter_seconds = 0
 
 [[github]]

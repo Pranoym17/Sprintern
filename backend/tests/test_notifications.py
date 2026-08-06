@@ -15,6 +15,7 @@ from api.models import (
     DeliveryStatus,
     EmailSuppression,
     Job,
+    JobChangeEvent,
     JobMatch,
     JobSource,
     JobSourceName,
@@ -80,6 +81,20 @@ def create_match(
     db_session.add(match)
     db_session.flush()
     return profile, match
+
+
+def test_posting_updates_remain_auditable_but_do_not_create_user_deliveries(
+    db_session: Session,
+) -> None:
+    profile, match = create_match(db_session)
+    profile.telegram_notifications_enabled = True
+    profile.telegram_chat_id = "test-chat"
+    profile.notification_consents = {"posting_updated": True}
+    db_session.add(JobChangeEvent(job_id=match.job_id, event_type="updated", changes={"title": {}}))
+    db_session.commit()
+
+    assert NotificationPlanner().plan_events(db_session, now=datetime.now(UTC)) == 0
+    assert db_session.scalar(select(NotificationDelivery.id)) is None
 
 
 def test_planner_creates_idempotent_daily_email_delivery(db_session: Session) -> None:

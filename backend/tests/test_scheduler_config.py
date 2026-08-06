@@ -78,12 +78,17 @@ def test_reports_missing_and_malformed_files(tmp_path: Path) -> None:
         load_source_config(malformed)
 
 
-def test_fallback_registry_has_unique_exact_ten_minute_active_sources() -> None:
+def test_fallback_registry_has_unique_active_sources_with_a_large_source_exception() -> None:
     config = load_source_config(Path(__file__).parents[1] / "config" / "sources.toml")
     keys = [source.source_key for source in config.enabled_github]
 
     assert len(keys) == len(set(key.casefold() for key in keys))
-    assert all(source.poll_minutes == 10 for source in config.enabled_github)
+    assert all(
+        source.poll_minutes == 30
+        if source.source_key == "SimplifyJobs/Summer2027-Internships:README.md"
+        else source.poll_minutes == 10
+        for source in config.enabled_github
+    )
     assert all(source.jitter_seconds == 0 for source in config.enabled_github)
     assert keys.count("vanshb03/Summer2027-Internships:README.md") == 1
     assert keys.count("negarprh/Canadian-Tech-Internships-2026:README-2027.md") == 1

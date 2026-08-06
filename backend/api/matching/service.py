@@ -35,6 +35,30 @@ class MatchingService:
         )
         return sum(self._match_job(session, job, filters, watchlists=watchlists) for job in jobs)
 
+    def match_fingerprints(self, session: Session, fingerprints: list[str]) -> int:
+        """Match only postings whose user-visible matching fields changed."""
+        if not fingerprints:
+            return 0
+        jobs = list(
+            session.scalars(
+                select(Job).where(
+                    Job.status == JobStatus.ACTIVE,
+                    Job.canonical_fingerprint.in_(set(fingerprints)),
+                )
+            )
+        )
+        filters = list(
+            session.scalars(
+                select(JobFilter)
+                .options(selectinload(JobFilter.exclusions))
+                .where(JobFilter.active.is_(True))
+            )
+        )
+        watchlists = list(
+            session.scalars(select(CompanyWatchlist).where(CompanyWatchlist.active.is_(True)))
+        )
+        return sum(self._match_job(session, job, filters, watchlists=watchlists) for job in jobs)
+
     def match_profile(
         self,
         session: Session,

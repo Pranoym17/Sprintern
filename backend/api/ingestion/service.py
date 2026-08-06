@@ -110,8 +110,12 @@ class IngestionService:
                     self._upsert_parser_alert(session, adapter.source_key, category, message)
                 outcomes = {outcome: 0 for outcome in PersistenceOutcome}
                 outcomes[PersistenceOutcome.DUPLICATE] = source_duplicates
+                match_fingerprints: set[str] = set()
                 for candidate in normalized:
-                    outcomes[self.persister.persist(session, candidate, seen_at)] += 1
+                    result = self.persister.persist_with_match_signal(session, candidate, seen_at)
+                    outcomes[result.outcome] += 1
+                    if result.match_fingerprint:
+                        match_fingerprints.add(result.match_fingerprint)
                 if batch.completeness == PollCompleteness.COMPLETE:
                     lifecycle_result = self.lifecycle.apply_complete_snapshot(
                         session,
@@ -122,12 +126,14 @@ class IngestionService:
                     )
                     if lifecycle_result.suspicious_empty_snapshot:
                         errors.append("Empty snapshot ignored for lifecycle safety")
-                BackgroundJobQueue.enqueue(
-                    session,
-                    job_type="matching.all",
-                    idempotency_key=f"matching:ingestion:{run.id}",
-                    correlation_id=str(run.id),
-                )
+                if match_fingerprints:
+                    BackgroundJobQueue.enqueue(
+                        session,
+                        job_type="matching.jobs",
+                        idempotency_key=f"matching:ingestion:{run.id}",
+                        payload={"fingerprints": sorted(match_fingerprints)},
+                        correlation_id=str(run.id),
+                    )
                 state.cursor = batch.next_cursor
                 state.consecutive_failures = 0
                 state.backoff_until = None

@@ -5,7 +5,7 @@ from typing import Any, Literal
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from api.models import Job, JobStatus, WorkMode
+from api.models import Job, JobSource, JobStatus, WorkMode
 
 JobBoardSort = Literal["newest", "company", "deadline", "relevance"]
 
@@ -13,7 +13,14 @@ JobBoardSort = Literal["newest", "company", "deadline", "relevance"]
 def get_job(session: Session, job_id: uuid.UUID) -> Job | None:
     statement = (
         select(Job)
-        .options(selectinload(Job.sources))
+        .options(
+            selectinload(Job.sources).load_only(
+                JobSource.job_id,
+                JobSource.source,
+                JobSource.apply_url,
+                JobSource.active,
+            )
+        )
         .where(
             Job.id == job_id,
             Job.status == JobStatus.ACTIVE,
@@ -37,7 +44,14 @@ def list_jobs(
 ) -> list[Job]:
     published_at = func.coalesce(Job.posted_at, Job.first_seen_at)
     statement = _apply_board_filters(
-        select(Job).options(selectinload(Job.sources)),
+        select(Job).options(
+            selectinload(Job.sources).load_only(
+                JobSource.job_id,
+                JobSource.source,
+                JobSource.apply_url,
+                JobSource.active,
+            )
+        ),
         query,
         company,
         location,

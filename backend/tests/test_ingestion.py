@@ -27,6 +27,7 @@ from api.ingestion.normalization import (
 from api.ingestion.persistence import JobPersister, PersistenceOutcome
 from api.ingestion.service import IngestionService
 from api.models import (
+    BackgroundJob,
     IngestionRunStatus,
     Job,
     JobSource,
@@ -361,12 +362,19 @@ async def test_ingestion_is_idempotent_and_advances_cursor(
     with ingestion_factory() as session:
         jobs = list(session.scalars(select(Job)))
         state = session.scalar(select(SourceState))
+        matching_jobs = list(
+            session.scalars(select(BackgroundJob).where(BackgroundJob.job_type == "matching.jobs"))
+        )
 
     assert first.created_count == 1
     assert second.updated_count == 1
     assert len(jobs) == 1
     assert state is not None and state.cursor == {"page": 2}
     assert second_adapter.received_cursor == {"page": 2}
+    # A repeated full snapshot refreshes lifecycle timestamps but does not scan
+    # every active job and filter again when matcher inputs are unchanged.
+    assert len(matching_jobs) == 1
+    assert matching_jobs[0].payload["fingerprints"]
 
 
 async def test_ingestion_collapses_duplicate_source_rows_in_one_snapshot(

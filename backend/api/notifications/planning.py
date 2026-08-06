@@ -366,7 +366,10 @@ class NotificationPlanner:
         changes = list(
             session.scalars(
                 select(JobChangeEvent).where(
-                    JobChangeEvent.event_type.in_(["updated", "reopened"]),
+                    # Routine source edits are noisy and often only change
+                    # repository metadata. Keep the audit event, but only
+                    # notify users when an expired role genuinely reopens.
+                    JobChangeEvent.event_type == "reopened",
                     JobChangeEvent.created_at >= now - timedelta(days=2),
                 )
             )

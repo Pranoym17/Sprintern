@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
@@ -14,6 +15,14 @@ class PersistenceOutcome(StrEnum):
     DUPLICATE = "duplicate"
 
 
+@dataclass(frozen=True)
+class PersistenceResult:
+    """Persistence outcome plus the canonical job that needs rematching, if any."""
+
+    outcome: PersistenceOutcome
+    match_fingerprint: str | None = None
+
+
 class JobPersister:
     def __init__(self, repost_threshold_days: int = 30) -> None:
         self.repost_threshold = timedelta(days=repost_threshold_days)
@@ -21,6 +30,11 @@ class JobPersister:
     def persist(
         self, session: Session, candidate: NormalizedJob, seen_at: datetime
     ) -> PersistenceOutcome:
+        return self.persist_with_match_signal(session, candidate, seen_at).outcome
+
+    def persist_with_match_signal(
+        self, session: Session, candidate: NormalizedJob, seen_at: datetime
+    ) -> PersistenceResult:
         source_record = session.scalar(
             select(JobSource)
             .options(joinedload(JobSource.job))
@@ -38,8 +52,11 @@ class JobPersister:
                 and seen_at - source_record.last_seen_at >= self.repost_threshold
             )
             if not reposted:
-                self._update_existing(session, source_record, candidate, seen_at)
-                return PersistenceOutcome.UPDATED
+                needs_rematch = self._update_existing(session, source_record, candidate, seen_at)
+                return PersistenceResult(
+                    PersistenceOutcome.UPDATED,
+                    source_record.job.canonical_fingerprint if needs_rematch else None,
+                )
             next_occurrence = source_record.occurrence + 1
         else:
             next_occurrence = 1
@@ -65,13 +82,18 @@ class JobPersister:
         )
         if canonical_job:
             canonical_job.last_seen_at = seen_at
+            term_completed = False
             if canonical_job.term is None and candidate.term:
                 canonical_job.term = candidate.term
                 canonical_job.canonical_fingerprint = candidate.canonical_fingerprint
+                term_completed = True
             canonical_job.sources.append(
                 self._source_record(candidate, seen_at, occurrence=next_occurrence)
             )
-            return PersistenceOutcome.DUPLICATE
+            return PersistenceResult(
+                PersistenceOutcome.DUPLICATE,
+                canonical_job.canonical_fingerprint if term_completed else None,
+            )
 
         job = Job(
             company=candidate.company,
@@ -96,7 +118,7 @@ class JobPersister:
         )
         job.sources.append(self._source_record(candidate, seen_at, occurrence=next_occurrence))
         session.add(job)
-        return PersistenceOutcome.CREATED
+        return PersistenceResult(PersistenceOutcome.CREATED, candidate.canonical_fingerprint)
 
     @staticmethod
     def _lock_canonical_identity(session: Session, fingerprint: str) -> None:
@@ -137,7 +159,7 @@ class JobPersister:
         source_record: JobSource,
         candidate: NormalizedJob,
         seen_at: datetime,
-    ) -> None:
+    ) -> bool:
         job = source_record.job
         tracked = {
             "company": (job.company, candidate.company),
@@ -156,6 +178,20 @@ class JobPersister:
             if before != after
         }
         was_inactive = job.status != JobStatus.ACTIVE or not source_record.active
+        # A new Git commit changes source provenance on every full snapshot. It
+        # must refresh lifecycle timestamps, but it must not rematch every user
+        # unless a field the matcher evaluates has actually changed.
+        matcher_fields_changed = any(
+            before != after
+            for before, after in (
+                (job.company, candidate.company),
+                (job.title, candidate.title),
+                (job.location, candidate.location),
+                (job.term, candidate.term),
+                (job.description, candidate.description),
+                (job.work_mode, candidate.work_mode),
+            )
+        )
         if changes:
             session.add(JobChangeEvent(job_id=job.id, event_type="updated", changes=changes))
         if was_inactive:
@@ -187,3 +223,4 @@ class JobPersister:
         job.last_seen_at = seen_at
         job.status = JobStatus.ACTIVE
         job.expired_at = None
+        return was_inactive or matcher_fields_changed

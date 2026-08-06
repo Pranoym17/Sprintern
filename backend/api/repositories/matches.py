@@ -10,6 +10,7 @@ from api.models import (
     Job,
     JobInteraction,
     JobMatch,
+    JobSource,
     JobStatus,
     MatchStatus,
     WorkMode,
@@ -33,7 +34,9 @@ def get_match(session: Session, profile_id: uuid.UUID, match_id: uuid.UUID) -> J
     statement = (
         select(JobMatch)
         .options(
-            selectinload(JobMatch.job).selectinload(Job.sources),
+            selectinload(JobMatch.job)
+            .selectinload(Job.sources)
+            .load_only(JobSource.job_id, JobSource.source, JobSource.apply_url, JobSource.active),
             selectinload(JobMatch.deliveries),
         )
         .where(JobMatch.id == match_id, JobMatch.profile_id == profile_id)
@@ -76,7 +79,9 @@ def list_matches(
     statement = (
         select(JobMatch)
         .options(
-            selectinload(JobMatch.job).selectinload(Job.sources),
+            selectinload(JobMatch.job)
+            .selectinload(Job.sources)
+            .load_only(JobSource.job_id, JobSource.source, JobSource.apply_url, JobSource.active),
             selectinload(JobMatch.deliveries),
         )
         .join(Job, Job.id == JobMatch.job_id)

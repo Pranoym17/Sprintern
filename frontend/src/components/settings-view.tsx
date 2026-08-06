@@ -12,7 +12,7 @@ import { PageError, PageLoading } from "./page-state";
 import type { DeliveryChannel, DeliveryQueue, Profile } from "@/lib/api/types";
 
 const consentTypes = [
-  "deadline", "saved", "follow_up", "interview", "posting_updated",
+  "deadline", "saved", "follow_up", "interview",
   "posting_reopened", "weekly_progress",
 ];
 const administratorConsentTypes = ["source_stale", "parser_broken"];
@@ -21,7 +21,6 @@ const consentLabels: Record<string, string> = {
   saved: "Saved-job reminders",
   follow_up: "Follow-up reminders",
   interview: "Interview reminders",
-  posting_updated: "Posting updates",
   posting_reopened: "Reopened postings",
   weekly_progress: "Weekly application progress",
   source_stale: "Job data is delayed",

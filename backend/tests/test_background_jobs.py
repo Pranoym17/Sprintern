@@ -3,12 +3,19 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.jobs import BackgroundJobQueue
 from api.models import BackgroundJob
 from api.worker.runtime import BackgroundJobHandler
+
+
+@pytest.fixture(autouse=True)
+def isolate_durable_queue(db_session: Session) -> None:
+    """Queue claims are global; remove rows committed by other test workflows."""
+    db_session.execute(delete(BackgroundJob))
+    db_session.flush()
 
 
 def test_queue_is_idempotent_and_retries_with_a_lease(db_session: Session) -> None:

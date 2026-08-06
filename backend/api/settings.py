@@ -47,12 +47,15 @@ class Settings(BaseSettings):
     notification_max_attempts: int = 5
     notification_lease_seconds: int = 300
     scheduler_source_config: Path = Path("config/sources.toml")
-    scheduler_notification_interval_seconds: int = Field(30, ge=5)
+    # Telegram match alerts enqueue their own immediate dispatch. This is only
+    # the idle safety sweep for digests and reminders, so five minutes avoids
+    # creating thousands of empty durable jobs every day.
+    scheduler_notification_interval_seconds: int = Field(300, ge=30)
     scheduler_heartbeat_interval_seconds: int = Field(30, ge=5)
     scheduler_timezone: str = "UTC"
     scheduler_misfire_grace_seconds: int = Field(60, ge=1)
     scheduler_shutdown_timeout_seconds: int = Field(30, ge=1)
-    worker_poll_interval_seconds: float = Field(1.0, ge=0.1, le=30)
+    worker_poll_interval_seconds: float = Field(5.0, ge=0.5, le=30)
     worker_lease_seconds: int = Field(300, ge=30, le=3600)
     scheduler_source_sync_seconds: int = Field(60, ge=15, le=3600)
     source_stale_after_hours: int = Field(24, ge=1, le=168)
