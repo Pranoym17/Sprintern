@@ -3,6 +3,7 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -15,6 +16,7 @@ from api.models import BackgroundJob, JobSourceName, SourceState
 from api.scheduler.config import GitHubSourceConfig, SchedulerSourceConfig
 from api.scheduler.runtime import (
     SchedulerLockUnavailable,
+    _source_poll_triggers,
     build_scheduler,
     run_scheduler,
     scheduler_process_lock,
@@ -57,7 +59,9 @@ def test_registers_stable_non_overlapping_jobs() -> None:
     jobs = {job.id: job for job in scheduler.get_jobs()}
 
     assert set(jobs) == {
-        "ingest:github:scheduler-test-owner/Scheduler-Test-Internships:README.md",
+        "ingest:github:scheduler-test-owner/Scheduler-Test-Internships:README.md:daytime",
+        "ingest:github:scheduler-test-owner/Scheduler-Test-Internships:README.md:evening",
+        "ingest:github:scheduler-test-owner/Scheduler-Test-Internships:README.md:overnight",
         "notifications:dispatch",
         "sources:sync",
     }
@@ -66,6 +70,24 @@ def test_registers_stable_non_overlapping_jobs() -> None:
     assert all(
         job.misfire_grace_time == settings.scheduler_misfire_grace_seconds for job in jobs.values()
     )
+
+
+def test_source_polling_uses_new_york_workday_and_hourly_overnight() -> None:
+    triggers = _source_poll_triggers("America/New_York")
+    eastern = ZoneInfo("America/New_York")
+
+    assert triggers["daytime"].get_next_fire_time(
+        None, datetime(2026, 8, 3, 8, 58, tzinfo=eastern)
+    ) == datetime(2026, 8, 3, 9, 0, tzinfo=eastern)
+    assert triggers["daytime"].get_next_fire_time(
+        None, datetime(2026, 8, 3, 9, 1, tzinfo=eastern)
+    ) == datetime(2026, 8, 3, 9, 15, tzinfo=eastern)
+    assert triggers["evening"].get_next_fire_time(
+        None, datetime(2026, 8, 3, 19, 46, tzinfo=eastern)
+    ) == datetime(2026, 8, 3, 20, 0, tzinfo=eastern)
+    assert triggers["overnight"].get_next_fire_time(
+        None, datetime(2026, 8, 3, 20, 1, tzinfo=eastern)
+    ) == datetime(2026, 8, 3, 21, 0, tzinfo=eastern)
 
 
 def test_fastapi_import_does_not_create_scheduler() -> None:

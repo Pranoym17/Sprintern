@@ -70,37 +70,41 @@ GENERATED_ACTIONS_README = "\n".join(
 )
 
 
-async def test_github_skips_unchanged_commit() -> None:
+async def test_github_skips_unchanged_content_with_etag() -> None:
     calls = 0
 
     async def handler(request: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
-        assert request.url.path.endswith("/commits")
-        return httpx.Response(200, json=[{"sha": "abc123"}])
+        assert request.url.path.endswith("/contents/README.md")
+        assert request.headers["If-None-Match"] == '"abc123"'
+        return httpx.Response(304)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         adapter = GitHubRepositoryAdapter(
             "owner", "internships", RetryingHTTPClient(client), token="github-token"
         )
-        batch = await adapter.fetch({"sha": "abc123"})
+        batch = await adapter.fetch({"sha": "abc123", "etag": '"abc123"'})
 
     assert calls == 1
     assert batch.records == []
     assert batch.completeness == PollCompleteness.INCREMENTAL
-    assert batch.next_cursor == {"sha": "abc123"}
+    assert batch.next_cursor == {"sha": "abc123", "etag": '"abc123"'}
 
 
 async def test_github_parses_supported_table_and_inherited_company() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["X-GitHub-Api-Version"] == "2022-11-28"
         assert request.headers["Authorization"] == "Bearer github-token"
-        if request.url.path.endswith("/commits"):
-            return httpx.Response(200, json=[{"sha": "new-sha"}])
-        assert request.url.params["ref"] == "new-sha"
+        assert "If-None-Match" not in request.headers
         return httpx.Response(
             200,
-            json={"encoding": "base64", "content": base64.b64encode(README.encode()).decode()},
+            headers={"ETag": '"new-sha"'},
+            json={
+                "sha": "new-sha",
+                "encoding": "base64",
+                "content": base64.b64encode(README.encode()).decode(),
+            },
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
@@ -119,16 +123,15 @@ async def test_github_parses_supported_table_and_inherited_company() -> None:
     assert batch.records[0].term == "Summer 2027"
     assert batch.records[0].posted_at is not None
     assert batch.completeness == PollCompleteness.COMPLETE
-    assert batch.next_cursor == {"sha": "new-sha"}
+    assert batch.next_cursor == {"sha": "new-sha", "etag": '"new-sha"'}
 
 
 async def test_github_parses_current_repository_table_style() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/commits"):
-            return httpx.Response(200, json=[{"sha": "new-sha"}])
         return httpx.Response(
             200,
             json={
+                "sha": "new-sha",
                 "encoding": "base64",
                 "content": base64.b64encode(CURRENT_REPOSITORY_STYLE_README.encode()).decode(),
             },
@@ -153,11 +156,10 @@ async def test_github_parses_current_repository_table_style() -> None:
 
 async def test_github_prefers_title_and_supports_actions_link_column() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/commits"):
-            return httpx.Response(200, json=[{"sha": "generated-sha"}])
         return httpx.Response(
             200,
             json={
+                "sha": "generated-sha",
                 "encoding": "base64",
                 "content": base64.b64encode(GENERATED_ACTIONS_README.encode()).decode(),
             },
@@ -176,11 +178,10 @@ async def test_github_prefers_title_and_supports_actions_link_column() -> None:
 
 async def test_github_infers_mixed_terms_with_explicit_priority() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/commits"):
-            return httpx.Response(200, json=[{"sha": "mixed-sha"}])
         return httpx.Response(
             200,
             json={
+                "sha": "mixed-sha",
                 "encoding": "base64",
                 "content": base64.b64encode(MIXED_TERM_README.encode()).decode(),
             },
@@ -212,11 +213,10 @@ async def test_github_fails_visibly_when_table_schema_changes() -> None:
     invalid_readme = "| Name | Notes |\n| --- | --- |\n| Example | No job columns |"
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/commits"):
-            return httpx.Response(200, json=[{"sha": "new-sha"}])
         return httpx.Response(
             200,
             json={
+                "sha": "new-sha",
                 "encoding": "base64",
                 "content": base64.b64encode(invalid_readme.encode()).decode(),
             },
@@ -273,11 +273,13 @@ async def test_github_parses_simplify_style_html_table() -> None:
 """
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/commits"):
-            return httpx.Response(200, json=[{"sha": "html-sha"}])
         return httpx.Response(
             200,
-            json={"encoding": "base64", "content": base64.b64encode(readme.encode()).decode()},
+            json={
+                "sha": "html-sha",
+                "encoding": "base64",
+                "content": base64.b64encode(readme.encode()).decode(),
+            },
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:

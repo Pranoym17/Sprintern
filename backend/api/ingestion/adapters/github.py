@@ -92,39 +92,43 @@ class GitHubRepositoryAdapter:
 
     async def fetch(self, cursor: dict[str, Any]) -> PollBatch:
         headers = self._headers()
-        params: dict[str, Any] = {"path": self.path, "per_page": 1}
+        previous_etag = cursor.get("etag")
+        if isinstance(previous_etag, str) and previous_etag:
+            headers["If-None-Match"] = previous_etag
+        params: dict[str, Any] = {}
         if self.branch:
-            params["sha"] = self.branch
-        commits = await self.http.get_json(
-            f"https://api.github.com/repos/{self.owner}/{self.repository}/commits",
+            params["ref"] = self.branch
+
+        response = await self.http.get_response(
+            f"https://api.github.com/repos/{self.owner}/{self.repository}/contents/{self.path}",
             headers=headers,
             params=params,
+            accepted_status_codes={200, 304},
         )
-        if not isinstance(commits, list) or not commits or not isinstance(commits[0], dict):
-            raise SourceHTTPError("GitHub returned no commit for the configured file")
-        commit_sha = commits[0].get("sha")
-        if not isinstance(commit_sha, str):
-            raise SourceHTTPError("GitHub commit response did not include a SHA")
-        if cursor.get("sha") == commit_sha:
+        if response.status_code == 304:
             return PollBatch(
                 records=[],
                 completeness=PollCompleteness.INCREMENTAL,
-                next_cursor={"sha": commit_sha},
+                next_cursor=cursor,
             )
-
-        content = await self.http.get_json(
-            f"https://api.github.com/repos/{self.owner}/{self.repository}/contents/{self.path}",
-            headers=headers,
-            params={"ref": commit_sha},
-        )
+        try:
+            content = response.json()
+        except ValueError as exc:
+            raise SourceHTTPError("GitHub returned invalid file content") from exc
+        commit_sha = content.get("sha") if isinstance(content, dict) else None
+        if not isinstance(commit_sha, str):
+            raise SourceHTTPError("GitHub file response did not include a SHA")
         markdown = self._decode_content(content)
         records, errors = self._parse_tables(markdown, commit_sha)
+        next_cursor = {"sha": commit_sha}
+        if etag := response.headers.get("ETag"):
+            next_cursor["etag"] = etag
         return PollBatch(
             records=records,
             # A changed GitHub file is parsed in full. Marking that snapshot complete
             # lets lifecycle tracking retire rows removed by the repository.
             completeness=PollCompleteness.COMPLETE,
-            next_cursor={"sha": commit_sha},
+            next_cursor=next_cursor,
             rejected_count=len(errors),
             rejection_errors=errors[:25],
             detected_schema="github_markdown_table:v1",

@@ -52,7 +52,8 @@ class Settings(BaseSettings):
     # creating thousands of empty durable jobs every day.
     scheduler_notification_interval_seconds: int = Field(300, ge=30)
     scheduler_heartbeat_interval_seconds: int = Field(30, ge=5)
-    scheduler_timezone: str = "UTC"
+    # Source polling follows North American application activity, including DST.
+    scheduler_timezone: str = "America/New_York"
     scheduler_misfire_grace_seconds: int = Field(60, ge=1)
     scheduler_shutdown_timeout_seconds: int = Field(30, ge=1)
     worker_poll_interval_seconds: float = Field(5.0, ge=0.5, le=30)

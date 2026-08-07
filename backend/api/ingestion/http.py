@@ -35,6 +35,43 @@ class RetryingHTTPClient:
     async def get_json(self, url: str, **kwargs: Any) -> Any:
         return await self._request_json("GET", url, **kwargs)
 
+    async def get_response(
+        self,
+        url: str,
+        *,
+        accepted_status_codes: set[int] | None = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Fetch a response while preserving the retry policy for non-JSON protocols.
+
+        GitHub's conditional content API uses a 304 response as its successful
+        "unchanged" result, so callers need the status and headers rather than JSON.
+        """
+        accepted = accepted_status_codes or {200}
+        last_error: Exception | None = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                response = await self.client.get(url, **kwargs)
+                if response.status_code in accepted:
+                    return response
+                if response.status_code not in TRANSIENT_STATUS_CODES:
+                    response.raise_for_status()
+                last_error = SourceHTTPError(f"transient HTTP {response.status_code}")
+                retry_after = self._retry_after_seconds(response)
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                last_error = exc
+                retry_after = None
+            except httpx.HTTPStatusError as exc:
+                raise SourceHTTPError("source returned a permanent or invalid response") from exc
+
+            if attempt < self.max_attempts:
+                delay = retry_after if retry_after is not None else self._backoff(attempt)
+                await self.sleep(min(delay, self.max_delay_seconds))
+
+        raise SourceHTTPError(
+            f"source request failed after {self.max_attempts} attempts"
+        ) from last_error
+
     async def post_json(self, url: str, **kwargs: Any) -> Any:
         return await self._request_json("POST", url, **kwargs)
 

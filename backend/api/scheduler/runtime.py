@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
+from apscheduler.triggers.cron import CronTrigger  # type: ignore[import-untyped]
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -80,27 +81,42 @@ def reconcile_source_jobs(
     source_config: SchedulerSourceConfig,
     app_settings: Settings = settings,
 ) -> None:
-    desired = {source.job_id: source for source in source_config.enabled_github}
+    desired = {
+        f"{source.job_id}:{period}": (source, trigger)
+        for source in source_config.enabled_github
+        for period, trigger in _source_poll_triggers(app_settings.scheduler_timezone).items()
+    }
     existing_ids = {job.id for job in scheduler.get_jobs() if job.id.startswith("ingest:github:")}
     for job_id in existing_ids - desired.keys():
         scheduler.remove_job(job_id)
-    for job_id, source in desired.items():
+    for job_id, (source, trigger) in desired.items():
         existing = scheduler.get_job(job_id)
         if existing is not None and existing.args and existing.args[0] == source:
             continue
         scheduler.add_job(
             workflows.ingest_github,
-            "interval",
+            trigger,
             args=[source],
-            minutes=source.poll_minutes,
-            jitter=source.jitter_seconds or None,
             id=job_id,
             replace_existing=True,
             max_instances=1,
             coalesce=True,
             misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
-            next_run_time=datetime.now(UTC),
         )
+
+
+def _source_poll_triggers(timezone: str) -> dict[str, CronTrigger]:
+    """Poll frequently during the North American workday and hourly overnight.
+
+    The named IANA timezone keeps this policy correct through daylight-saving
+    changes; source-specific intervals are intentionally superseded by this
+    global traffic budget.
+    """
+    return {
+        "daytime": CronTrigger(minute="0,15,30,45", hour="9-19", timezone=timezone),
+        "evening": CronTrigger(minute="0", hour="20", timezone=timezone),
+        "overnight": CronTrigger(minute="0", hour="0-8,21-23", timezone=timezone),
+    }
 
 
 async def run_scheduler(app_settings: Settings = settings) -> None:
