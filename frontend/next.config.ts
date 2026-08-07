@@ -37,7 +37,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Vercel already traces and packages Next applications. Standalone output is
+  // only required by our Docker image; enabling it on Vercel can make its
+  // builder look for Docker-specific trace artifacts that Next does not emit.
+  ...(process.env.SPRINTERN_DOCKER_BUILD === "true" ? { output: "standalone" } : {}),
   async headers() { return [{ source: "/(.*)", headers: securityHeaders }]; },
 };
 
