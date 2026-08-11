@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.database import Base
 from api.models.base import TimestampMixin
-from api.models.enums import WorkMode
+from api.models.enums import RoleCategory, WorkMode
 
 
 class JobFilter(TimestampMixin, Base):
@@ -20,6 +20,13 @@ class JobFilter(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100))
     role_keywords: Mapped[list[str]] = mapped_column(
         ARRAY(String(100)), default=list, server_default=text("'{}'::varchar[]")
+    )
+    # role_keywords is retained only to preserve pre-taxonomy rows during the
+    # rollout. New API requests use the bounded, explainable category list.
+    role_categories: Mapped[list[str]] = mapped_column(
+        ARRAY(String(48)),
+        default=lambda: [RoleCategory.ALL.value],
+        server_default=text("'{all}'::varchar[]"),
     )
     location_keywords: Mapped[list[str]] = mapped_column(
         ARRAY(String(100)), default=list, server_default=text("'{}'::varchar[]")

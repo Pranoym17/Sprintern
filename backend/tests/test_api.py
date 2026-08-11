@@ -17,14 +17,14 @@ async def test_profile_bootstrap_and_filter_crud(api_client: AsyncClient) -> Non
         "/filters",
         json={
             "name": "Backend internships",
-            "role_keywords": [" backend ", "backend", "software"],
+            "role_categories": ["software_engineering"],
             "terms": ["Summer 2027"],
         },
     )
     assert create_response.status_code == 201
     assert create_response.headers["location"].startswith("/filters/")
     created = create_response.json()
-    assert created["role_keywords"] == ["backend", "software"]
+    assert created["role_categories"] == ["software_engineering"]
 
     update_response = await api_client.patch(f"/filters/{created['id']}", json={"active": False})
     assert update_response.status_code == 200
@@ -60,6 +60,21 @@ async def test_filter_terms_only_accept_supported_seasons(api_client: AsyncClien
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
+
+
+async def test_filter_rejects_free_form_roles_and_invalid_category_combinations(
+    api_client: AsyncClient,
+) -> None:
+    free_form = await api_client.post(
+        "/filters", json={"name": "SWE", "role_keywords": ["swe"]}
+    )
+    assert free_form.status_code == 422
+
+    invalid_categories = await api_client.post(
+        "/filters",
+        json={"name": "Too broad", "role_categories": ["all", "software_engineering"]},
+    )
+    assert invalid_categories.status_code == 422
 
 
 async def test_match_applied_and_analytics(

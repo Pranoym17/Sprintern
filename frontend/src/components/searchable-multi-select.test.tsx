@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SearchableMultiSelect } from "./searchable-multi-select";
-import { ROLE_OPTIONS } from "@/lib/filter-options";
+import { ROLE_CATEGORY_OPTIONS } from "@/lib/filter-options";
 
 afterEach(cleanup);
 
@@ -49,15 +49,18 @@ describe("SearchableMultiSelect", () => {
     render(<SearchableMultiSelect
       id="all-roles"
       label="Roles"
-      values={["Software Engineering"]}
-      options={ROLE_OPTIONS}
+      values={["software_engineering"]}
+      options={ROLE_CATEGORY_OPTIONS}
       placeholder="Search roles"
       onChange={onChange}
+      allowCustom={false}
+      exclusiveValues={["all"]}
+      displayValue={(value) => value === "all" ? "All internship roles" : "Software engineering"}
     />);
 
-    await user.type(screen.getByRole("combobox", { name:"Roles" }), "Any role");
-    expect(screen.getByText("All opportunities")).toBeVisible();
-    await user.click(screen.getByRole("option", { name:/Any role or field/i }));
-    expect(onChange).toHaveBeenCalledWith(["Any role or field"]);
+    await user.type(screen.getByRole("combobox", { name:"Roles" }), "all");
+    expect(screen.getByText("Everything")).toBeVisible();
+    await user.click(screen.getByRole("option", { name: /all internship roles/i }));
+    expect(onChange).toHaveBeenCalledWith(["all"]);
   });
 });

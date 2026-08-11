@@ -37,6 +37,9 @@ class RecordingWorkflows:
     async def dispatch_notifications(self) -> None:
         self.dispatches += 1
 
+    async def purge_expired_jobs(self) -> None:
+        return None
+
 
 def scheduler_config() -> SchedulerSourceConfig:
     return SchedulerSourceConfig(
@@ -63,6 +66,7 @@ def test_registers_stable_non_overlapping_jobs() -> None:
         "ingest:github:scheduler-test-owner/Scheduler-Test-Internships:README.md:evening",
         "ingest:github:scheduler-test-owner/Scheduler-Test-Internships:README.md:overnight",
         "notifications:dispatch",
+        "retention:purge-expired-jobs",
         "sources:sync",
     }
     assert all(job.max_instances == 1 for job in jobs.values())

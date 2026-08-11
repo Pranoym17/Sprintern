@@ -90,6 +90,33 @@ class SchedulerWorkflows:
     async def dispatch_notifications(self) -> None:
         await self._tracked(self._dispatch_notifications())
 
+    async def purge_expired_jobs(self) -> None:
+        await self._tracked(self._purge_expired_jobs())
+
+    async def _purge_expired_jobs(self) -> None:
+        now = datetime.now(UTC)
+        day = now.strftime("%Y-%m-%d")
+        try:
+            with self.session_factory.begin() as session:
+                self.queue.enqueue(
+                    session,
+                    job_type="retention.purge_expired_jobs",
+                    idempotency_key=f"retention:purge-expired:{day}",
+                    correlation_id=f"retention:{day}",
+                )
+            logger.info(
+                "scheduler.retention.enqueued",
+                extra={"event": "scheduler.retention.enqueued"},
+            )
+        except Exception as exc:
+            logger.error(
+                "scheduler.retention.failed",
+                extra={
+                    "event": "scheduler.retention.failed",
+                    "exception_class": type(exc).__name__,
+                },
+            )
+
     async def _dispatch_notifications(self) -> None:
         try:
             now = datetime.now(UTC)

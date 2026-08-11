@@ -105,7 +105,7 @@ class AccountExportProfile(APIModel):
 class AccountExportFilter(APIModel):
     id: uuid.UUID
     name: str
-    role_keywords: list[str]
+    role_categories: list[str]
     location_keywords: list[str]
     terms: list[str]
     work_mode: WorkMode

@@ -61,7 +61,7 @@ async def test_filter_preview_and_watchlists_are_owned(
         "/filters/preview",
         json={
             "name": "Preview",
-            "role_keywords": ["SWE"],
+            "role_categories": ["software_engineering"],
             "location_keywords": ["Toronto"],
             "terms": [],
             "work_mode": "any",
@@ -70,7 +70,7 @@ async def test_filter_preview_and_watchlists_are_owned(
     )
     assert preview.status_code == 200
     assert preview.json()["estimated_count"] >= 1
-    assert "SWE".casefold() in {key.casefold() for key in preview.json()["aliases"]}
+    assert preview.json()["selected_categories"] == ["software_engineering"]
 
     created = await api_client.post(
         "/watchlists",

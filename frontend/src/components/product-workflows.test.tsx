@@ -24,7 +24,7 @@ beforeEach(() => {
     interactions: vi.fn(async () => []),
     updateInteraction: vi.fn(), recordView: vi.fn(async () => undefined), reportJob: vi.fn(), shareJob: vi.fn(), similarJobs:vi.fn(async () => []),
     filters: vi.fn(async () => []), createFilter:vi.fn(async (value) => ({...value,id:"filter",profile_id:"profile",created_at:"",updated_at:""})), updateFilter:vi.fn(), deleteFilter:vi.fn(),
-    previewFilter:vi.fn(async () => ({estimated_count:1,examples:[],warnings:[],aliases:{},exclusions:{}})), watchlists:vi.fn(async () => []), createWatchlist:vi.fn(), updateWatchlist:vi.fn(), deleteWatchlist:vi.fn(),
+    previewFilter:vi.fn(async () => ({estimated_count:1,examples:[],warnings:[],selected_categories:["all"],exclusions:{}})), watchlists:vi.fn(async () => []), createWatchlist:vi.fn(), updateWatchlist:vi.fn(), deleteWatchlist:vi.fn(),
     profile:vi.fn(async () => profile), updateProfile:vi.fn(async (value) => ({...profile,...value})), notificationQueue:vi.fn(async () => ({pending:0,delayed_by_quiet_hours:0,delayed_by_weekend:0,delayed_by_daily_cap:0,failed:0,suppressed:0})), adminAccess:vi.fn(async () => { throw new Error("not admin"); }), testNotification:vi.fn(), createTelegramLink:vi.fn(), unlinkTelegram:vi.fn(), exportAccount:vi.fn(), deleteAccount:vi.fn(async () => undefined), sourceHealth:vi.fn(async () => ({state:"healthy",last_updated_at:"2026-07-01"})),
   };
 });
@@ -66,9 +66,9 @@ describe("authenticated product workflows", () => {
     const user = userEvent.setup(); render(<FiltersView />);
     await screen.findByText("Create your first signal"); await user.click(screen.getByRole("button", { name:/new filter/i }));
     await user.type(screen.getByLabelText(/name this search/i), "Software internships");
-    await user.type(screen.getByLabelText("Roles or fields"), "software{Enter}");
+    await user.type(screen.getByLabelText("Role groups"), "software{Enter}");
     await user.click(screen.getByRole("button", { name:/save and match/i }));
-    await waitFor(() => expect(api.createFilter).toHaveBeenCalledWith(expect.objectContaining({name:"Software internships",role_keywords:["software"]})));
+    await waitFor(() => expect(api.createFilter).toHaveBeenCalledWith(expect.objectContaining({name:"Software internships",role_categories:["software_engineering"]})));
   });
 
   it("shows and filters the complete job board", async () => {

@@ -92,7 +92,7 @@ async def test_authenticated_mvp_workflow_is_idempotent(
         "/filters",
         json={
             "name": "Toronto backend internships",
-            "role_keywords": ["backend", "software"],
+            "role_categories": ["software_engineering"],
             "location_keywords": ["Toronto", "Canada"],
             "terms": ["Summer 2027"],
         },

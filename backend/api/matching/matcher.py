@@ -5,9 +5,10 @@ from typing import Any, cast
 
 from api.ingestion.normalization import normalize_text
 from api.locations import distance_km
-from api.models import ExclusionType, Job, JobFilter, WorkMode
+from api.matching.role_categories import ROLE_CATEGORY_KEYWORDS
+from api.models import ExclusionType, Job, JobFilter, RoleCategory, WorkMode
 
-MATCHER_VERSION = "keyword-v2"
+MATCHER_VERSION = "keyword-v3"
 ROLE_ALIASES = {
     "software engineering": ("software engineer", "software developer", "software development"),
     "software developer": ("software engineer", "software development engineer"),
@@ -20,6 +21,7 @@ ROLE_ALIASES = {
     "infrastructure engineering": ("infrastructure engineer", "platform engineer"),
     "systems engineering": ("systems engineer", "system engineer"),
     "network engineering": ("network engineer", "networking engineer"),
+    "security engineering": ("security engineer", "cybersecurity", "cyber security"),
     "data science": ("data scientist", "data science"),
     "data analytics": ("data analyst", "analytics"),
     "data engineering": ("data engineer", "data platform"),
@@ -50,6 +52,17 @@ ROLE_ALIASES = {
     "quantitative trading": ("quantitative trader", "quant trader"),
     "human resources": ("human resources", "people operations", "hr intern"),
     "customer success": ("customer success", "customer experience"),
+    "marketing": ("marketing", "growth"),
+    "sales": ("sales", "business development"),
+    "operations": ("operations", "operations analyst"),
+    "consulting": ("consulting", "consultant"),
+    "recruiting": ("recruiter", "talent acquisition"),
+    "finance": ("finance", "financial analyst"),
+    "risk": ("risk", "risk management"),
+    "robotics": ("robotics", "robotics engineer"),
+    "other technical": (
+        "solutions engineer", "technical support", "information technology", "developer relations",
+    ),
     "supply chain": ("supply chain", "logistics"),
     "swe": ("software engineer", "software engineering", "software developer"),
     "sde": ("software developer", "software development engineer", "software engineer"),
@@ -58,7 +71,7 @@ ROLE_ALIASES = {
     "devops": ("devops", "site reliability", "platform engineer", "sre"),
     "ml": ("machine learning", "ml engineer"),
     "ds": ("data scientist", "data science"),
-    "ai": ("artificial intelligence",),
+    "ai": ("artificial intelligence", "ai engineer", "ai research"),
     "frontend": ("front end", "frontend"),
     "backend": ("back end", "backend"),
 }
@@ -80,6 +93,20 @@ def _matches_phrase(text: str, keyword: str) -> str | None:
         if f" {candidate} " in f" {text} ":
             return candidate
     return None
+
+
+def role_categories_for_title(title: str) -> set[RoleCategory]:
+    """Return every applicable category; compound roles are intentionally multi-label."""
+    normalized_title = normalize_text(title)
+    categories = {
+        category
+        for category, keywords in ROLE_CATEGORY_KEYWORDS.items()
+        if category not in {RoleCategory.ALL, RoleCategory.OTHER_TECHNICAL}
+        and any(_matches_phrase(normalized_title, keyword) for keyword in keywords)
+    }
+    # The catch-all is a real category rather than silently dropping unfamiliar
+    # titles. Selecting every category therefore covers every imported job.
+    return categories or {RoleCategory.OTHER_TECHNICAL}
 
 
 def canonical_term(value: str | None) -> str | None:
@@ -138,24 +165,38 @@ def match_filter(job: Job, job_filter: JobFilter) -> FilterMatch | None:
                 return None
             dimensions["radius"] = f"{round(distance)} km"
 
-    restricted_roles = [
-        value
-        for value in job_filter.role_keywords
-        if normalize_text(value) not in UNRESTRICTED_ROLES
-    ]
-    if restricted_roles:
-        title = normalize_text(job.title)
-        role = next(
-            (
-                matched
-                for keyword in restricted_roles
-                if (matched := _matches_phrase(title, keyword))
-            ),
-            None,
-        )
-        if role is None:
+    categories = {RoleCategory(item) for item in (job_filter.role_categories or [])}
+    if categories and RoleCategory.ALL not in categories:
+        matched_categories = role_categories_for_title(job.title)
+        selected_categories = categories.intersection(matched_categories)
+        if not selected_categories:
             return None
-        dimensions["role"] = role
+        dimensions["role_categories"] = ", ".join(
+            sorted(category.value for category in selected_categories)
+        )
+    else:
+        # This fallback applies only to pre-taxonomy rows that have not yet been
+        # migrated. The public API no longer accepts free-form role keywords.
+        restricted_roles = [
+            value
+            for value in job_filter.role_keywords
+            if normalize_text(value) not in UNRESTRICTED_ROLES
+        ]
+        if not restricted_roles:
+            restricted_roles = []
+        if restricted_roles:
+            title = normalize_text(job.title)
+            role = next(
+                (
+                    matched
+                    for keyword in restricted_roles
+                    if (matched := _matches_phrase(title, keyword))
+                ),
+                None,
+            )
+            if role is None:
+                return None
+            dimensions["role"] = role
 
     restricted_locations = [
         value

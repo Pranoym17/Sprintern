@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     scheduler_shutdown_timeout_seconds: int = Field(30, ge=1)
     worker_poll_interval_seconds: float = Field(5.0, ge=0.5, le=30)
     worker_lease_seconds: int = Field(300, ge=30, le=3600)
+    job_retention_days: int = Field(180, ge=30, le=730)
     scheduler_source_sync_seconds: int = Field(60, ge=15, le=3600)
     source_stale_after_hours: int = Field(24, ge=1, le=168)
     database_capacity_warning_bytes: int = Field(8_000_000_000, ge=1_000_000)

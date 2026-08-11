@@ -9,14 +9,14 @@ import { useApp } from "./app-provider";
 import { EmptyState, PageHeader } from "./dashboard-view";
 import { PageError, PageLoading } from "./page-state";
 import { SearchableMultiSelect } from "./searchable-multi-select";
-import { LOCATION_OPTIONS, ROLE_OPTIONS } from "@/lib/filter-options";
+import { LOCATION_OPTIONS, ROLE_CATEGORY_LABELS, ROLE_CATEGORY_OPTIONS } from "@/lib/filter-options";
 import type {
   CompanyWatchlist, FilterInput, FilterNotification, FilterPreview, JobFilter,
-  WorkMode,
+  RoleCategory, WorkMode,
 } from "@/lib/api/types";
 
 const blank: FilterInput = {
-  name: "", role_keywords: [], location_keywords: [], terms: [], work_mode: "any",
+  name: "", role_categories: ["all"], location_keywords: [], terms: [], work_mode: "any",
   active: true, remote_only: false, radius_km: null, center_latitude: null,
   center_longitude: null, excluded_keywords: [], excluded_companies: [],
   excluded_locations: [],
@@ -94,7 +94,7 @@ function FilterCard({ filter, pending, edit, toggle, remove }: { filter: JobFilt
   const exclusions = (filter.exclusions ?? []).map((item) => item.value);
   return <article className={`filter-card ${filter.active ? "filter-card--active" : "filter-card--paused"}`}>
     <div className="filter-card__heading"><span className="feature-icon"><FilterIcon size={20} /></span><div><h2>{filter.name}</h2><span className={`status-pill ${filter.active ? "status-pill--matched" : ""}`}>{filter.active ? "Actively watching" : "Paused"}</span></div><div className="filter-card__controls"><button disabled={pending} onClick={edit} aria-label={`Edit ${filter.name}`}><Pencil size={18} /></button><button disabled={pending} onClick={toggle} aria-label={`${filter.active ? "Pause" : "Activate"} ${filter.name}`}><Power size={18} /></button><button disabled={pending} className="danger" onClick={remove} aria-label={`Delete ${filter.name}`}><Trash2 size={18} /></button></div></div>
-    <dl className="filter-details"><div><dt>Roles</dt><dd>{filter.role_keywords.join(", ") || "Any role"}</dd></div><div><dt>Locations</dt><dd>{filter.remote_only ? "Remote only" : filter.location_keywords.join(", ") || "Any location"}</dd></div><div><dt>Term</dt><dd>{filter.terms.join(", ") || "Any term"}</dd></div><div><dt>Excluded</dt><dd>{exclusions.join(", ") || "Nothing"}</dd></div>{filter.radius_km && <div><dt>Radius</dt><dd>{filter.radius_km} km</dd></div>}</dl>
+    <dl className="filter-details"><div><dt>Roles</dt><dd>{filter.role_categories.map((item) => ROLE_CATEGORY_LABELS[item] ?? item).join(", ")}</dd></div><div><dt>Locations</dt><dd>{filter.remote_only ? "Remote only" : filter.location_keywords.join(", ") || "Any location"}</dd></div><div><dt>Term</dt><dd>{filter.terms.join(", ") || "Any term"}</dd></div><div><dt>Excluded</dt><dd>{exclusions.join(", ") || "Nothing"}</dd></div>{filter.radius_km && <div><dt>Radius</dt><dd>{filter.radius_km} km</dd></div>}</dl>
     <FilterRouting filterId={filter.id} />
   </article>;
 }
@@ -136,7 +136,7 @@ function FilterEditor({ initial, onCancel, onSaved }: { initial: FilterInput | J
   const { api, notify } = useApp();
   const exclusions = "exclusions" in initial ? initial.exclusions : [];
   const [name, setName] = useState(initial.name);
-  const [roles, setRoles] = useState(initial.role_keywords ?? []);
+  const [roles, setRoles] = useState<RoleCategory[]>(initial.role_categories ?? ["all"]);
   const [locations, setLocations] = useState(initial.location_keywords ?? []);
   const [terms, setTerms] = useState(initial.terms ?? []);
   const [excludedKeywords, setExcludedKeywords] = useState("excluded_keywords" in initial ? initial.excluded_keywords ?? [] : exclusions.filter((item) => item.kind === "keyword").map((item) => item.value));
@@ -150,7 +150,7 @@ function FilterEditor({ initial, onCancel, onSaved }: { initial: FilterInput | J
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const isExisting = "id" in initial;
-  const value: FilterInput = useMemo(() => ({ name: name || "Preview", role_keywords: roles, location_keywords: locations, terms, work_mode: workMode, active: initial.active, remote_only: remoteOnly, radius_km: radius || null, center_latitude: radius ? cities[city][0] : null, center_longitude: radius ? cities[city][1] : null, excluded_keywords: excludedKeywords, excluded_companies: excludedCompanies, excluded_locations: excludedLocations }), [city, excludedCompanies, excludedKeywords, excludedLocations, initial.active, locations, name, radius, remoteOnly, roles, terms, workMode]);
+  const value: FilterInput = useMemo(() => ({ name: name || "Preview", role_categories: roles, location_keywords: locations, terms, work_mode: workMode, active: initial.active, remote_only: remoteOnly, radius_km: radius || null, center_latitude: radius ? cities[city][0] : null, center_longitude: radius ? cities[city][1] : null, excluded_keywords: excludedKeywords, excluded_companies: excludedCompanies, excluded_locations: excludedLocations }), [city, excludedCompanies, excludedKeywords, excludedLocations, initial.active, locations, name, radius, remoteOnly, roles, terms, workMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -169,7 +169,7 @@ function FilterEditor({ initial, onCancel, onSaved }: { initial: FilterInput | J
 
   return <section className="editor-panel guided-editor" aria-labelledby="filter-editor-title"><div className="panel-heading"><div><span className="page-eyebrow">{isExisting ? "Edit signal" : "Quick setup"}</span><h2 id="filter-editor-title">{isExisting ? initial.name : "What should we watch for?"}</h2></div><button className="close-button" onClick={onCancel} aria-label="Close filter editor"><X /></button></div><form onSubmit={submit} aria-busy={pending}>
     <div className="field field--wide"><label htmlFor="filter-name"><b>01</b>Name this search</label><input id="filter-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={100} required placeholder="Software internships" /></div>
-    <div className="guided-group field--wide"><div className="guided-group__heading"><span>02</span><div><strong>Include</strong><small>Choices within a row broaden the search.</small></div></div><div className="guided-fields"><SearchableMultiSelect id="roles" label="Roles or fields" values={roles} options={ROLE_OPTIONS} onChange={setRoles} placeholder="Search roles, for example Software Engineering" /><SearchableMultiSelect id="locations" label="Locations" values={locations} options={LOCATION_OPTIONS} onChange={setLocations} placeholder="Search locations, for example Toronto" /><TermPicker values={terms} onChange={setTerms} /></div></div>
+    <div className="guided-group field--wide"><div className="guided-group__heading"><span>02</span><div><strong>Include</strong><small>Pick one to five role groups. A job can fit more than one group.</small></div></div><div className="guided-fields"><SearchableMultiSelect id="roles" label="Role groups" values={roles} options={ROLE_CATEGORY_OPTIONS} onChange={(values) => setRoles(values as RoleCategory[])} placeholder="Choose Software engineering" allowCustom={false} maxSelections={5} exclusiveValues={["all"]} displayValue={(item) => ROLE_CATEGORY_LABELS[item] ?? item} /><SearchableMultiSelect id="locations" label="Locations" values={locations} options={LOCATION_OPTIONS} onChange={setLocations} placeholder="Search locations, for example Toronto" /><TermPicker values={terms} onChange={setTerms} /></div></div>
     <div className="guided-group field--wide exclusion-group"><div className="guided-group__heading"><span>03</span><div><strong>Exclude</strong><small>Any exclusion blocks a posting before positive scoring.</small></div></div><div className="guided-fields"><ChipInput id="excluded-keywords" label="Keywords" values={excludedKeywords} onChange={setExcludedKeywords} placeholder="unpaid" /><ChipInput id="excluded-companies" label="Companies" values={excludedCompanies} onChange={setExcludedCompanies} placeholder="Example Corp" /><ChipInput id="excluded-locations" label="Locations" values={excludedLocations} onChange={setExcludedLocations} placeholder="United States" /></div></div>
     <div className="field"><label htmlFor="work-mode">Work mode</label><select id="work-mode" value={workMode} onChange={(event) => setWorkMode(event.target.value as WorkMode)}>{["any", "remote", "hybrid", "onsite", "unknown"].map((item) => <option value={item} key={item}>{item}</option>)}</select></div>
     <label className="switch-row"><input type="checkbox" checked={remoteOnly} onChange={(event) => setRemoteOnly(event.target.checked)} /><span><strong>Remote only</strong><small>Exclude hybrid and onsite roles.</small></span></label>
@@ -180,7 +180,7 @@ function FilterEditor({ initial, onCancel, onSaved }: { initial: FilterInput | J
 }
 
 function Preview({ value }: { value: FilterPreview | null }) {
-  return <div className="filter-live-preview field--wide"><span>Live preview</span>{value ? <><p>{value.estimated_count} current match{value.estimated_count === 1 ? "" : "es"}</p>{Object.entries(value.aliases).map(([alias, meanings]) => <small key={alias}>{alias.toUpperCase()} also matches {meanings.join(", ")}. </small>)}{value.warnings.map((warning) => <strong key={warning}>{warning}</strong>)}<div className="preview-jobs">{value.examples.map((job) => <span key={job.id}>{job.company} · {job.title}</span>)}</div></> : <p>Add criteria to estimate matches.</p>}</div>;
+  return <div className="filter-live-preview field--wide"><span>Live preview</span>{value ? <><p>{value.estimated_count} current match{value.estimated_count === 1 ? "" : "es"}</p><small>{value.selected_categories.map((item) => ROLE_CATEGORY_LABELS[item] ?? item).join(" · ")}</small>{value.warnings.map((warning) => <strong key={warning}>{warning}</strong>)}<div className="preview-jobs">{value.examples.map((job) => <span key={job.id}>{job.company} · {job.title}</span>)}</div></> : <p>Add criteria to estimate matches.</p>}</div>;
 }
 
 function WatchlistPanel({ values, onChange }: { values: CompanyWatchlist[]; onChange: (values: CompanyWatchlist[]) => void }) {
