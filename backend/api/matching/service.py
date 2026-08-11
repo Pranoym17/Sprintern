@@ -95,10 +95,16 @@ class MatchingService:
         only_profile_id: uuid.UUID | None = None,
         watchlists: list[CompanyWatchlist] | None = None,
     ) -> int:
-        job.internship_status = classify_internship(job.title, job.description)
-        job.matcher_version = MATCHER_VERSION
+        # A user updating a filter runs through the restricted API role and
+        # must not mutate a shared job row. Classification is persisted by the
+        # worker's global matching pass; per-profile backfill only manages that
+        # user's matches and notification plans.
+        internship_status = classify_internship(job.title, job.description)
+        if only_profile_id is None:
+            job.internship_status = internship_status
+            job.matcher_version = MATCHER_VERSION
         matched_by_profile: defaultdict[uuid.UUID, list[dict[str, object]]] = defaultdict(list)
-        if job.internship_status == InternshipStatus.CONFIRMED:
+        if internship_status == InternshipStatus.CONFIRMED:
             for job_filter in filters:
                 result = match_filter(job, job_filter)
                 if result:

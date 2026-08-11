@@ -77,6 +77,33 @@ async def test_filter_rejects_free_form_roles_and_invalid_category_combinations(
     assert invalid_categories.status_code == 422
 
 
+async def test_all_roles_filter_preview_and_creation_do_not_require_legacy_keywords(
+    api_client: AsyncClient,
+    db_session: Session,
+) -> None:
+    now = datetime.now(UTC)
+    db_session.add(
+        Job(
+            company="All Roles Co",
+            normalized_company="all roles co",
+            title="Design Intern",
+            normalized_title="design intern",
+            canonical_fingerprint="a" * 64,
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+    )
+    db_session.commit()
+
+    preview = await api_client.post("/filters/preview", json={"name": "Everything"})
+    assert preview.status_code == 200
+    assert preview.json()["estimated_count"] == 1
+
+    created = await api_client.post("/filters", json={"name": "Everything"})
+    assert created.status_code == 201
+    assert created.json()["role_categories"] == ["all"]
+
+
 async def test_match_applied_and_analytics(
     api_client: AsyncClient,
     db_session: Session,

@@ -179,7 +179,7 @@ def match_filter(job: Job, job_filter: JobFilter) -> FilterMatch | None:
         # migrated. The public API no longer accepts free-form role keywords.
         restricted_roles = [
             value
-            for value in job_filter.role_keywords
+            for value in (job_filter.role_keywords or [])
             if normalize_text(value) not in UNRESTRICTED_ROLES
         ]
         if not restricted_roles:
