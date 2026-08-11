@@ -244,11 +244,11 @@
             "title": "Name",
             "type": "string"
           },
-          "role_keywords": {
+          "role_categories": {
             "items": {
               "type": "string"
             },
-            "title": "Role Keywords",
+            "title": "Role Categories",
             "type": "array"
           },
           "terms": {
@@ -265,7 +265,7 @@
         "required": [
           "id",
           "name",
-          "role_keywords",
+          "role_categories",
           "location_keywords",
           "terms",
           "work_mode",
@@ -1921,11 +1921,11 @@
             "title": "Remote Only",
             "type": "boolean"
           },
-          "role_keywords": {
+          "role_categories": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/RoleCategory"
             },
-            "title": "Role Keywords",
+            "title": "Role Categories",
             "type": "array"
           },
           "terms": {
@@ -2089,16 +2089,6 @@
       "FilterPreviewResponse": {
         "additionalProperties": false,
         "properties": {
-          "aliases": {
-            "additionalProperties": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "title": "Aliases",
-            "type": "object"
-          },
           "estimated_count": {
             "title": "Estimated Count",
             "type": "integer"
@@ -2120,6 +2110,13 @@
             "title": "Exclusions",
             "type": "object"
           },
+          "selected_categories": {
+            "items": {
+              "$ref": "#/components/schemas/RoleCategory"
+            },
+            "title": "Selected Categories",
+            "type": "array"
+          },
           "warnings": {
             "items": {
               "type": "string"
@@ -2132,7 +2129,7 @@
           "estimated_count",
           "examples",
           "warnings",
-          "aliases",
+          "selected_categories",
           "exclusions"
         ],
         "title": "FilterPreviewResponse",
@@ -2215,11 +2212,11 @@
             "title": "Remote Only",
             "type": "boolean"
           },
-          "role_keywords": {
+          "role_categories": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/RoleCategory"
             },
-            "title": "Role Keywords",
+            "title": "Role Categories",
             "type": "array"
           },
           "terms": {
@@ -2242,7 +2239,7 @@
           "id",
           "profile_id",
           "name",
-          "role_keywords",
+          "role_categories",
           "location_keywords",
           "terms",
           "work_mode",
@@ -2391,11 +2388,11 @@
             ],
             "title": "Remote Only"
           },
-          "role_keywords": {
+          "role_categories": {
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/RoleCategory"
                 },
                 "type": "array"
               },
@@ -2403,7 +2400,7 @@
                 "type": "null"
               }
             ],
-            "title": "Role Keywords"
+            "title": "Role Categories"
           },
           "terms": {
             "anyOf": [
@@ -3587,6 +3584,22 @@
           "inaccurate"
         ],
         "title": "ReportReason",
+        "type": "string"
+      },
+      "RoleCategory": {
+        "description": "The small, stable role taxonomy exposed to students.",
+        "enum": [
+          "all",
+          "software_engineering",
+          "ai_ml_data",
+          "cloud_infrastructure_security",
+          "hardware_embedded_silicon",
+          "product_design_research",
+          "quant_finance",
+          "business_operations_people",
+          "other_technical"
+        ],
+        "title": "RoleCategory",
         "type": "string"
       },
       "ShareCreate": {

@@ -1,33 +1,22 @@
 export type FilterOptionGroup = { label: string; options: readonly string[] };
 
-export const ROLE_OPTIONS: readonly FilterOptionGroup[] = [
-  { label: "All opportunities", options: ["Any role or field"] },
-  { label: "Engineering", options: [
-    "Software Engineering", "Software Developer", "SWE", "SDE", "Backend Engineering",
-    "Frontend Engineering", "Full Stack Engineering", "Mobile Engineering", "iOS Engineering",
-    "Android Engineering", "Cloud Engineering", "DevOps", "Site Reliability Engineering",
-    "Infrastructure Engineering", "Systems Engineering", "Network Engineering", "Cybersecurity",
-    "Quality Assurance", "Test Engineering",
-  ] },
-  { label: "Data & AI", options: [
-    "Data Science", "Data Analytics", "Data Engineering", "Machine Learning",
-    "Artificial Intelligence", "Applied Science", "Research Science", "Computer Vision",
-    "Natural Language Processing",
-  ] },
-  { label: "Hardware", options: [
-    "Embedded Systems", "Firmware Engineering", "Hardware Engineering", "Electrical Engineering",
-    "ASIC Engineering", "FPGA Engineering", "Silicon Engineering", "Verification Engineering",
-    "Mechanical Engineering", "Robotics",
-  ] },
-  { label: "Product & design", options: [
-    "Product Management", "Program Management", "Project Management", "UX Design", "UI Design",
-    "Product Design", "UX Research",
-  ] },
-  { label: "Business", options: [
-    "Business Analysis", "Consulting", "Quantitative Research", "Quantitative Trading", "Finance",
-    "Accounting", "Risk", "Marketing", "Sales", "Operations", "Supply Chain", "Human Resources",
-    "Recruiting", "Customer Success",
-  ] },
+export const ROLE_CATEGORY_LABELS: Record<string, string> = {
+  all: "All internship roles",
+  software_engineering: "Software engineering",
+  ai_ml_data: "AI, machine learning & data",
+  cloud_infrastructure_security: "Cloud, infrastructure & security",
+  hardware_embedded_silicon: "Hardware, embedded & silicon",
+  product_design_research: "Product, design & research",
+  quant_finance: "Quant & finance",
+  business_operations_people: "Business, operations & people",
+  other_technical: "Other technical roles",
+};
+
+export const ROLE_CATEGORY_OPTIONS: readonly FilterOptionGroup[] = [
+  { label: "Everything", options: ["all"] },
+  { label: "Engineering", options: ["software_engineering", "cloud_infrastructure_security", "hardware_embedded_silicon"] },
+  { label: "Data & product", options: ["ai_ml_data", "product_design_research"] },
+  { label: "Business", options: ["quant_finance", "business_operations_people", "other_technical"] },
 ] as const;
 
 export const LOCATION_OPTIONS: readonly FilterOptionGroup[] = [

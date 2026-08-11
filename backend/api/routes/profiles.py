@@ -163,7 +163,7 @@ def export_me(user: CurrentUser, session: Database) -> AccountExportResponse:
                 {
                     "id": str(item.id),
                     "name": item.name,
-                    "role_keywords": item.role_keywords,
+                    "role_categories": item.role_categories,
                     "location_keywords": item.location_keywords,
                     "terms": item.terms,
                     "work_mode": item.work_mode.value,

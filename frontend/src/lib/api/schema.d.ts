@@ -930,8 +930,8 @@ export interface components {
             location_keywords: string[];
             /** Name */
             name: string;
-            /** Role Keywords */
-            role_keywords: string[];
+            /** Role Categories */
+            role_categories: string[];
             /** Terms */
             terms: string[];
             work_mode: components["schemas"]["WorkMode"];
@@ -1456,8 +1456,8 @@ export interface components {
              * @default false
              */
             remote_only: boolean;
-            /** Role Keywords */
-            role_keywords?: string[];
+            /** Role Categories */
+            role_categories?: components["schemas"]["RoleCategory"][];
             /** Terms */
             terms?: string[];
             /** @default any */
@@ -1514,10 +1514,6 @@ export interface components {
         };
         /** FilterPreviewResponse */
         FilterPreviewResponse: {
-            /** Aliases */
-            aliases: {
-                [key: string]: string[];
-            };
             /** Estimated Count */
             estimated_count: number;
             /** Examples */
@@ -1526,6 +1522,8 @@ export interface components {
             exclusions: {
                 [key: string]: string[];
             };
+            /** Selected Categories */
+            selected_categories: components["schemas"]["RoleCategory"][];
             /** Warnings */
             warnings: string[];
         };
@@ -1562,8 +1560,8 @@ export interface components {
             radius_km: number | null;
             /** Remote Only */
             remote_only: boolean;
-            /** Role Keywords */
-            role_keywords: string[];
+            /** Role Categories */
+            role_categories: components["schemas"]["RoleCategory"][];
             /** Terms */
             terms: string[];
             /**
@@ -1595,8 +1593,8 @@ export interface components {
             radius_km?: number | null;
             /** Remote Only */
             remote_only?: boolean | null;
-            /** Role Keywords */
-            role_keywords?: string[] | null;
+            /** Role Categories */
+            role_categories?: components["schemas"]["RoleCategory"][] | null;
             /** Terms */
             terms?: string[] | null;
             work_mode?: components["schemas"]["WorkMode"] | null;
@@ -1956,6 +1954,12 @@ export interface components {
          * @enum {string}
          */
         ReportReason: "closed" | "duplicate" | "suspicious" | "inaccurate";
+        /**
+         * RoleCategory
+         * @description The small, stable role taxonomy exposed to students.
+         * @enum {string}
+         */
+        RoleCategory: "all" | "software_engineering" | "ai_ml_data" | "cloud_infrastructure_security" | "hardware_embedded_silicon" | "product_design_research" | "quant_finance" | "business_operations_people" | "other_technical";
         /** ShareCreate */
         ShareCreate: {
             /**

@@ -38,6 +38,20 @@ class WorkMode(StrEnum):
     UNKNOWN = "unknown"
 
 
+class RoleCategory(StrEnum):
+    """The small, stable role taxonomy exposed to students."""
+
+    ALL = "all"
+    SOFTWARE_ENGINEERING = "software_engineering"
+    AI_ML_DATA = "ai_ml_data"
+    CLOUD_INFRASTRUCTURE_SECURITY = "cloud_infrastructure_security"
+    HARDWARE_EMBEDDED_SILICON = "hardware_embedded_silicon"
+    PRODUCT_DESIGN_RESEARCH = "product_design_research"
+    QUANT_FINANCE = "quant_finance"
+    BUSINESS_OPERATIONS_PEOPLE = "business_operations_people"
+    OTHER_TECHNICAL = "other_technical"
+
+
 class JobStatus(StrEnum):
     ACTIVE = "active"
     STALE = "stale"

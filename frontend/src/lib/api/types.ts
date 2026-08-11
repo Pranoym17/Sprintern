@@ -3,6 +3,7 @@ import type { components } from "./schema";
 type Schemas = components["schemas"];
 
 export type WorkMode = Schemas["WorkMode"];
+export type RoleCategory = Schemas["RoleCategory"];
 export type MatchStatus = Schemas["MatchStatus"];
 export type NotificationCadence = Schemas["NotificationCadence"];
 export type DeliveryChannel = Schemas["NotificationChannel"];

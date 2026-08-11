@@ -13,6 +13,10 @@ export function SearchableMultiSelect({
   options,
   placeholder,
   onChange,
+  allowCustom = true,
+  maxSelections = 25,
+  exclusiveValues = [],
+  displayValue = (value) => value,
 }: {
   id: string;
   label: string;
@@ -20,6 +24,10 @@ export function SearchableMultiSelect({
   options: readonly string[] | readonly FilterOptionGroup[];
   placeholder: string;
   onChange: (values: string[]) => void;
+  allowCustom?: boolean;
+  maxSelections?: number;
+  exclusiveValues?: readonly string[];
+  displayValue?: (value: string) => string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -35,21 +43,21 @@ export function SearchableMultiSelect({
     const normalized = query.trim().toLowerCase();
     const suggestions = flattened
       .filter((option) => !selected.has(option.value.toLowerCase()))
-      .filter((option) => !normalized || option.value.toLowerCase().includes(normalized))
+      .filter((option) => !normalized || option.value.toLowerCase().includes(normalized) || displayValue(option.value).toLowerCase().includes(normalized))
       .slice(0, 18)
       .map((option) => ({ ...option, custom: false }));
     const customValue = query.trim();
-    const customAllowed = customValue
+    const customAllowed = allowCustom && customValue
       && !selected.has(customValue.toLowerCase())
       && !flattened.some((option) => option.value.toLowerCase() === customValue.toLowerCase());
     return customAllowed
       ? [{ value: customValue, custom: true }, ...suggestions]
       : suggestions;
-  }, [options, query, values]);
+  }, [allowCustom, displayValue, options, query, values]);
 
   function select(value: string) {
-    if (values.length >= 25) return;
-    const unrestricted = ["any role or field", "anywhere"];
+    if (values.length >= maxSelections) return;
+    const unrestricted = exclusiveValues.map((item) => item.toLowerCase());
     const normalized = value.toLowerCase();
     if (unrestricted.includes(normalized)) {
       onChange([value]);
@@ -89,7 +97,7 @@ export function SearchableMultiSelect({
     <label htmlFor={id}>{label}</label>
     <div className="searchable-multi-select__control" onClick={() => inputRef.current?.focus()}>
       {values.map((value) => <span className="searchable-multi-select__chip" key={value}>
-        {value}
+        {displayValue(value)}
         <button type="button" aria-label={`Remove ${value}`} onClick={(event) => {
           event.stopPropagation();
           onChange(values.filter((item) => item !== value));
@@ -107,7 +115,7 @@ export function SearchableMultiSelect({
         onFocus={() => setOpen(true)}
         onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); setOpen(true); }}
         onKeyDown={handleKeyDown}
-        placeholder={values.length ? "Search or add another" : placeholder}
+        placeholder={values.length ? "Search or choose another" : placeholder}
         maxLength={100}
       />
       <ChevronDown className={open ? "open" : ""} size={17} aria-hidden="true" />
@@ -124,11 +132,11 @@ export function SearchableMultiSelect({
         onMouseEnter={() => setActiveIndex(index)}
         onClick={() => select(choice.value)}
       >
-        <span>{choice.custom ? `Add “${choice.value}”` : choice.value}</span>
+        <span>{choice.custom ? `Add “${choice.value}”` : displayValue(choice.value)}</span>
         {!choice.custom && choice.group && <small>{choice.group}</small>}
         {!choice.custom && <Check size={15} aria-hidden="true" />}
       </button>) : <p>No more matching options.</p>}
     </div>}
-    <span className="field__help">Search suggestions or type a custom value and press Enter.</span>
+    <span className="field__help">{allowCustom ? "Search suggestions or type a custom value and press Enter." : `Choose up to ${maxSelections} categories.`}</span>
   </div>;
 }

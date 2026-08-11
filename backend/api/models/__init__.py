@@ -15,6 +15,7 @@ from api.models.enums import (
     PollCompleteness,
     ReminderType,
     ReportReason,
+    RoleCategory,
     WorkMode,
 )
 from api.models.filter import JobFilter
@@ -78,6 +79,7 @@ __all__ = [
     "ReminderEvent",
     "ReminderType",
     "ReportReason",
+    "RoleCategory",
     "SchedulerRuntime",
     "ShareLink",
     "SourceConfiguration",

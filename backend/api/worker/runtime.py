@@ -15,6 +15,7 @@ from api.matching import matching_service
 from api.models import BackgroundJob, JobSourceName
 from api.notifications.planning import notification_planner
 from api.notifications.runtime import build_dispatcher
+from api.retention import job_retention_service
 from api.schemas import IngestionRunRequest
 from api.settings import Settings, settings
 
@@ -52,6 +53,12 @@ class BackgroundJobHandler:
             with SessionLocal.begin() as session:
                 notification_planner.plan_events(session)
             await build_dispatcher(self.client, SessionLocal).dispatch_due(limit=100)
+            return
+        if job.job_type == "retention.purge_expired_jobs":
+            with SessionLocal.begin() as session:
+                job_retention_service.purge_expired_jobs(
+                    session, retention_days=settings.job_retention_days
+                )
             return
         raise ValueError(f"unsupported background job type: {job.job_type}")
 

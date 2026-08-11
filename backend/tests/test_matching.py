@@ -53,7 +53,7 @@ def test_internship_classification(
     assert classify_internship(title, description) == expected
 
 
-def test_filter_uses_and_between_dimensions_and_aliases() -> None:
+def test_filter_uses_and_between_dimensions_and_role_categories() -> None:
     profile_id = uuid.uuid4()
     candidate = job(
         "Software Engineering Intern",
@@ -65,7 +65,7 @@ def test_filter_uses_and_between_dimensions_and_aliases() -> None:
         id=uuid.uuid4(),
         profile_id=profile_id,
         name="SWE Montreal",
-        role_keywords=["swe"],
+        role_categories=["software_engineering"],
         location_keywords=["Montreal"],
         terms=["Summer 2027"],
         work_mode=WorkMode.HYBRID,
@@ -75,7 +75,7 @@ def test_filter_uses_and_between_dimensions_and_aliases() -> None:
 
     assert result is not None
     assert result.reasons["dimensions"] == {
-        "role": "software engineering",
+        "role_categories": "software_engineering",
         "location": "montreal",
         "term": "summer 2027",
         "work_mode": "hybrid",
@@ -120,11 +120,11 @@ def test_matching_service_aggregates_filters_and_is_idempotent(db_session: Sessi
     profile = Profile(id=uuid.uuid4(), email="student@example.com")
     profile.filters.extend(
         [
-            JobFilter(name="Software", role_keywords=["software"]),
-            JobFilter(name="Intern title", role_keywords=["intern"]),
+            JobFilter(name="Software", role_categories=["software_engineering"]),
+            JobFilter(name="AI", role_categories=["ai_ml_data"]),
         ]
     )
-    candidate = job("Software Engineering Intern")
+    candidate = job("Applied AI Software Engineering Intern")
     db_session.add_all([profile, candidate])
     db_session.flush()
     service = MatchingService()
@@ -145,7 +145,7 @@ def test_matching_service_aggregates_filters_and_is_idempotent(db_session: Sessi
 def test_profile_backfill_can_limit_matches_to_last_seven_days(db_session: Session) -> None:
     now = datetime.now(UTC)
     profile = Profile(id=uuid.uuid4(), email="recent@example.com")
-    profile.filters.append(JobFilter(name="Software", role_keywords=["software"]))
+    profile.filters.append(JobFilter(name="Software", role_categories=["software_engineering"]))
     recent = job("Software Engineering Intern", first_seen_at=now - timedelta(days=2))
     old = job("Software Developer Intern", first_seen_at=now - timedelta(days=8))
     db_session.add_all([profile, recent, old])

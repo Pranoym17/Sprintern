@@ -113,7 +113,7 @@ function validationMessage(detail: unknown): string | null {
   const rawField = [...location].reverse().find((item) => typeof item === "string");
   const labels:Record<string,string> = {
     email_digest_job_limit:"Top matches per email",
-    role_keywords:"Roles",
+    role_categories:"Role groups",
     location_keywords:"Locations",
     timezone:"Timezone",
   };

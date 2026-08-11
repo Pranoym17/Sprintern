@@ -11,7 +11,7 @@ from api.database import get_user_db
 from api.errors import AppError
 from api.ingestion.normalization import normalize_text
 from api.matching import matching_service
-from api.matching.matcher import ROLE_ALIASES, match_filter
+from api.matching.matcher import match_filter
 from api.models import (
     ExclusionType,
     FilterExclusion,
@@ -93,11 +93,6 @@ def preview_filter(
         job.latitude is None for job in jobs if job.work_mode.value != "remote"
     ):
         warnings.append("Jobs with unknown physical locations cannot pass a radius filter.")
-    aliases = {
-        keyword: list(ROLE_ALIASES.get(keyword.casefold(), ()))
-        for keyword in payload.role_keywords
-        if keyword.casefold() in ROLE_ALIASES
-    }
     return FilterPreviewResponse(
         estimated_count=len(matches),
         examples=[
@@ -111,7 +106,7 @@ def preview_filter(
             for job, result in matches[:5]
         ],
         warnings=warnings,
-        aliases=aliases,
+        selected_categories=payload.role_categories,
         exclusions=exclusion_summary,
     )
 

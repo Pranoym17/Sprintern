@@ -427,7 +427,7 @@ def export_filters_csv(user: CurrentUser, session: Database) -> Response:
         + [
             [
                 item.name,
-                ";".join(item.role_keywords),
+                ";".join(item.role_categories),
                 ";".join(item.location_keywords),
                 ";".join(item.terms),
                 item.work_mode.value,

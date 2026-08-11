@@ -72,6 +72,15 @@ def build_scheduler(
         misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
         next_run_time=startup_time,
     )
+    scheduler.add_job(
+        workflows.purge_expired_jobs,
+        CronTrigger(hour="4", minute="15", timezone=app_settings.scheduler_timezone),
+        id="retention:purge-expired-jobs",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=app_settings.scheduler_misfire_grace_seconds,
+    )
     return scheduler
 
 

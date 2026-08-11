@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, model_validator
 from api.models.enums import (
     ExclusionType,
     NotificationPriority,
+    RoleCategory,
     WorkMode,
 )
 from api.schemas.common import APIModel
@@ -30,9 +31,20 @@ def clean_terms(values: list[str]) -> list[str]:
     return cleaned
 
 
+def clean_role_categories(values: list[RoleCategory]) -> list[RoleCategory]:
+    cleaned = list(dict.fromkeys(values))
+    if not cleaned:
+        raise ValueError("choose at least one role category")
+    if len(cleaned) > 5:
+        raise ValueError("choose at most five role categories")
+    if RoleCategory.ALL in cleaned and len(cleaned) > 1:
+        raise ValueError("All roles cannot be combined with another category")
+    return cleaned
+
+
 class FilterCreate(APIModel):
     name: str = Field(min_length=1, max_length=100)
-    role_keywords: list[str] = Field(default_factory=list)
+    role_categories: list[RoleCategory] = Field(default_factory=lambda: [RoleCategory.ALL])
     location_keywords: list[str] = Field(default_factory=list)
     terms: list[str] = Field(default_factory=list)
     work_mode: WorkMode = WorkMode.ANY
@@ -45,7 +57,7 @@ class FilterCreate(APIModel):
     excluded_companies: list[str] = Field(default_factory=list)
     excluded_locations: list[str] = Field(default_factory=list)
 
-    _clean_roles = field_validator("role_keywords")(clean_values)
+    _clean_role_categories = field_validator("role_categories")(clean_role_categories)
     _clean_locations = field_validator("location_keywords")(clean_values)
     _clean_terms = field_validator("terms")(clean_terms)
     _clean_excluded_keywords = field_validator("excluded_keywords")(clean_values)
@@ -63,7 +75,7 @@ class FilterCreate(APIModel):
 
 class FilterUpdate(APIModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    role_keywords: list[str] | None = None
+    role_categories: list[RoleCategory] | None = None
     location_keywords: list[str] | None = None
     terms: list[str] | None = None
     work_mode: WorkMode | None = None
@@ -76,8 +88,8 @@ class FilterUpdate(APIModel):
     excluded_companies: list[str] | None = None
     excluded_locations: list[str] | None = None
 
-    _clean_roles = field_validator("role_keywords")(
-        lambda value: clean_values(value) if value else value
+    _clean_role_categories = field_validator("role_categories")(
+        lambda value: clean_role_categories(value) if value is not None else value
     )
     _clean_locations = field_validator("location_keywords")(
         lambda value: clean_values(value) if value else value
@@ -111,7 +123,7 @@ class FilterResponse(APIModel):
     id: uuid.UUID
     profile_id: uuid.UUID
     name: str
-    role_keywords: list[str]
+    role_categories: list[RoleCategory]
     location_keywords: list[str]
     terms: list[str]
     work_mode: WorkMode
@@ -137,7 +149,7 @@ class FilterPreviewResponse(APIModel):
     estimated_count: int
     examples: list[FilterPreviewExample]
     warnings: list[str]
-    aliases: dict[str, list[str]]
+    selected_categories: list[RoleCategory]
     exclusions: dict[str, list[str]]
 
 
