@@ -50,7 +50,7 @@ def upgrade() -> None:
                 SELECT 1 FROM unnest(f.role_keywords) AS keyword(value)
                 WHERE lower(keyword.value) ~ (
                   '(data|machine learning|ml|artificial intelligence|(^|[^a-z])'
-                  || 'ai([^a-z]|$)|research|vision|nlp'
+                  || 'ai([^a-z]|$)|research|vision|nlp)'
                 )
               ) THEN 'ai_ml_data' END,
               CASE WHEN EXISTS (
