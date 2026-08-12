@@ -20,6 +20,7 @@ from api.models import (
     NotificationChannel,
     NotificationDelivery,
     NotificationPriority,
+    ParserAlert,
     Profile,
     ReminderEvent,
     ReminderType,
@@ -337,6 +338,43 @@ def test_empty_digest_setting_never_creates_an_email(db_session: Session) -> Non
     assert first == 0
     assert second == 0
     assert empty == []
+
+
+def test_repeated_parser_failures_notify_an_admin_once_per_unresolved_incident(
+    db_session: Session, monkeypatch,
+) -> None:
+    now = datetime.now(UTC)
+    profile = Profile(
+        id=uuid.uuid4(),
+        email="admin@example.com",
+        telegram_chat_id="admin-chat",
+        telegram_notifications_enabled=True,
+        notification_consents={"parser_broken": True},
+    )
+    alert = ParserAlert(
+        source_key="owner/repository:README.md",
+        fingerprint="f" * 64,
+        message="The source failed repeatedly",
+    )
+    db_session.add_all([profile, alert])
+    db_session.flush()
+    monkeypatch.setattr(settings, "admin_user_ids_value", str(profile.id))
+    planner = NotificationPlanner()
+
+    assert planner.plan_events(db_session, now) == 1
+    db_session.flush()
+    alert.occurrences += 1
+    assert planner.plan_events(db_session, now + timedelta(minutes=15)) == 0
+    db_session.flush()
+
+    deliveries = list(
+        db_session.scalars(
+            select(NotificationDelivery).where(
+                NotificationDelivery.notification_type == "parser_broken"
+            )
+        )
+    )
+    assert len(deliveries) == 1
 
 
 async def test_filter_notification_preferences_are_owned(

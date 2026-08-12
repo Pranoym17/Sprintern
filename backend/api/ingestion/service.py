@@ -264,7 +264,22 @@ class IngestionService:
                     message=message,
                 )
             )
+        elif alert.resolved_at is not None:
+            # Preserve the resolved incident for operations history while
+            # freeing the stable category fingerprint for a genuinely new
+            # incident. Repeated polls during one incident continue updating
+            # the same unresolved row.
+            alert.fingerprint = hashlib.sha256(
+                f"{fingerprint}:{alert.resolved_at.isoformat()}".encode()
+            ).hexdigest()
+            session.flush()
+            session.add(
+                ParserAlert(
+                    source_key=source_key,
+                    fingerprint=fingerprint,
+                    message=message,
+                )
+            )
         else:
             alert.message = message
             alert.occurrences += 1
-            alert.resolved_at = None

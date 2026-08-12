@@ -69,6 +69,17 @@ GENERATED_ACTIONS_README = "\n".join(
     ]
 )
 
+SEVEN_COLUMN_GENERATED_README = "\n".join(
+    [
+        "# Summer 2027",
+        "",
+        "| Company | Role | Category | Location | Skills | Posted | Apply |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| Example | AI Intern | Data & ML/AI | Toronto | Python | Aug 11, 2026 | "
+        "[Apply](https://example.com/jobs/ai-intern) |",
+    ]
+)
+
 
 async def test_github_skips_unchanged_content_with_etag() -> None:
     calls = 0
@@ -124,6 +135,29 @@ async def test_github_parses_supported_table_and_inherited_company() -> None:
     assert batch.records[0].posted_at is not None
     assert batch.completeness == PollCompleteness.COMPLETE
     assert batch.next_cursor == {"sha": "new-sha", "etag": '"new-sha"'}
+
+
+async def test_github_parses_generated_seven_column_repository_schema() -> None:
+    async def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "sha": "seven-column-sha",
+                "encoding": "base64",
+                "content": base64.b64encode(SEVEN_COLUMN_GENERATED_README.encode()).decode(),
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        batch = await GitHubRepositoryAdapter(
+            "owner", "generated", RetryingHTTPClient(client)
+        ).fetch({})
+
+    assert len(batch.records) == 1
+    assert batch.records[0].title == "AI Intern"
+    assert batch.records[0].location == "Toronto"
+    assert batch.records[0].term == "Summer 2027"
+    assert str(batch.records[0].apply_url) == "https://example.com/jobs/ai-intern"
 
 
 async def test_github_parses_current_repository_table_style() -> None:

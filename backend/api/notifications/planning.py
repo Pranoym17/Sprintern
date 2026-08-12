@@ -448,9 +448,14 @@ class NotificationPlanner:
                 generic_events.extend(
                     (
                         "parser_broken",
-                        f"parser-broken:{alert.id}:{alert.occurrences}",
+                        # One unresolved incident should produce one alert. The
+                        # occurrence counter is diagnostic metadata, not a new
+                        # user-visible event on every failed poll. A successful
+                        # ingestion resolves the incident; a later regression
+                        # can then create a fresh parser alert.
+                        f"parser-broken:{alert.id}",
                         "A source parser needs attention",
-                        f"Sprintern could not read {alert.source_key} reliably.",
+                        f"{alert.source_key}: {alert.message}",
                     )
                     for alert in parser_alerts
                 )

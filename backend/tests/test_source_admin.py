@@ -1,4 +1,6 @@
+import hashlib
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -211,3 +213,35 @@ async def test_parser_alerts_cover_missing_tables_and_zero_acceptance(
         "broken/repository:README.md",
         "empty/repository:README.md",
     }
+
+
+def test_parser_alert_recovery_starts_one_new_incident(db_session: Session) -> None:
+    source_key = "recovering/repository:README.md"
+    category = "table_disappeared"
+    message = "A supported internship table could not be found"
+    fingerprint = hashlib.sha256(f"{source_key}:{category}".encode()).hexdigest()
+    resolved = ParserAlert(
+        source_key=source_key,
+        fingerprint=fingerprint,
+        message=message,
+        occurrences=3,
+        resolved_at=datetime.now(UTC),
+    )
+    db_session.add(resolved)
+    db_session.flush()
+
+    IngestionService._upsert_parser_alert(db_session, source_key, category, message)
+    db_session.flush()
+    IngestionService._upsert_parser_alert(db_session, source_key, category, message)
+    db_session.flush()
+
+    alerts = list(
+        db_session.scalars(
+            select(ParserAlert).where(ParserAlert.source_key == source_key)
+        )
+    )
+    unresolved = [alert for alert in alerts if alert.resolved_at is None]
+    assert len(alerts) == 2
+    assert len(unresolved) == 1
+    assert unresolved[0].occurrences == 2
+    assert unresolved[0].fingerprint == fingerprint
