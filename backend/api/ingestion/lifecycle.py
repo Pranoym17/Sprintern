@@ -45,7 +45,11 @@ class JobLifecycleService:
         for source_record in tracked:
             if source_record.external_id in seen_external_ids:
                 continue
-            source_record.missing_snapshot_count += 1
+            # Keep lifecycle processing safe before server-side defaults have
+            # been materialized back onto a newly attached ORM object.
+            source_record.missing_snapshot_count = (
+                source_record.missing_snapshot_count or 0
+            ) + 1
             source_record.missing_since = source_record.missing_since or observed_at
             if source_record.missing_snapshot_count >= self.stale_after_misses:
                 source_record.active = False
@@ -59,7 +63,10 @@ class JobLifecycleService:
             )
             if job is None or any(item.active for item in job.sources):
                 continue
-            if all(item.missing_snapshot_count >= self.expire_after_misses for item in job.sources):
+            if all(
+                (item.missing_snapshot_count or 0) >= self.expire_after_misses
+                for item in job.sources
+            ):
                 if job.status != JobStatus.EXPIRED:
                     expired += 1
                     session.add(JobChangeEvent(job_id=job.id, event_type="expired", changes={}))

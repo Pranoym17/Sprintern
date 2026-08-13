@@ -142,6 +142,8 @@ class JobPersister:
             raw_metadata=candidate.raw_metadata,
             first_seen_at=seen_at,
             last_seen_at=seen_at,
+            missing_snapshot_count=0,
+            active=True,
         )
 
     @staticmethod

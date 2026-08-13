@@ -18,6 +18,7 @@ from api.ingestion.adapters import GreenhouseAdapter, LeverAdapter
 from api.ingestion.adapters.utils import parse_datetime
 from api.ingestion.factory import build_adapter
 from api.ingestion.http import RetryingHTTPClient, SourceHTTPError
+from api.ingestion.lifecycle import JobLifecycleService
 from api.ingestion.normalization import (
     NormalizedJob,
     canonicalize_url,
@@ -516,6 +517,45 @@ async def test_complete_snapshots_drive_stale_and_expired_lifecycle(
         job = session.scalar(select(Job).where(Job.normalized_company == "example inc"))
         assert job is not None and job.status == JobStatus.EXPIRED
         assert job.expired_at is not None
+
+
+def test_new_source_occurrence_has_materialized_lifecycle_defaults(
+    db_session: Session,
+) -> None:
+    now = datetime.now(UTC)
+    persister = JobPersister()
+    original = normalize_job(JobSourceName.GITHUB_REPO, "owner/repo:README.md", raw_job("old"))
+    assert persister.persist(db_session, original, now - timedelta(days=1)) == (
+        PersistenceOutcome.CREATED
+    )
+    db_session.flush()
+    old_source = db_session.scalar(select(JobSource).where(JobSource.external_id == "old"))
+    assert old_source is not None
+    old_source.missing_snapshot_count = 1
+
+    replacement = normalize_job(
+        JobSourceName.GITHUB_REPO,
+        "owner/repo:README.md",
+        raw_job("replacement"),
+    )
+    assert persister.persist(db_session, replacement, now) == PersistenceOutcome.DUPLICATE
+
+    result = JobLifecycleService().apply_complete_snapshot(
+        db_session,
+        JobSourceName.GITHUB_REPO,
+        "owner/repo:README.md",
+        {"replacement"},
+        now,
+    )
+    db_session.flush()
+    replacement_source = db_session.scalar(
+        select(JobSource).where(JobSource.external_id == "replacement")
+    )
+
+    assert result.expired_jobs == 0
+    assert replacement_source is not None
+    assert replacement_source.active is True
+    assert replacement_source.missing_snapshot_count == 0
 
 
 async def test_partial_and_empty_snapshots_do_not_expire_jobs(
