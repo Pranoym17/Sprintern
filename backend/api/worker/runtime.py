@@ -59,6 +59,9 @@ class BackgroundJobHandler:
                 job_retention_service.purge_expired_jobs(
                     session, retention_days=settings.job_retention_days
                 )
+                job_retention_service.purge_completed_background_jobs(
+                    session, retention_days=settings.background_job_retention_days
+                )
             return
         raise ValueError(f"unsupported background job type: {job.job_type}")
 
@@ -73,7 +76,27 @@ async def run_worker(app_settings: Settings = settings) -> None:
         async with httpx.AsyncClient(timeout=15.0) as client:
             handler = BackgroundJobHandler(client)
             while not stop_event.is_set():
-                job = queue.claim(owner, app_settings.worker_lease_seconds)
+                try:
+                    job = queue.claim(owner, app_settings.worker_lease_seconds)
+                except Exception as exc:
+                    # A transient database timeout must not terminate the process.
+                    # The durable row remains queued (or lease-reclaimable), so a
+                    # short pause lets Postgres recover without losing work.
+                    logger.exception(
+                        "worker.claim_failed",
+                        extra={
+                            "event": "worker.claim_failed",
+                            "worker_id": owner,
+                            "exception_class": type(exc).__name__,
+                        },
+                    )
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(), timeout=app_settings.worker_claim_retry_seconds
+                        )
+                    except TimeoutError:
+                        pass
+                    continue
                 if job is None:
                     try:
                         await asyncio.wait_for(

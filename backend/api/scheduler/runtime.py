@@ -115,16 +115,18 @@ def reconcile_source_jobs(
 
 
 def _source_poll_triggers(timezone: str) -> dict[str, CronTrigger]:
-    """Poll frequently during the North American workday and hourly overnight.
+    """Poll every 30 minutes during the workday and every 6.5 hours overnight.
 
     The named IANA timezone keeps this policy correct through daylight-saving
     changes; source-specific intervals are intentionally superseded by this
     global traffic budget.
     """
     return {
-        "daytime": CronTrigger(minute="0,15,30,45", hour="9-19", timezone=timezone),
+        "daytime": CronTrigger(minute="0,30", hour="9-19", timezone=timezone),
         "evening": CronTrigger(minute="0", hour="20", timezone=timezone),
-        "overnight": CronTrigger(minute="0", hour="0-8,21-23", timezone=timezone),
+        # 20:00 -> 02:30 -> 09:00 is a 6.5-hour overnight cadence. The 09:00
+        # run is owned by the daytime trigger, so this trigger runs only 02:30.
+        "overnight": CronTrigger(minute="30", hour="2", timezone=timezone),
     }
 
 

@@ -9,7 +9,7 @@ import httpx
 import pytest
 from httpx import AsyncClient
 from pydantic import AnyHttpUrl
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.database import SessionLocal
@@ -29,6 +29,7 @@ from api.ingestion.persistence import JobPersister, PersistenceOutcome
 from api.ingestion.service import IngestionService
 from api.models import (
     BackgroundJob,
+    IngestionRun,
     IngestionRunStatus,
     Job,
     JobSource,
@@ -376,6 +377,40 @@ async def test_ingestion_is_idempotent_and_advances_cursor(
     # every active job and filter again when matcher inputs are unchanged.
     assert len(matching_jobs) == 1
     assert matching_jobs[0].payload["fingerprints"]
+
+
+async def test_unchanged_incremental_poll_does_not_create_run_history(
+    ingestion_factory: sessionmaker[Session],
+) -> None:
+    service = IngestionService(ingestion_factory)
+    await service.run(
+        FakeAdapter(
+            PollBatch(
+                records=[raw_job()],
+                completeness=PollCompleteness.COMPLETE,
+                next_cursor={"etag": '"stable"'},
+            )
+        )
+    )
+    with ingestion_factory() as session:
+        before = session.scalar(select(func.count(IngestionRun.id)))
+
+    acknowledgement = await service.run(
+        FakeAdapter(
+            PollBatch(
+                records=[],
+                completeness=PollCompleteness.INCREMENTAL,
+                next_cursor={"etag": '"stable"'},
+            )
+        )
+    )
+
+    with ingestion_factory() as session:
+        after = session.scalar(select(func.count(IngestionRun.id)))
+
+    assert acknowledgement.status == IngestionRunStatus.SUCCEEDED
+    assert acknowledgement.fetched_count == 0
+    assert before == after == 1
 
 
 async def test_ingestion_collapses_duplicate_source_rows_in_one_snapshot(

@@ -76,7 +76,7 @@ def test_registers_stable_non_overlapping_jobs() -> None:
     )
 
 
-def test_source_polling_uses_new_york_workday_and_hourly_overnight() -> None:
+def test_source_polling_uses_new_york_workday_and_six_and_a_half_hour_overnight_gap() -> None:
     triggers = _source_poll_triggers("America/New_York")
     eastern = ZoneInfo("America/New_York")
 
@@ -85,13 +85,13 @@ def test_source_polling_uses_new_york_workday_and_hourly_overnight() -> None:
     ) == datetime(2026, 8, 3, 9, 0, tzinfo=eastern)
     assert triggers["daytime"].get_next_fire_time(
         None, datetime(2026, 8, 3, 9, 1, tzinfo=eastern)
-    ) == datetime(2026, 8, 3, 9, 15, tzinfo=eastern)
+    ) == datetime(2026, 8, 3, 9, 30, tzinfo=eastern)
     assert triggers["evening"].get_next_fire_time(
         None, datetime(2026, 8, 3, 19, 46, tzinfo=eastern)
     ) == datetime(2026, 8, 3, 20, 0, tzinfo=eastern)
     assert triggers["overnight"].get_next_fire_time(
         None, datetime(2026, 8, 3, 20, 1, tzinfo=eastern)
-    ) == datetime(2026, 8, 3, 21, 0, tzinfo=eastern)
+    ) == datetime(2026, 8, 4, 2, 30, tzinfo=eastern)
 
 
 def test_fastapi_import_does_not_create_scheduler() -> None:

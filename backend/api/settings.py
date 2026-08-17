@@ -48,18 +48,21 @@ class Settings(BaseSettings):
     notification_lease_seconds: int = 300
     scheduler_source_config: Path = Path("config/sources.toml")
     # Telegram match alerts enqueue their own immediate dispatch. This is only
-    # the idle safety sweep for digests and reminders, so five minutes avoids
-    # creating thousands of empty durable jobs every day.
-    scheduler_notification_interval_seconds: int = Field(300, ge=30)
-    scheduler_heartbeat_interval_seconds: int = Field(30, ge=5)
+    # the idle safety sweep for digests and reminders, so a 15-minute sweep
+    # avoids accumulating empty durable jobs on a small Postgres instance.
+    scheduler_notification_interval_seconds: int = Field(900, ge=30)
+    scheduler_heartbeat_interval_seconds: int = Field(60, ge=5)
     # Source polling follows North American application activity, including DST.
     scheduler_timezone: str = "America/New_York"
     scheduler_misfire_grace_seconds: int = Field(60, ge=1)
     scheduler_shutdown_timeout_seconds: int = Field(30, ge=1)
-    worker_poll_interval_seconds: float = Field(5.0, ge=0.5, le=30)
+    worker_poll_interval_seconds: float = Field(15.0, ge=0.5, le=60)
+    worker_claim_retry_seconds: float = Field(15.0, ge=1, le=300)
     worker_lease_seconds: int = Field(300, ge=30, le=3600)
     job_retention_days: int = Field(180, ge=30, le=730)
-    scheduler_source_sync_seconds: int = Field(60, ge=15, le=3600)
+    background_job_retention_days: int = Field(14, ge=1, le=365)
+    scheduler_source_sync_seconds: int = Field(1800, ge=15, le=3600)
+    source_success_touch_interval_seconds: int = Field(21_600, ge=300, le=86_400)
     source_stale_after_hours: int = Field(24, ge=1, le=168)
     database_capacity_warning_bytes: int = Field(8_000_000_000, ge=1_000_000)
     github_rate_limit_warning_remaining: int = Field(500, ge=0)

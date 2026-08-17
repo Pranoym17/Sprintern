@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import uuid
 from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -23,6 +24,7 @@ from api.models import (
     SourceState,
 )
 from api.observability import redact_text
+from api.settings import settings
 
 
 class IngestionService:
@@ -48,10 +50,15 @@ class IngestionService:
                 return await self._run_locked(adapter)
 
     async def _run_locked(self, adapter: SourceAdapter) -> IngestionRun:
-        state_id, run_id, cursor = self._record_start(adapter)
+        state_id, cursor = self._load_state(adapter)
+        run_id: Any | None = None
         try:
             batch = await adapter.fetch(cursor)
             seen_at = datetime.now(UTC)
+            if self._is_unchanged_incremental(batch, cursor):
+                return self._record_unchanged_success(adapter, state_id, seen_at)
+
+            state_id, run_id, _ = self._record_start(adapter)
             normalized = []
             seen_source_ids: set[str] = set()
             source_duplicates = 0
@@ -154,8 +161,121 @@ class IngestionService:
                 session.expunge(run)
                 return run
         except Exception as exc:
+            # Fetch failures happen before a durable run exists. Record a
+            # compact failed run so operations can diagnose real provider
+            # failures without writing history for every successful 304.
+            if run_id is None:
+                state_id, run_id, _ = self._record_start(adapter)
             self._record_failure(state_id, run_id, exc)
             raise
+
+    @staticmethod
+    def _is_unchanged_incremental(batch: Any, cursor: dict[str, Any]) -> bool:
+        """Recognize a conditional GitHub 304 without coupling to that adapter.
+
+        An unchanged source has no rows, retains its cursor, and is explicitly
+        incremental. It has no new matcher input, so recording a full run and
+        touching every downstream queue is pure database churn.
+        """
+        return (
+            batch.completeness == PollCompleteness.INCREMENTAL
+            and not batch.records
+            and batch.rejected_count == 0
+            and batch.next_cursor == cursor
+        )
+
+    def _load_state(self, adapter: SourceAdapter) -> tuple[Any | None, dict[str, Any]]:
+        with self.session_factory() as session:
+            state = session.scalar(
+                select(SourceState).where(
+                    SourceState.source == adapter.source,
+                    SourceState.source_key == adapter.source_key,
+                )
+            )
+            if state is None:
+                return None, {}
+            return state.id, dict(state.cursor)
+
+    def _record_unchanged_success(
+        self,
+        adapter: SourceAdapter,
+        state_id: Any | None,
+        seen_at: datetime,
+    ) -> IngestionRun:
+        """Acknowledge a 304 sparingly while preserving freshness guarantees.
+
+        Refreshing a source's success timestamp on every conditional request
+        would still create hundreds of write transactions per day. We persist a
+        freshness heartbeat every six hours (or immediately after a failure or
+        alert), comfortably inside the 24-hour stale-source window.
+        """
+        if state_id is None:
+            # A 304 requires a previously stored ETag, so this only protects
+            # custom adapters with inconsistent state. Record a normal run.
+            state_id, run_id, _ = self._record_start(adapter)
+            with self.session_factory() as session:
+                state = session.get_one(SourceState, state_id)
+                run = session.get_one(IngestionRun, run_id)
+                state.last_succeeded_at = seen_at
+                state.last_error = None
+                state.consecutive_failures = 0
+                state.backoff_until = None
+                run.status = IngestionRunStatus.SUCCEEDED
+                run.completeness = PollCompleteness.INCREMENTAL
+                run.finished_at = seen_at
+                session.commit()
+                session.refresh(run)
+                session.expunge(run)
+                return run
+
+        with self.session_factory() as session:
+            state = session.get_one(SourceState, state_id)
+            unresolved_alert = session.scalar(
+                select(ParserAlert.id).where(
+                    ParserAlert.source_key == adapter.source_key,
+                    ParserAlert.resolved_at.is_(None),
+                )
+            )
+            last_success = state.last_succeeded_at
+            elapsed = (seen_at - last_success).total_seconds() if last_success else None
+            needs_touch = (
+                last_success is None
+                or elapsed is None
+                or elapsed >= settings.source_success_touch_interval_seconds
+                or state.consecutive_failures > 0
+                or state.last_error is not None
+                or unresolved_alert is not None
+            )
+            if needs_touch:
+                state.last_succeeded_at = seen_at
+                state.last_error = None
+                state.consecutive_failures = 0
+                state.backoff_until = None
+                for alert in session.scalars(
+                    select(ParserAlert).where(
+                        ParserAlert.source_key == adapter.source_key,
+                        ParserAlert.resolved_at.is_(None),
+                    )
+                ):
+                    alert.resolved_at = seen_at
+                session.commit()
+
+        # The caller only needs a status report; keeping this acknowledgement
+        # out of ingestion_runs is what removes 304-driven table growth.
+        return IngestionRun(
+            id=uuid.uuid4(),
+            source_state_id=state_id,
+            status=IngestionRunStatus.SUCCEEDED,
+            completeness=PollCompleteness.INCREMENTAL,
+            started_at=seen_at,
+            finished_at=seen_at,
+            fetched_count=0,
+            accepted_count=0,
+            rejected_count=0,
+            created_count=0,
+            updated_count=0,
+            duplicate_count=0,
+        )
 
     @contextmanager
     def _distributed_lock(self, adapter: SourceAdapter) -> Iterator[bool]:

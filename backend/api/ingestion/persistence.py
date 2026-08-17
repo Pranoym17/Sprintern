@@ -180,6 +180,9 @@ class JobPersister:
             if before != after
         }
         was_inactive = job.status != JobStatus.ACTIVE or not source_record.active
+        lifecycle_needs_reset = (
+            source_record.missing_snapshot_count != 0 or source_record.missing_since is not None
+        )
         # A new Git commit changes source provenance on every full snapshot. It
         # must refresh lifecycle timestamps, but it must not rematch every user
         # unless a field the matcher evaluates has actually changed.
@@ -194,6 +197,22 @@ class JobPersister:
                 (job.work_mode, candidate.work_mode),
             )
         )
+        source_fields_changed = (
+            source_record.apply_url != str(candidate.apply_url)
+            or self._metadata_without_revision(source_record.raw_metadata)
+            != self._metadata_without_revision(candidate.raw_metadata)
+        )
+        if not (
+            was_inactive
+            or lifecycle_needs_reset
+            or matcher_fields_changed
+            or source_fields_changed
+        ):
+            # Repository commits often alter only the SHA embedded in source
+            # metadata. Writing every active row for that provenance-only
+            # change creates unnecessary WAL and Disk IO without changing the
+            # user-facing posting or its lifecycle state.
+            return False
         if changes:
             session.add(JobChangeEvent(job_id=job.id, event_type="updated", changes=changes))
         if was_inactive:
@@ -226,3 +245,8 @@ class JobPersister:
         job.status = JobStatus.ACTIVE
         job.expired_at = None
         return was_inactive or matcher_fields_changed
+
+    @staticmethod
+    def _metadata_without_revision(metadata: dict[str, object]) -> dict[str, object]:
+        """Ignore Git revision churn while retaining meaningful parser metadata."""
+        return {key: value for key, value in metadata.items() if key != "commit_sha"}

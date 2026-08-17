@@ -3,7 +3,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -55,9 +55,19 @@ class BackgroundJobQueue:
             job = session.scalar(
                 select(BackgroundJob)
                 .where(
-                    BackgroundJob.status.in_(("queued", "running")),
-                    BackgroundJob.available_at <= now,
-                    or_(BackgroundJob.locked_at.is_(None), BackgroundJob.locked_at < expired),
+                    # Keep lease states explicit so PostgreSQL can use narrow
+                    # partial indexes instead of scanning completed history.
+                    or_(
+                        and_(
+                            BackgroundJob.status == "queued",
+                            BackgroundJob.available_at <= now,
+                            BackgroundJob.locked_at.is_(None),
+                        ),
+                        and_(
+                            BackgroundJob.status == "running",
+                            BackgroundJob.locked_at < expired,
+                        ),
+                    ),
                 )
                 .order_by(BackgroundJob.available_at, BackgroundJob.created_at)
                 .with_for_update(skip_locked=True)
