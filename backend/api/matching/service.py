@@ -1,11 +1,11 @@
 import uuid
 from collections import defaultdict
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, selectinload, sessionmaker
 
-from api.jobs import BackgroundJobQueue
 from api.matching.classifier import classify_internship
 from api.matching.matcher import MATCHER_VERSION, match_filter
 from api.models import (
@@ -21,6 +21,14 @@ from api.models import (
 from api.notifications.planning import notification_planner
 
 
+@dataclass(frozen=True)
+class ProfileRefresh:
+    profile_id: uuid.UUID
+    requested_at: datetime
+    locked_at: datetime
+    seen_since: datetime | None
+
+
 class MatchingService:
     @staticmethod
     def enqueue_profile_refresh(
@@ -29,22 +37,69 @@ class MatchingService:
         *,
         seen_since: datetime | None = None,
     ) -> None:
-        """Queue user-triggered rematching outside the filter write transaction.
+        """Request user-triggered rematching outside the filter write transaction.
 
         Matching a profile can touch many jobs and deliveries. Keeping that work
         out of create/update/delete requests prevents a filter row from being
-        locked long enough for a second user action to time out.
+        locked long enough for a second user action to time out. The marker is
+        stored on the owned profile instead of the global queue so the API role
+        never needs permission to inspect or mutate worker-owned records.
         """
-        payload: dict[str, str] = {"profile_id": str(profile_id)}
-        if seen_since is not None:
-            payload["seen_since"] = seen_since.isoformat()
-        BackgroundJobQueue.enqueue(
-            session,
-            job_type="matching.profile",
-            idempotency_key=f"matching:profile:{profile_id}:{uuid.uuid4()}",
-            payload=payload,
-            correlation_id=f"matching:profile:{profile_id}",
-        )
+        profile = session.get(Profile, profile_id)
+        if profile is None:
+            return
+        if profile.match_refresh_requested_at is None:
+            profile.match_refresh_seen_since = seen_since
+        elif seen_since is None:
+            # A deletion or broad filter edit needs a full pass to remove any
+            # matches that are no longer justified by the user's rules.
+            profile.match_refresh_seen_since = None
+        elif profile.match_refresh_seen_since is not None:
+            profile.match_refresh_seen_since = min(profile.match_refresh_seen_since, seen_since)
+        profile.match_refresh_requested_at = datetime.now(UTC)
+
+    @staticmethod
+    def claim_profile_refresh(
+        session_factory: sessionmaker[Session], lease_seconds: int
+    ) -> ProfileRefresh | None:
+        now = datetime.now(UTC)
+        stale_before = now - timedelta(seconds=lease_seconds)
+        with session_factory.begin() as session:
+            profile = session.scalar(
+                select(Profile)
+                .where(
+                    Profile.match_refresh_requested_at.is_not(None),
+                    or_(
+                        Profile.match_refresh_locked_at.is_(None),
+                        Profile.match_refresh_locked_at < stale_before,
+                    ),
+                )
+                .order_by(Profile.match_refresh_requested_at)
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            if profile is None or profile.match_refresh_requested_at is None:
+                return None
+            profile.match_refresh_locked_at = now
+            return ProfileRefresh(
+                profile_id=profile.id,
+                requested_at=profile.match_refresh_requested_at,
+                locked_at=now,
+                seen_since=profile.match_refresh_seen_since,
+            )
+
+    @staticmethod
+    def complete_profile_refresh(
+        session_factory: sessionmaker[Session], refresh: ProfileRefresh
+    ) -> None:
+        with session_factory.begin() as session:
+            profile = session.get(Profile, refresh.profile_id)
+            if profile is None or profile.match_refresh_locked_at != refresh.locked_at:
+                return
+            profile.match_refresh_locked_at = None
+            if profile.match_refresh_requested_at == refresh.requested_at:
+                profile.match_refresh_requested_at = None
+                profile.match_refresh_seen_since = None
 
     def match_all(self, session: Session) -> int:
         jobs = list(session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))

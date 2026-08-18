@@ -61,6 +61,12 @@ class Profile(TimestampMixin, Base):
     notification_consents: Mapped[dict[str, bool]] = mapped_column(
         JSONB, default=dict, server_default=text("'{}'::jsonb")
     )
+    # Filter writes are handled by the restricted API role. A per-profile
+    # refresh marker lets the worker perform expensive matching later without
+    # granting that role access to the shared durable-job queue.
+    match_refresh_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    match_refresh_seen_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    match_refresh_locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     filters = relationship("JobFilter", back_populates="profile", cascade="all, delete-orphan")
     matches = relationship("JobMatch", back_populates="profile", cascade="all, delete-orphan")

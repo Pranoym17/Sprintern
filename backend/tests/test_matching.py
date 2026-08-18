@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from api.matching import MatchingService, canonical_term, classify_internship, match_filter
 from api.models import (
@@ -161,6 +161,44 @@ def test_profile_backfill_can_limit_matches_to_last_seven_days(db_session: Sessi
     matches = list(db_session.scalars(select(JobMatch)))
     assert created == 1
     assert [match.job_id for match in matches] == [recent.id]
+
+
+def test_profile_refresh_markers_coalesce_requests_and_preserve_full_refresh(
+    db_session: Session,
+) -> None:
+    profile = Profile(id=uuid.uuid4(), email="refresh@example.com")
+    db_session.add(profile)
+    db_session.flush()
+    service = MatchingService()
+    recent = datetime.now(UTC) - timedelta(days=7)
+
+    service.enqueue_profile_refresh(db_session, profile.id, seen_since=recent)
+    db_session.flush()
+    assert profile.match_refresh_requested_at is not None
+    assert profile.match_refresh_seen_since == recent
+
+    # A later full refresh (for a deleted or broadened rule) must not be
+    # narrowed by an earlier seven-day backfill request.
+    service.enqueue_profile_refresh(db_session, profile.id)
+    db_session.flush()
+    assert profile.match_refresh_seen_since is None
+
+    factory = sessionmaker(
+        bind=db_session.get_bind(),
+        class_=Session,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    claimed = service.claim_profile_refresh(factory, lease_seconds=60)
+    assert claimed is not None
+    assert claimed.profile_id == profile.id
+    assert claimed.seen_since is None
+    service.complete_profile_refresh(factory, claimed)
+
+    db_session.expire_all()
+    completed = db_session.get_one(Profile, profile.id)
+    assert completed.match_refresh_requested_at is None
+    assert completed.match_refresh_locked_at is None
 
 
 def test_ambiguous_and_inactive_jobs_do_not_create_matches(db_session: Session) -> None:

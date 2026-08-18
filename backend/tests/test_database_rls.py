@@ -117,7 +117,7 @@ def test_worker_role_can_use_internal_tables_without_bypassing_rls() -> None:
         worker.execute(text("SELECT version_num FROM alembic_version"))
 
 
-def test_restricted_api_role_can_only_enqueue_its_own_profile_rematch() -> None:
+def test_restricted_api_role_can_request_its_own_profile_rematch() -> None:
     profile_id = uuid.uuid4()
     with engine.begin() as owner:
         owner.execute(
@@ -133,16 +133,11 @@ def test_restricted_api_role_can_only_enqueue_its_own_profile_rematch() -> None:
             )
             restricted.execute(
                 text(
-                    "INSERT INTO background_jobs "
-                    "(id, job_type, idempotency_key, payload, available_at, correlation_id) "
-                    "VALUES (:id, 'matching.profile', :key, "
-                    "CAST(:payload AS jsonb), now(), 'profile')"
+                    "UPDATE profiles "
+                    "SET match_refresh_requested_at = now() "
+                    "WHERE id = :profile_id"
                 ),
-                {
-                    "id": uuid.uuid4(),
-                    "key": f"profile-match:{uuid.uuid4()}",
-                    "payload": f'{{"profile_id":"{profile_id}"}}',
-                },
+                {"profile_id": profile_id},
             )
             try:
                 restricted.execute(text("SELECT id FROM background_jobs LIMIT 1"))

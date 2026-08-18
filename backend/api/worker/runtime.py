@@ -12,7 +12,7 @@ from api.database import SessionLocal
 from api.ingestion.factory import build_adapter
 from api.ingestion.service import IngestionService
 from api.jobs import BackgroundJobQueue
-from api.matching import matching_service
+from api.matching import ProfileRefresh, matching_service
 from api.models import BackgroundJob, JobSourceName
 from api.notifications.planning import notification_planner
 from api.notifications.runtime import build_dispatcher
@@ -86,6 +86,23 @@ class BackgroundJobHandler:
             return
         raise ValueError(f"unsupported background job type: {job.job_type}")
 
+    async def handle_profile_refresh(self, refresh: ProfileRefresh) -> None:
+        """Finish a user-owned rematch after the API has already responded."""
+        with SessionLocal.begin() as session:
+            matching_service.match_profile(
+                session,
+                refresh.profile_id,
+                seen_since=refresh.seen_since,
+            )
+            BackgroundJobQueue.enqueue(
+                session,
+                job_type="notifications.dispatch",
+                idempotency_key=(
+                    f"notifications:profile-refresh:{refresh.profile_id}:{refresh.requested_at.isoformat()}"
+                ),
+                correlation_id=f"matching:profile:{refresh.profile_id}",
+            )
+
 
 async def run_worker(app_settings: Settings = settings) -> None:
     stop_event = asyncio.Event()
@@ -97,6 +114,43 @@ async def run_worker(app_settings: Settings = settings) -> None:
         async with httpx.AsyncClient(timeout=15.0) as client:
             handler = BackgroundJobHandler(client)
             while not stop_event.is_set():
+                try:
+                    refresh = matching_service.claim_profile_refresh(
+                        SessionLocal, app_settings.worker_lease_seconds
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "worker.profile_refresh_claim_failed",
+                        extra={
+                            "event": "worker.profile_refresh_claim_failed",
+                            "worker_id": owner,
+                            "exception_class": type(exc).__name__,
+                        },
+                    )
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(), timeout=app_settings.worker_claim_retry_seconds
+                        )
+                    except TimeoutError:
+                        pass
+                    continue
+                if refresh is not None:
+                    refresh_context: dict[str, Any] = {
+                        "event": "worker.profile_refresh",
+                        "profile_id": str(refresh.profile_id),
+                    }
+                    try:
+                        await handler.handle_profile_refresh(refresh)
+                        matching_service.complete_profile_refresh(SessionLocal, refresh)
+                        logger.info("worker.profile_refresh.succeeded", extra=refresh_context)
+                    except Exception as exc:
+                        # Leave the lease in place. It becomes reclaimable after
+                        # the normal worker lease, avoiding a tight retry loop.
+                        logger.exception(
+                            "worker.profile_refresh.failed",
+                            extra={**refresh_context, "exception_class": type(exc).__name__},
+                        )
+                    continue
                 try:
                     job = queue.claim(owner, app_settings.worker_lease_seconds)
                 except Exception as exc:
