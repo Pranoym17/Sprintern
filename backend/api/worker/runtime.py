@@ -3,6 +3,7 @@ import logging
 import signal
 import uuid
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -31,17 +32,37 @@ class BackgroundJobHandler:
             request = IngestionRunRequest(source=JobSourceName.GITHUB_REPO, **job.payload)
             await IngestionService(SessionLocal).run(build_adapter(request, self.client))
             return
-        if job.job_type in {"matching.all", "matching.jobs"}:
+        if job.job_type in {"matching.all", "matching.jobs", "matching.profile"}:
             with SessionLocal.begin() as session:
                 if job.job_type == "matching.all":
                     matching_service.match_all(session)
-                else:
+                elif job.job_type == "matching.jobs":
                     fingerprints = job.payload.get("fingerprints", [])
                     if not isinstance(fingerprints, list) or not all(
                         isinstance(item, str) for item in fingerprints
                     ):
                         raise ValueError("matching.jobs requires a fingerprint list")
                     matching_service.match_fingerprints(session, fingerprints)
+                else:
+                    profile_value = job.payload.get("profile_id")
+                    if not isinstance(profile_value, str):
+                        raise ValueError("matching.profile requires a profile_id")
+                    try:
+                        profile_id = uuid.UUID(profile_value)
+                    except ValueError as exc:
+                        raise ValueError("matching.profile has an invalid profile_id") from exc
+                    seen_since_value = job.payload.get("seen_since")
+                    if seen_since_value is not None and not isinstance(seen_since_value, str):
+                        raise ValueError("matching.profile has an invalid seen_since")
+                    try:
+                        seen_since = (
+                            datetime.fromisoformat(seen_since_value)
+                            if seen_since_value is not None
+                            else None
+                        )
+                    except ValueError as exc:
+                        raise ValueError("matching.profile has an invalid seen_since") from exc
+                    matching_service.match_profile(session, profile_id, seen_since=seen_since)
                 BackgroundJobQueue.enqueue(
                     session,
                     job_type="notifications.dispatch",

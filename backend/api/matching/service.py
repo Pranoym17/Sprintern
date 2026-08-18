@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from api.jobs import BackgroundJobQueue
 from api.matching.classifier import classify_internship
 from api.matching.matcher import MATCHER_VERSION, match_filter
 from api.models import (
@@ -21,6 +22,30 @@ from api.notifications.planning import notification_planner
 
 
 class MatchingService:
+    @staticmethod
+    def enqueue_profile_refresh(
+        session: Session,
+        profile_id: uuid.UUID,
+        *,
+        seen_since: datetime | None = None,
+    ) -> None:
+        """Queue user-triggered rematching outside the filter write transaction.
+
+        Matching a profile can touch many jobs and deliveries. Keeping that work
+        out of create/update/delete requests prevents a filter row from being
+        locked long enough for a second user action to time out.
+        """
+        payload: dict[str, str] = {"profile_id": str(profile_id)}
+        if seen_since is not None:
+            payload["seen_since"] = seen_since.isoformat()
+        BackgroundJobQueue.enqueue(
+            session,
+            job_type="matching.profile",
+            idempotency_key=f"matching:profile:{profile_id}:{uuid.uuid4()}",
+            payload=payload,
+            correlation_id=f"matching:profile:{profile_id}",
+        )
+
     def match_all(self, session: Session) -> int:
         jobs = list(session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))
         filters = list(

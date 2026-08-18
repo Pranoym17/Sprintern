@@ -132,10 +132,10 @@ def create_filter(
     _replace_exclusions(job_filter, exclusions)
     session.add(job_filter)
     session.flush()
-    # A new filter immediately feels useful by backfilling the recent feed rather
-    # than waiting for the next ingestion run. Older history remains out of the
-    # initial match set so a broad filter cannot flood a new user's dashboard.
-    matching_service.match_profile(
+    # A new filter immediately queues a recent-feed backfill rather than waiting
+    # for ingestion. The worker owns the expensive matching transaction so this
+    # API request remains fast and never holds the filter row lock.
+    matching_service.enqueue_profile_refresh(
         session,
         user.id,
         seen_since=datetime.now(UTC) - timedelta(days=7),
@@ -173,7 +173,7 @@ def update_filter(
     for field, value in updates.items():
         setattr(job_filter, field, value)
     session.flush()
-    matching_service.match_profile(session, user.id)
+    matching_service.enqueue_profile_refresh(session, user.id)
     session.commit()
     session.refresh(job_filter)
     return job_filter
@@ -190,7 +190,7 @@ def delete_filter(filter_id: uuid.UUID, user: CurrentUser, session: Database) ->
         raise AppError(404, "not_found", "Filter not found")
     session.delete(job_filter)
     session.flush()
-    matching_service.match_profile(session, user.id)
+    matching_service.enqueue_profile_refresh(session, user.id)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

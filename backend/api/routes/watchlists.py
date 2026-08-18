@@ -74,7 +74,7 @@ def create_watchlist(
     )
     session.add(item)
     session.flush()
-    matching_service.match_profile(session, user.id)
+    matching_service.enqueue_profile_refresh(session, user.id)
     session.commit()
     session.refresh(item)
     return item
@@ -97,7 +97,7 @@ def update_watchlist(
             raise AppError(422, "validation_error", "Watchlist fields cannot be null")
         setattr(item, field, value)
     session.flush()
-    matching_service.match_profile(session, user.id)
+    matching_service.enqueue_profile_refresh(session, user.id)
     session.commit()
     session.refresh(item)
     return item
@@ -107,7 +107,7 @@ def update_watchlist(
 def delete_watchlist(watchlist_id: uuid.UUID, user: CurrentUser, session: Database) -> Response:
     session.delete(_owned(session, user.id, watchlist_id))
     session.flush()
-    matching_service.match_profile(session, user.id)
+    matching_service.enqueue_profile_refresh(session, user.id)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
