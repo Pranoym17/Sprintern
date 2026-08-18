@@ -117,6 +117,44 @@ def test_worker_role_can_use_internal_tables_without_bypassing_rls() -> None:
         worker.execute(text("SELECT version_num FROM alembic_version"))
 
 
+def test_restricted_api_role_can_only_enqueue_its_own_profile_rematch() -> None:
+    profile_id = uuid.uuid4()
+    with engine.begin() as owner:
+        owner.execute(
+            text("INSERT INTO profiles (id, email) VALUES (:id, :email)"),
+            {"id": profile_id, "email": "queue-rls@example.test"},
+        )
+    try:
+        with engine.begin() as restricted:
+            restricted.execute(text("SET LOCAL ROLE sprintern_api"))
+            restricted.execute(
+                text("SELECT set_config('request.jwt.claim.sub', :subject, true)"),
+                {"subject": str(profile_id)},
+            )
+            restricted.execute(
+                text(
+                    "INSERT INTO background_jobs "
+                    "(id, job_type, idempotency_key, payload, available_at, correlation_id) "
+                    "VALUES (:id, 'matching.profile', :key, "
+                    "CAST(:payload AS jsonb), now(), 'profile')"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "key": f"profile-match:{uuid.uuid4()}",
+                    "payload": f'{{"profile_id":"{profile_id}"}}',
+                },
+            )
+            try:
+                restricted.execute(text("SELECT id FROM background_jobs LIMIT 1"))
+            except Exception as exc:
+                assert "permission denied" in str(exc).casefold()
+            else:
+                raise AssertionError("API database role unexpectedly read the durable queue")
+    finally:
+        with engine.begin() as owner:
+            owner.execute(text("DELETE FROM profiles WHERE id = :id"), {"id": profile_id})
+
+
 def test_database_advisor_hardening_is_applied() -> None:
     with engine.connect() as owner:
         rls = dict(

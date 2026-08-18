@@ -1,10 +1,11 @@
 import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.models import BackgroundJob
@@ -27,21 +28,38 @@ class BackgroundJobQueue:
         available_at: datetime | None = None,
     ) -> BackgroundJob:
         job_id = uuid.uuid4()
-        inserted_id = session.scalar(
-            insert(BackgroundJob)
-            .values(
+        resolved_available_at = available_at or datetime.now(UTC)
+        result = cast(
+            CursorResult[Any],
+            session.execute(
+                insert(BackgroundJob)
+                .values(
+                    id=job_id,
+                    job_type=job_type,
+                    idempotency_key=idempotency_key,
+                    payload=payload or {},
+                    correlation_id=_bounded_correlation_id(correlation_id),
+                    max_attempts=max_attempts,
+                    available_at=resolved_available_at,
+                )
+                .on_conflict_do_nothing(index_elements=[BackgroundJob.idempotency_key])
+            ),
+        )
+        if result.rowcount == 1:
+            # Request-scoped API sessions may be allowed to enqueue narrowly
+            # scoped work without being allowed to inspect the global queue.
+            # Callers only need this acknowledgement; workers retain full read
+            # access for claims and retry handling.
+            return BackgroundJob(
                 id=job_id,
                 job_type=job_type,
                 idempotency_key=idempotency_key,
                 payload=payload or {},
                 correlation_id=_bounded_correlation_id(correlation_id),
                 max_attempts=max_attempts,
-                available_at=available_at or datetime.now(UTC),
+                available_at=resolved_available_at,
             )
-            .on_conflict_do_nothing(index_elements=[BackgroundJob.idempotency_key])
-            .returning(BackgroundJob.id)
-        )
-        resolved_id = inserted_id or session.scalar(
+        resolved_id = session.scalar(
             select(BackgroundJob.id).where(BackgroundJob.idempotency_key == idempotency_key)
         )
         if resolved_id is None:
