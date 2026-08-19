@@ -18,6 +18,7 @@ from api.models import (
     ParserAlert,
     Profile,
     ReminderEvent,
+    SourceConfiguration,
     SourceState,
     WeeklyGoal,
 )
@@ -423,9 +424,18 @@ class NotificationPlanner:
         stale_before = now - timedelta(hours=settings.source_stale_after_hours)
         stale_sources = list(
             session.scalars(
-                select(SourceState).where(
+                select(SourceState)
+                .join(
+                    SourceConfiguration,
+                    and_(
+                        SourceConfiguration.source == SourceState.source,
+                        SourceConfiguration.source_key == SourceState.source_key,
+                    ),
+                )
+                .where(
+                    SourceConfiguration.enabled.is_(True),
                     (SourceState.last_succeeded_at < stale_before)
-                    | (SourceState.consecutive_failures >= 2)
+                    | (SourceState.consecutive_failures >= 2),
                 )
             )
         )

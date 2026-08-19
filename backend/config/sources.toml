@@ -58,12 +58,15 @@ jitter_seconds = 0
 
 [[github]]
 enabled = true
-owner = "negarprh"
-repository = "Canadian-Tech-Internships-2026"
-path = "README-2027.md"
+owner = "michelleokolie"
+repository = "canada-tech-internships-summer-2027"
+path = "README.md"
 branch = "main"
-poll_minutes = 10
+term = "Summer 2027"
+poll_minutes = 30
 jitter_seconds = 0
+# Replaces negarprh/Canadian-Tech-Internships-2026:README-2027.md, whose
+# upstream file was removed and now returns GitHub 404.
 
 [[github]]
 enabled = true

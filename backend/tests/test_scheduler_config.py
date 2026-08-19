@@ -83,14 +83,18 @@ def test_fallback_registry_has_unique_active_sources_with_a_large_source_excepti
     keys = [source.source_key for source in config.enabled_github]
 
     assert len(keys) == len(set(key.casefold() for key in keys))
+    thirty_minute_sources = {
+        "SimplifyJobs/Summer2027-Internships:README.md",
+        "michelleokolie/canada-tech-internships-summer-2027:README.md",
+    }
     assert all(
         source.poll_minutes == 30
-        if source.source_key == "SimplifyJobs/Summer2027-Internships:README.md"
+        if source.source_key in thirty_minute_sources
         else source.poll_minutes == 10
         for source in config.enabled_github
     )
     assert all(source.jitter_seconds == 0 for source in config.enabled_github)
     assert keys.count("vanshb03/Summer2027-Internships:README.md") == 1
-    assert keys.count("negarprh/Canadian-Tech-Internships-2026:README-2027.md") == 1
+    assert keys.count("michelleokolie/canada-tech-internships-summer-2027:README.md") == 1
     assert keys.count("speedyapply/2027-SWE-College-Jobs:README.md") == 1
     assert keys.count("SimplifyJobs/Summer2027-Internships:README.md") == 1
