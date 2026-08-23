@@ -86,6 +86,8 @@ def test_fallback_registry_has_unique_active_sources_with_a_large_source_excepti
     thirty_minute_sources = {
         "SimplifyJobs/Summer2027-Internships:README.md",
         "michelleokolie/canada-tech-internships-summer-2027:README.md",
+        "zapplyjobs/Internships-2027:README.md",
+        "zapplyjobs/Canada-Internships-2027:README.md",
     }
     assert all(
         source.poll_minutes == 30

@@ -87,24 +87,24 @@ poll_minutes = 10
 jitter_seconds = 0
 
 [[github]]
-enabled = false
+enabled = true
 owner = "zapplyjobs"
 repository = "Internships-2027"
 path = "README.md"
 branch = "main"
-poll_minutes = 60
-jitter_seconds = 30
-# Disabled: the upstream table currently replaces application URLs with "#".
+poll_minutes = 30
+jitter_seconds = 0
+# Revalidated August 2026: original application links are present.
 
 [[github]]
-enabled = false
+enabled = true
 owner = "zapplyjobs"
 repository = "Canada-Internships-2027"
 path = "README.md"
 branch = "main"
-poll_minutes = 60
-jitter_seconds = 90
-# Disabled: the upstream table currently replaces application URLs with "#".
+poll_minutes = 30
+jitter_seconds = 0
+# Revalidated August 2026: original application links are present.
 
 [[github]]
 enabled = true
