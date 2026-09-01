@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.matching import MatchingService, canonical_term, classify_internship, match_filter
+from api.matching.matcher import role_categories_for_title
 from api.models import (
     InternshipStatus,
     Job,
@@ -13,6 +14,7 @@ from api.models import (
     JobMatch,
     JobStatus,
     Profile,
+    RoleCategory,
     WorkMode,
 )
 
@@ -51,6 +53,14 @@ def test_internship_classification(
     title: str, description: str | None, expected: InternshipStatus
 ) -> None:
     assert classify_internship(title, description) == expected
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Software Intern", "SWE Intern", "SDE Intern", "Backend Developer Intern"],
+)
+def test_software_taxonomy_covers_common_internship_title_forms(title: str) -> None:
+    assert RoleCategory.SOFTWARE_ENGINEERING in role_categories_for_title(title)
 
 
 def test_filter_uses_and_between_dimensions_and_role_categories() -> None:

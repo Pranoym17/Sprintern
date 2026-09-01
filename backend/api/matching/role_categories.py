@@ -18,8 +18,10 @@ ROLE_CATEGORY_LABELS: dict[RoleCategory, str] = {
 # remain the implementation detail that recognizes title variations such as SWE.
 ROLE_CATEGORY_KEYWORDS: dict[RoleCategory, tuple[str, ...]] = {
     RoleCategory.SOFTWARE_ENGINEERING: (
-        "software engineering", "software developer", "backend engineering",
-        "frontend engineering", "full stack engineering", "mobile engineering", "qa",
+        "software", "swe", "sde", "developer", "backend", "frontend", "full stack",
+        "mobile", "qa", "test", "software engineering", "software developer",
+        "backend engineering", "frontend engineering", "full stack engineering",
+        "mobile engineering",
     ),
     RoleCategory.AI_ML_DATA: (
         "data science", "data analytics", "data engineering", "machine learning",
