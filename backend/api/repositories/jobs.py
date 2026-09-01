@@ -133,7 +133,7 @@ def _apply_board_filters(
     if term:
         statement = statement.where(Job.term == term)
     if role_category and role_category != RoleCategory.ALL:
-        statement = statement.where(Job.role_categories.any(role_category.value))
+        statement = statement.where(Job.role_categories.contains([role_category.value]))
     if work_mode and work_mode not in {WorkMode.ANY, WorkMode.UNKNOWN}:
         statement = statement.where(Job.work_mode == work_mode)
     return statement
