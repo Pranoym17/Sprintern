@@ -69,12 +69,15 @@ jitter_seconds = 0
 # upstream file was removed and now returns GitHub 404.
 
 [[github]]
-enabled = true
+# The upstream README now contains only empty 2026 category placeholders, with
+# no employer application rows. Keep it disabled until the maintainer restores
+# a structured list of live openings.
+enabled = false
 owner = "hanzili"
 repository = "canada_sde_intern_position"
 path = "README.md"
 branch = "main"
-poll_minutes = 10
+poll_minutes = 60
 jitter_seconds = 0
 
 [[github]]

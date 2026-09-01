@@ -81,6 +81,10 @@ describe("authenticated product workflows", () => {
     await waitFor(() => expect(api.jobs).toHaveBeenLastCalledWith(undefined, expect.objectContaining({
       query:"Toronto", sort:"newest",
     })));
+    await user.selectOptions(screen.getByLabelText("Role"), "software_engineering");
+    await waitFor(() => expect(api.jobs).toHaveBeenLastCalledWith(undefined, expect.objectContaining({
+      role_category:"software_engineering",
+    })));
     expect(screen.queryByRole("option", { name:"Summer 2026" })).not.toBeInTheDocument();
   });
 

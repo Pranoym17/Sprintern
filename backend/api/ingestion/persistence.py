@@ -6,6 +6,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session, joinedload
 
 from api.ingestion.normalization import NormalizedJob
+from api.matching.matcher import role_categories_for_title
 from api.models import DeadlineSource, Job, JobChangeEvent, JobSource, JobStatus
 
 
@@ -104,6 +105,9 @@ class JobPersister:
             normalized_location=candidate.normalized_location,
             term=candidate.term,
             description=candidate.description,
+            role_categories=[
+                category.value for category in role_categories_for_title(candidate.title)
+            ],
             work_mode=candidate.work_mode,
             canonical_fingerprint=candidate.canonical_fingerprint,
             status=JobStatus.ACTIVE,
@@ -233,6 +237,9 @@ class JobPersister:
         job.normalized_location = candidate.normalized_location
         job.term = candidate.term
         job.description = candidate.description
+        job.role_categories = [
+            category.value for category in role_categories_for_title(candidate.title)
+        ]
         job.work_mode = candidate.work_mode
         job.posted_at = candidate.posted_at
         if candidate.deadline_at:

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from api.auth import CurrentUser
 from api.database import get_user_db
 from api.errors import AppError
-from api.models import WorkMode
+from api.models import RoleCategory, WorkMode
 from api.repositories.jobs import count_jobs, get_job, list_jobs
 from api.repositories.pagination import decode_offset_cursor, encode_offset_cursor
 from api.schemas import JobPage, PublicJobResponse
@@ -26,6 +26,7 @@ def read_jobs(
     company: Annotated[str | None, Query(min_length=1, max_length=120)] = None,
     location: Annotated[str | None, Query(min_length=1, max_length=120)] = None,
     term: Annotated[str | None, Query(pattern=r"^(?:Summer|Fall|Winter) \d{4}$")] = None,
+    role_category: RoleCategory | None = None,
     work_mode: WorkMode | None = None,
     posted_within_days: Literal[1, 7, 14, 30] | None = None,
     sort: Literal["newest", "company", "deadline", "relevance"] = "newest",
@@ -39,6 +40,7 @@ def read_jobs(
         company,
         location,
         term,
+        role_category,
         work_mode,
         posted_within_days,
         sort,
@@ -51,7 +53,7 @@ def read_jobs(
         items=[PublicJobResponse.model_validate(job) for job in items],
         next_cursor=next_cursor,
         total_count=count_jobs(
-            session, query, company, location, term, work_mode, posted_within_days
+            session, query, company, location, term, role_category, work_mode, posted_within_days
         ),
     )
 

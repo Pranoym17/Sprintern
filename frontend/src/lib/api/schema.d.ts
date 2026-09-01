@@ -4799,6 +4799,7 @@ export interface operations {
                 company?: string | null;
                 location?: string | null;
                 term?: string | null;
+                role_category?: components["schemas"]["RoleCategory"] | null;
                 work_mode?: components["schemas"]["WorkMode"] | null;
                 posted_within_days?: (1 | 7 | 14 | 30) | null;
                 sort?: "newest" | "company" | "deadline" | "relevance";

@@ -49,6 +49,7 @@ export type JobBoardFilters = {
   company?: string;
   location?: string;
   term?: string;
+  role_category?: RoleCategory;
   work_mode?: WorkMode;
   posted_within_days?: 1 | 7 | 14 | 30;
   sort?: JobBoardSort;

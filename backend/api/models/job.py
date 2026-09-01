@@ -14,8 +14,9 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.database import Base
@@ -53,6 +54,13 @@ class Job(TimestampMixin, Base):
         server_default=InternshipStatus.UNKNOWN.value,
     )
     matcher_version: Mapped[str | None] = mapped_column(String(32))
+    # Stored at ingestion time so board filtering uses the exact same bounded
+    # taxonomy as alert filters without scanning every title in Python.
+    role_categories: Mapped[list[str]] = mapped_column(
+        ARRAY(String(48)),
+        default=lambda: ["other_technical"],
+        server_default=text("'{other_technical}'::varchar[]"),
+    )
     work_mode: Mapped[WorkMode] = mapped_column(
         Enum(
             WorkMode,

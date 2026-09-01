@@ -7548,6 +7548,22 @@
           },
           {
             "in": "query",
+            "name": "role_category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RoleCategory"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role Category"
+            }
+          },
+          {
+            "in": "query",
             "name": "work_mode",
             "required": false,
             "schema": {

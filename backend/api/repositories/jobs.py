@@ -5,7 +5,7 @@ from typing import Any, Literal
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from api.models import Job, JobSource, JobStatus, WorkMode
+from api.models import Job, JobSource, JobStatus, RoleCategory, WorkMode
 
 JobBoardSort = Literal["newest", "company", "deadline", "relevance"]
 
@@ -38,6 +38,7 @@ def list_jobs(
     company: str | None = None,
     location: str | None = None,
     term: str | None = None,
+    role_category: RoleCategory | None = None,
     work_mode: WorkMode | None = None,
     posted_within_days: int | None = None,
     sort: JobBoardSort = "newest",
@@ -56,6 +57,7 @@ def list_jobs(
         company,
         location,
         term,
+        role_category,
         work_mode,
         posted_within_days,
     )
@@ -84,6 +86,7 @@ def count_jobs(
     company: str | None = None,
     location: str | None = None,
     term: str | None = None,
+    role_category: RoleCategory | None = None,
     work_mode: WorkMode | None = None,
     posted_within_days: int | None = None,
 ) -> int:
@@ -93,6 +96,7 @@ def count_jobs(
         company,
         location,
         term,
+        role_category,
         work_mode,
         posted_within_days,
     )
@@ -105,6 +109,7 @@ def _apply_board_filters(
     company: str | None,
     location: str | None,
     term: str | None,
+    role_category: RoleCategory | None,
     work_mode: WorkMode | None,
     posted_within_days: int | None,
 ) -> Any:
@@ -127,6 +132,8 @@ def _apply_board_filters(
         statement = statement.where(Job.location.ilike(f"%{location.strip()}%"))
     if term:
         statement = statement.where(Job.term == term)
+    if role_category and role_category != RoleCategory.ALL:
+        statement = statement.where(Job.role_categories.any(role_category.value))
     if work_mode and work_mode not in {WorkMode.ANY, WorkMode.UNKNOWN}:
         statement = statement.where(Job.work_mode == work_mode)
     return statement

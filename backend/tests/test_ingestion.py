@@ -36,6 +36,7 @@ from api.models import (
     JobSourceName,
     JobStatus,
     PollCompleteness,
+    RoleCategory,
     SourceState,
 )
 from api.repositories.jobs import list_jobs
@@ -215,6 +216,15 @@ def test_job_board_filters_active_jobs_without_a_fixed_age_window(db_session: Se
 
     assert {job.company for job in all_jobs} >= {"Northstar Labs", "Westcoast Systems"}
     assert [job.company for job in filtered] == ["Northstar Labs"]
+
+    role_filtered = list_jobs(
+        db_session,
+        limit=10,
+        offset=0,
+        role_category=RoleCategory.SOFTWARE_ENGINEERING,
+    )
+
+    assert [job.company for job in role_filtered] == ["Northstar Labs"]
 
 
 def test_different_locations_remain_distinct_jobs(db_session: Session) -> None:

@@ -8,7 +8,8 @@ import { useApp } from "@/components/app-provider";
 import { CompanyLogo } from "@/components/company-logo";
 import { EmptyState, PageHeader } from "@/components/dashboard-view";
 import { PageError } from "@/components/page-state";
-import type { Job, JobBoardFilters, JobBoardSort, WorkMode } from "@/lib/api/types";
+import { ROLE_CATEGORY_LABELS } from "@/lib/filter-options";
+import type { Job, JobBoardFilters, JobBoardSort, RoleCategory, WorkMode } from "@/lib/api/types";
 
 const TERMS = ["Fall 2026", "Winter 2027", "Summer 2027", "Fall 2027", "Winter 2028", "Summer 2028", "Fall 2028"];
 
@@ -22,6 +23,7 @@ export function JobsBoardView() {
   const [company, setCompany] = useState("");
   const [location, setLocation] = useState("");
   const [term, setTerm] = useState("");
+  const [roleCategory, setRoleCategory] = useState<RoleCategory | "">("");
   const [workMode, setWorkMode] = useState<WorkMode>("any");
   const [postedWithinDays, setPostedWithinDays] = useState<"" | 1 | 7 | 14 | 30>("");
   const [sort, setSort] = useState<JobBoardSort>("newest");
@@ -46,6 +48,7 @@ export function JobsBoardView() {
         company: company.trim() || undefined,
         location: location.trim() || undefined,
         term: term || undefined,
+        role_category: roleCategory || undefined,
         work_mode: workMode === "any" ? undefined : workMode,
         posted_within_days: postedWithinDays || undefined,
         sort,
@@ -65,7 +68,7 @@ export function JobsBoardView() {
         setLoadingMore(false);
       }
     }
-  }, [api, company, location, postedWithinDays, searchQuery, sort, term, workMode]);
+  }, [api, company, location, postedWithinDays, roleCategory, searchQuery, sort, term, workMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -74,9 +77,9 @@ export function JobsBoardView() {
 
   if (error && !items.length) return <PageError message={error} retry={() => void load()} />;
 
-  const hasFilters = Boolean(searchQuery || company || location || term || workMode !== "any" || postedWithinDays || sort !== "newest");
+  const hasFilters = Boolean(searchQuery || company || location || term || roleCategory || workMode !== "any" || postedWithinDays || sort !== "newest");
   const clearFilters = () => {
-    setQuery(""); setSearchQuery(""); setCompany(""); setLocation(""); setTerm("");
+    setQuery(""); setSearchQuery(""); setCompany(""); setLocation(""); setTerm(""); setRoleCategory("");
     setWorkMode("any"); setPostedWithinDays(""); setSort("newest");
   };
 
@@ -98,6 +101,9 @@ export function JobsBoardView() {
       <div className="board-filter-grid">
         <label><span>Company</span><input value={company} onChange={(event) => setCompany(event.target.value.slice(0, 120))} placeholder="Any company" /></label>
         <label><span>Location</span><input value={location} onChange={(event) => setLocation(event.target.value.slice(0, 120))} placeholder="Any location" /></label>
+        <label><span>Role</span><select value={roleCategory} onChange={(event) => setRoleCategory(event.target.value as RoleCategory | "")}>
+          <option value="">All roles</option>{Object.entries(ROLE_CATEGORY_LABELS).filter(([value]) => value !== "all").map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+        </select></label>
         <label><span>Term</span><select value={term} onChange={(event) => setTerm(event.target.value)}>
           <option value="">Any term</option>{TERMS.map((value) => <option value={value} key={value}>{value}</option>)}
         </select></label>
