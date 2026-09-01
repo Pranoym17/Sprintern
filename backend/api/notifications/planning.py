@@ -213,6 +213,10 @@ class NotificationPlanner:
                     select(func.count(NotificationDelivery.id)).where(
                         NotificationDelivery.profile_id == profile.id,
                         NotificationDelivery.channel == NotificationChannel.TELEGRAM,
+                        # The daily cap protects immediate new-job discovery.
+                        # Optional lifecycle/reminder messages must not delay a
+                        # real new match until tomorrow.
+                        NotificationDelivery.notification_type == "new_match",
                         NotificationDelivery.status != DeliveryStatus.CANCELLED,
                         or_(
                             and_(

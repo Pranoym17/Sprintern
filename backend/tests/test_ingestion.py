@@ -624,6 +624,33 @@ async def test_partial_and_empty_snapshots_do_not_expire_jobs(
     assert empty_run.error == "Empty snapshot ignored for lifecycle safety"
 
 
+async def test_abrupt_snapshot_shrink_does_not_create_false_reopens(
+    ingestion_factory: sessionmaker[Session],
+) -> None:
+    service = IngestionService(ingestion_factory)
+    initial = PollBatch(
+        records=[raw_job(f"job-{number}", f"Company {number}") for number in range(4)],
+        completeness=PollCompleteness.COMPLETE,
+    )
+    await service.run(FakeAdapter(initial))
+
+    shrunk = await service.run(
+        FakeAdapter(
+            PollBatch(
+                records=[raw_job("job-0", "Company 0")],
+                completeness=PollCompleteness.COMPLETE,
+            )
+        )
+    )
+
+    with ingestion_factory() as session:
+        sources = list(session.scalars(select(JobSource).order_by(JobSource.external_id)))
+
+    assert all(source.active for source in sources)
+    assert all(source.missing_snapshot_count == 0 for source in sources)
+    assert shrunk.error == "Abrupt snapshot shrink ignored for lifecycle safety"
+
+
 def test_expired_external_id_reused_after_threshold_creates_repost(
     db_session: Session,
 ) -> None:

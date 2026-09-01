@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from math import ceil
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -12,6 +13,7 @@ class LifecycleResult:
     stale_jobs: int = 0
     expired_jobs: int = 0
     suspicious_empty_snapshot: bool = False
+    suspicious_shrunk_snapshot: bool = False
 
 
 class JobLifecycleService:
@@ -40,6 +42,16 @@ class JobLifecycleService:
         )
         if not seen_external_ids and any(item.active for item in tracked):
             return LifecycleResult(suspicious_empty_snapshot=True)
+
+        # Curated repositories are sometimes rewritten or only partly rendered
+        # for a single commit. Treating a sudden large drop as authoritative
+        # makes valid jobs look expired and then "reopened" on the next healthy
+        # snapshot. Wait for a stable follow-up instead of changing lifecycle
+        # state when fewer than half of the source's active rows remain.
+        active_count = sum(item.active for item in tracked)
+        minimum_expected = max(1, ceil(active_count * 0.5))
+        if active_count and len(seen_external_ids) < minimum_expected:
+            return LifecycleResult(suspicious_shrunk_snapshot=True)
 
         affected_job_ids = set()
         for source_record in tracked:

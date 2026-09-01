@@ -133,6 +133,8 @@ class IngestionService:
                     )
                     if lifecycle_result.suspicious_empty_snapshot:
                         errors.append("Empty snapshot ignored for lifecycle safety")
+                    elif lifecycle_result.suspicious_shrunk_snapshot:
+                        errors.append("Abrupt snapshot shrink ignored for lifecycle safety")
                 if match_fingerprints:
                     BackgroundJobQueue.enqueue(
                         session,

@@ -280,6 +280,46 @@ def test_telegram_daily_cap_queues_overflow_for_next_local_digest_time(
     assert overflow.cadence == NotificationCadence.INSTANT
 
 
+def test_reopened_postings_do_not_consume_new_match_telegram_cap(
+    db_session: Session,
+) -> None:
+    now = datetime(2026, 7, 24, 13, 0, tzinfo=UTC)
+    profile = Profile(
+        id=uuid.uuid4(),
+        timezone="UTC",
+        telegram_chat_id="new-match-chat",
+        telegram_notifications_enabled=True,
+        max_alerts_per_day=1,
+        notification_consents={"posting_reopened": True},
+    )
+    job_filter = JobFilter(profile=profile, name="New matches first")
+    match = notification_match(db_session, profile, job_filter)
+    db_session.add(
+        NotificationDelivery(
+            profile=profile,
+            channel=NotificationChannel.TELEGRAM,
+            cadence=NotificationCadence.INSTANT,
+            recipient="new-match-chat",
+            idempotency_key=f"reopened:{uuid.uuid4()}",
+            notification_type="posting_reopened",
+            next_attempt_at=now,
+        )
+    )
+    db_session.flush()
+
+    NotificationPlanner().plan_match(db_session, match, profile, now)
+    delivery = db_session.scalar(
+        select(NotificationDelivery).where(
+            NotificationDelivery.match_id == match.id,
+            NotificationDelivery.channel == NotificationChannel.TELEGRAM,
+        )
+    )
+
+    assert delivery is not None
+    assert delivery.next_attempt_at == now
+    assert delivery.queued_reason is None
+
+
 def test_priority_only_instant_suppresses_normal_telegram_but_keeps_daily_email(
     db_session: Session,
 ) -> None:
