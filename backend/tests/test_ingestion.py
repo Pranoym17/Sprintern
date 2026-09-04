@@ -32,6 +32,7 @@ from api.models import (
     IngestionRun,
     IngestionRunStatus,
     Job,
+    JobChangeEvent,
     JobSource,
     JobSourceName,
     JobStatus,
@@ -675,6 +676,58 @@ def test_expired_external_id_reused_after_threshold_creates_repost(
     assert outcome == PersistenceOutcome.CREATED
     assert [source.occurrence for source in sources] == [1, 2]
     assert len(list(db_session.scalars(select(Job)))) == 2
+
+
+def test_only_verified_expirations_create_reopened_events(db_session: Session) -> None:
+    persister = JobPersister()
+    now = datetime.now(UTC)
+
+    def reactivate(*, external_id: str, status: JobStatus, expired_at: datetime | None) -> Job:
+        candidate = normalize_job(
+            JobSourceName.GREENHOUSE,
+            "example",
+            raw_job(external_id, external_id),
+        )
+        assert persister.persist(db_session, candidate, now - timedelta(days=3)) == (
+            PersistenceOutcome.CREATED
+        )
+        db_session.flush()
+        source = db_session.scalar(
+            select(JobSource).where(JobSource.external_id == candidate.external_id)
+        )
+        assert source is not None
+        job = source.job
+        job.status = status
+        job.expired_at = expired_at
+        source.active = False
+        source.missing_snapshot_count = 3
+        assert persister.persist(db_session, candidate, now) == PersistenceOutcome.UPDATED
+        db_session.flush()
+        return job
+
+    stale = reactivate(external_id="stale", status=JobStatus.STALE, expired_at=None)
+    briefly_expired = reactivate(
+        external_id="briefly-expired",
+        status=JobStatus.EXPIRED,
+        expired_at=now - timedelta(hours=23),
+    )
+    verified = reactivate(
+        external_id="verified-expired",
+        status=JobStatus.EXPIRED,
+        expired_at=now - timedelta(days=1, seconds=1),
+    )
+
+    events = list(
+        db_session.scalars(
+            select(JobChangeEvent).where(JobChangeEvent.event_type == "reopened")
+        )
+    )
+    assert stale.reopened_at is None
+    assert briefly_expired.reopened_at is None
+    assert verified.reopened_at == now
+    assert [(event.job_id, event.changes) for event in events] == [
+        (verified.id, {"expired_at": (now - timedelta(days=1, seconds=1)).isoformat()})
+    ]
 
 
 async def test_manual_ingestion_factory_builds_configured_adapters() -> None:

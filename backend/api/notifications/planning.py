@@ -380,6 +380,10 @@ class NotificationPlanner:
             )
         )
         for change in changes:
+            # Old events predate the strict lifecycle proof recorded by the
+            # persister. Skip them rather than sending a questionable alert.
+            if not isinstance(change.changes.get("expired_at"), str):
+                continue
             matches = list(
                 session.scalars(select(JobMatch).where(JobMatch.job_id == change.job_id))
             )

@@ -184,6 +184,16 @@ class JobPersister:
             if before != after
         }
         was_inactive = job.status != JobStatus.ACTIVE or not source_record.active
+        # A stale row can be restored after a couple of incomplete snapshots.
+        # That is lifecycle recovery, not a reopened employer posting. A
+        # notification is warranted only when this exact occurrence was fully
+        # expired and stayed expired long enough to rule out source churn.
+        genuinely_reopened = (
+            job.status == JobStatus.EXPIRED
+            and job.expired_at is not None
+            and seen_at - job.expired_at >= timedelta(days=1)
+            and not source_record.active
+        )
         lifecycle_needs_reset = (
             source_record.missing_snapshot_count != 0 or source_record.missing_since is not None
         )
@@ -219,8 +229,14 @@ class JobPersister:
             return False
         if changes:
             session.add(JobChangeEvent(job_id=job.id, event_type="updated", changes=changes))
-        if was_inactive:
-            session.add(JobChangeEvent(job_id=job.id, event_type="reopened", changes={}))
+        if genuinely_reopened:
+            session.add(
+                JobChangeEvent(
+                    job_id=job.id,
+                    event_type="reopened",
+                    changes={"expired_at": job.expired_at.isoformat()},
+                )
+            )
             job.reopened_at = seen_at
         source_record.source_url = candidate.source_url
         source_record.apply_url = candidate.apply_url
