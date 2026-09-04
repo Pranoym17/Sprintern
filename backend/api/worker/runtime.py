@@ -127,13 +127,12 @@ async def run_worker(app_settings: Settings = settings) -> None:
                             "exception_class": type(exc).__name__,
                         },
                     )
-                    try:
-                        await asyncio.wait_for(
-                            stop_event.wait(), timeout=app_settings.worker_claim_retry_seconds
-                        )
-                    except TimeoutError:
-                        pass
-                    continue
+                    # A profile refresh is a convenience task initiated from a
+                    # filter edit.  It must never prevent the durable queue
+                    # from ingesting sources or dispatching notifications.
+                    # Queue claiming below has its own retry/backoff path for
+                    # genuine database outages.
+                    refresh = None
                 if refresh is not None:
                     refresh_context: dict[str, Any] = {
                         "event": "worker.profile_refresh",

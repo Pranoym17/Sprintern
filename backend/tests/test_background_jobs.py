@@ -7,8 +7,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from api.jobs import BackgroundJobQueue
+from api.matching import matching_service
 from api.models import BackgroundJob
-from api.worker.runtime import BackgroundJobHandler
+from api.settings import Settings
+from api.worker import runtime
+from api.worker.runtime import BackgroundJobHandler, run_worker
 
 
 @pytest.fixture(autouse=True)
@@ -145,3 +148,33 @@ async def test_matching_job_enqueues_immediate_notification_dispatch(
     assert dispatch is not None
     assert dispatch.job_type == "notifications.dispatch"
     assert dispatch.correlation_id == "matching-correlation"
+
+
+async def test_worker_claims_durable_jobs_when_profile_refresh_claim_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A per-profile failure cannot pause source ingestion or notifications."""
+    stop_callbacks = []
+    durable_claims = []
+
+    def install_stop_handler(callback: object) -> object:
+        stop_callbacks.append(callback)
+        return lambda: None
+
+    def fail_profile_claim(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("profile marker query failed")
+
+    def claim_durable_job(*_args: object, **_kwargs: object) -> None:
+        durable_claims.append(True)
+        callback = stop_callbacks[0]
+        assert callable(callback)
+        callback()
+        return None
+
+    monkeypatch.setattr(runtime, "_install_signal_handlers", install_stop_handler)
+    monkeypatch.setattr(matching_service, "claim_profile_refresh", fail_profile_claim)
+    monkeypatch.setattr(BackgroundJobQueue, "claim", claim_durable_job)
+
+    await run_worker(Settings(database_url="postgresql+psycopg://unused/test"))
+
+    assert durable_claims == [True]
