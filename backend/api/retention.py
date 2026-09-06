@@ -50,31 +50,38 @@ class JobRetentionService:
         session: Session,
         *,
         retention_days: int,
-        batch_size: int = 500,
+        batch_size: int = 1_000,
+        max_batches: int = 10,
     ) -> int:
         """Bound queue history without touching work that may still retry.
 
         Queue rows are operational diagnostics, not user data. Keeping a short
-        window is enough for investigation and prevents completed history from
-        slowing queue claims or adding unnecessary write amplification.
+        window is enough for investigation. A single 500-row daily delete could
+        not keep pace with scheduler traffic, so use bounded batches that catch
+        up while avoiding an unbounded maintenance transaction.
         """
         cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-        identifiers = list(
-            session.scalars(
-                select(BackgroundJob.id)
-                .where(
-                    BackgroundJob.status.in_(("succeeded", "dead")),
-                    BackgroundJob.finished_at.is_not(None),
-                    BackgroundJob.finished_at < cutoff,
+        deleted = 0
+        for _ in range(max_batches):
+            identifiers = list(
+                session.scalars(
+                    select(BackgroundJob.id)
+                    .where(
+                        BackgroundJob.status.in_(("succeeded", "dead")),
+                        BackgroundJob.finished_at.is_not(None),
+                        BackgroundJob.finished_at < cutoff,
+                    )
+                    .order_by(BackgroundJob.finished_at)
+                    .limit(batch_size)
                 )
-                .order_by(BackgroundJob.finished_at)
-                .limit(batch_size)
             )
-        )
-        if not identifiers:
-            return 0
-        session.execute(delete(BackgroundJob).where(BackgroundJob.id.in_(identifiers)))
-        return len(identifiers)
+            if not identifiers:
+                break
+            session.execute(delete(BackgroundJob).where(BackgroundJob.id.in_(identifiers)))
+            deleted += len(identifiers)
+            if len(identifiers) < batch_size:
+                break
+        return deleted
 
 
 job_retention_service = JobRetentionService()
