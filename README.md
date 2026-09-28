@@ -2,6 +2,8 @@
 
 **A production-minded internship discovery and alert platform.**
 
+https://github.com/user-attachments/assets/ff159213-07ba-439b-8393-04fead55fa0b
+
 Sprintern turns fragmented internship listings into one focused job feed. Students choose a small
 set of role, location, and term preferences; Sprintern normalizes incoming listings, removes
 duplicates, matches relevant openings, and delivers Telegram alerts or a daily email digest.

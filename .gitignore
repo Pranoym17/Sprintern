@@ -171,3 +171,6 @@ AGENTS.md
 
 # Local planning and operational notes
 docs/
+
+# Launch video build output (rendered locally with /brag)
+brag-output/
