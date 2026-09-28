@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PRODUCT_PAUSED } from "../src/lib/product-status";
 
 test("landing page communicates the live product and stays within the viewport", async ({ page }) => {
   await page.goto("/");
@@ -18,8 +19,19 @@ for (const [path, heading] of [["/privacy", "Privacy at Sprintern"], ["/terms", 
   });
 }
 
-test("sign-in form has accessible labels and links", async ({ page }) => {
+test("sign-in route reflects current product availability", async ({ page }) => {
   await page.goto("/sign-in");
+
+  if (PRODUCT_PAUSED) {
+    await expect(
+      page.getByRole("heading", { name: "The live service is currently paused." }),
+    ).toBeVisible();
+    await expect(page.getByText("Sprintern is not accepting sign-ups or running job alerts right now."))
+      .toBeVisible();
+    await expect(page.getByRole("link", { name: "Return to Sprintern" })).toHaveAttribute("href", "/");
+    return;
+  }
+
   await expect(page.getByRole("heading", { name: "Sign in to your alerts" })).toBeVisible();
   await expect(page.getByLabel("Email address")).toBeVisible();
   await expect(page.getByLabel("Password")).toBeVisible();
@@ -30,7 +42,11 @@ test("sign-in form has accessible labels and links", async ({ page }) => {
 test("protected routes redirect signed-out users and preserve a safe destination", async ({ page }) => {
   await page.goto("/matches");
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fmatches$/);
-  await expect(page.getByText("Sign in to your alerts")).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: PRODUCT_PAUSED ? "The live service is currently paused." : "Sign in to your alerts",
+    }),
+  ).toBeVisible();
 });
 
 test("password recovery is available", async ({ page }) => {
